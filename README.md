@@ -1,12 +1,24 @@
 # HogNoise
 
-Procedural noise for Python. Every FastNoiseLite and FastNoiseSIMD algorithm in one package, fast with numba, exact with numpy, and checked against the original libraries.
+Procedural noise for Python: Perlin, OpenSimplex2, cellular (Worley), value and white noise, with fractals and domain warp. Every FastNoiseLite and FastNoiseSIMD algorithm in one package, fast with numba, exact with numpy, and checked against the original libraries.
 
 <p>
-  <img src="Docs/noise/gallery/types.png" alt="The noise types, one octave each" height="200">
-  <img src="Docs/noise/gallery/fractals.png" alt="Fractals over OpenSimplex2" height="200">
-  <img src="Docs/noise/gallery/warp.png" alt="Domain warp" height="200">
+  <img src="Docs/noise/gallery/types.png" alt="Noise types, one octave each: OpenSimplex2, OpenSimplex2S, cellular, Perlin, value cubic, value, white noise and classic Simplex" height="200">
+  <img src="Docs/noise/gallery/fractals.png" alt="Fractal noise over OpenSimplex2, four octaves: none, FBm, Ridged, PingPong, Billow and RigidMulti" height="200">
+  <img src="Docs/noise/gallery/warp.png" alt="Domain warp over OpenSimplex2 FBm: OpenSimplex2, OpenSimplex2 reduced and basic grid warps, single, progressive and independent" height="200">
 </p>
+
+## Who it's for
+
+If you searched for Perlin or simplex noise in Python, cellular or Voronoi noise over numpy, fractal Brownian motion, domain warping, or "FastNoiseLite, but Python", you are in the right place.
+
+- **Terrain, worlds and levels.** Heightmaps, biome masks, caves, scatter: whole numpy grids at once, a 1024 x 1024 field in about 17 ms.
+- **Game developers who already know FastNoiseLite** from Godot 4, Unity or C++. Same algorithms, same parameters, same seeds, so a tool or a bake in Python agrees with the engine to float32 rounding.
+- **Anyone stuck on `pyfastnoisesimd`.** FastNoiseSIMD's own noise (classic Simplex, Billow, RigidMulti, gradient perturb) is here too, so your old seeds still reproduce, on Python 3.11 to 3.13.
+- **Technical artists in a DCC host.** It installs with numpy alone, no compiler, and CI tests the numpy 1.26 that Maya 2026 ships.
+- **Textures, generative art and synthetic data.** Seeded and repeatable: the same parameters give the same array, with or without numba.
+
+What it adds over the other options is proof: the numbers are compared against the original C++ libraries, and the two renderings agree bit for bit. If you need 4D, a node editor or raw C++ speed today, see [Limits](#limits).
 
 ## Install
 

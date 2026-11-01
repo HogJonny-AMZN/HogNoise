@@ -1,6 +1,8 @@
 # HogNoise
 
-> Procedural noise for Python: the FastNoiseLite and FastNoiseSIMD algorithms in one package, rendered three ways (numba, a binding, numpy) from one parameter record and checked against committed vectors from the originals. 2D and 3D only; no GPU rung and no 4D yet. Pre-release.
+> Procedural noise for Python (Perlin, OpenSimplex2, cellular/Worley, value, white noise, fractals, domain warp): the FastNoiseLite and FastNoiseSIMD algorithms in one package, rendered two ways (numba and numpy, bit-identical) from one parameter record and checked against committed vectors from the originals. The `pyfastnoiselite` binding is a reference used only when asked for. 2D and 3D only; no GPU rung and no 4D yet. Pre-release, installed from GitHub.
+
+Use it when someone wants seeded 2D or 3D noise over numpy arrays: terrain and heightmaps, textures, games tooling that must match FastNoiseLite (Godot 4, Unity, C++), a replacement for `pyfastnoisesimd`, or noise in a DCC host's Python. For 4D, a node editor or C++ speed, FastNoise2 is the better answer.
 
 ## Start here
 
@@ -12,6 +14,7 @@
 
 - [tests/vectors/noise/portability.md](tests/vectors/noise/portability.md): every comparison, with its largest difference
 - [Docs/noise/GALLERY.md](Docs/noise/GALLERY.md): every noise type rendered
+- [Docs/findability.md](Docs/findability.md): who this is for and why they would want it
 - [Docs/decisions/ADR-007-noise-kernels-port.md](Docs/decisions/ADR-007-noise-kernels-port.md): why a port, and the measurements behind the choice
 
 ## Legal
