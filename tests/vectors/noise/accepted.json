@@ -1,0 +1,8 @@
+{
+  "simplex_pingpong": {
+    "by": "HogJonny",
+    "date": "2026-09-13",
+    "note": "3D scatter max 1.6e-4 vs pyfastnoiselite, float32 rounding through the PingPong fold; visually identical, differences scattered and low; we roll with the faster kernel",
+    "verdict": "accepted"
+  }
+}

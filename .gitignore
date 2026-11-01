@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv*/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.numba_cache/
+*.nbi
+*.nbc
+tools/noise_oracle/*.exe
+tools/noise_oracle/*.obj

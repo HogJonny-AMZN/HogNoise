@@ -1,0 +1,33 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The library floor: Maya 2026 ships Python 3.11 and numpy 1.x.
+          - {name: "3.11 + numpy 1.26 (floor)", os: ubuntu-latest, python: "3.11", numpy: "numpy==1.26.*", extras: "dev"}
+          # The edge: newest Python the package admits, newest numpy.
+          - {name: "3.13 + latest numpy", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "dev"}
+          # The self-contained claim: numpy is the only runtime dependency, so the suite must pass with no extras.
+          - {name: "3.13, numpy only (no numba, no binding)", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "test"}
+          - {name: "3.13 on Windows", os: windows-latest, python: "3.13", numpy: "numpy", extras: "dev"}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[${{ matrix.extras }}]" "${{ matrix.numpy }}"
+      - name: Test
+        run: pytest

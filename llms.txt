@@ -1,0 +1,20 @@
+# HogNoise
+
+> Procedural noise for Python: the FastNoiseLite and FastNoiseSIMD algorithms in one package, rendered three ways (numba, a binding, numpy) from one parameter record and checked against committed vectors from the originals. 2D and 3D only; no GPU rung and no 4D yet. Pre-release.
+
+## Start here
+
+- [README.md](README.md): why it exists, what it covers, what it is not, how to trust it
+- [AGENTS.md](AGENTS.md): rules for working in this repository
+- [PROVENANCE.md](PROVENANCE.md): where the code came from and what was changed
+
+## Evidence
+
+- [tests/vectors/noise/portability.md](tests/vectors/noise/portability.md): every comparison, with its largest difference
+- [Docs/noise/GALLERY.md](Docs/noise/GALLERY.md): every noise type rendered
+- [Docs/decisions/ADR-007-noise-kernels-port.md](Docs/decisions/ADR-007-noise-kernels-port.md): why a port, and the measurements behind the choice
+
+## Legal
+
+- [LICENSE](LICENSE): MIT
+- [NOTICE](NOTICE): FastNoiseLite and FastNoiseSIMD licences, and the source of the comparison vectors
