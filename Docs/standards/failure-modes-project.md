@@ -46,6 +46,17 @@ front of you, and do not copy package metadata (authors, emails, URLs) from the 
 **Because:** the stage 3 sweep found no credential values, but did find a CI secret's name in two commits and identity
 strings in commit metadata, and the source project's `pyproject.toml` carried an address that must not ship.
 
+### P-4 · A deny-list in a tracked file publishes what it denies
+
+**Trigger:** you are about to put an identifier the repository must never contain (an employer, a private project, a
+secret's name) into a checked-in list, so that a check can refuse it.
+**Do:** keep that list out of anything that will be published, or list a pattern that does not spell the identifier out.
+Before publishing, read the check's own configuration as part of the sweep.
+**Because:** the adoption's answers put an employer's email domain and a private project's CI secret name in
+`project.json`'s `hygiene` list, so that the hygiene check would refuse them. The pre-publication sweep found them there: the
+only place in the tree either string appeared was the list meant to keep them out. They were removed before anything was
+pushed; the sweep of every commit had already shown neither string anywhere else.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
