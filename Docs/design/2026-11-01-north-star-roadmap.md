@@ -57,7 +57,7 @@ Each stage has its oracle, because a stage nobody can check is not done. Costs a
 | 4 | **FastNoise2 parity, 2D and 3D**: every node above, one family at a time (generators, then blends and modifiers, then warps and cellular) | each node against the stage 3 vectors | 15 to 25 |
 | 5 | **4D**, across every node that has it, and **tileable 2D** | FastNoise2's 4D vectors; periodicity for tileable | 5 to 10 |
 | 6 | **The GPU, WGSL first**: the graph compiled to a WGSL compute shader and run through wgpu, as a `noise_grid` rung on the ladder | every vector, within the tolerance contract, on a real adapter and on CI's software adapter | 10 to 15 |
-| 7 | **The other shader languages**: HLSL, GLSL and Metal from one shader source rather than four hand-written copies (Slang compiles to all of them; that choice is the stage's first spike) | WGSL is executed in CI; the others compile in CI and execute on a workstation against the same vectors | 10 to 15 |
+| 7 | **The other shader languages**: HLSL, GLSL, Metal and SPIR-V generated from the WGSL by naga, wgpu's translator (decided 2026-11-01; Slang was the earlier proposal) | WGSL is executed in CI; the emitted files compile in CI and run through wgpu's back ends where the machine has them | 2 to 4 |
 | 8 | **Correctness far from the origin**: an integer lattice or float64 coordinates, so that large worlds do not break the float32 hashing (on the GPU most of all, which is float32) | vectors at 1e5 to 1e7 units, against float64 | 3 to 5 |
 | 9 | **Speed, published**: benchmarks against FastNoise2, FastNoiseLite and the bindings, and the CPU fast paths the numbers ask for | a reproducible script; numbers quoted with their commit | 3 to 5 |
 
@@ -69,6 +69,12 @@ Roughly 55 to 90 working days end to end, so months, not weeks. The order matter
 - **6 after 2**, because a graph compiles to one shader, where a record would need a shader per feature.
 - **8 alongside 6**: a GPU rendering that only works near the origin is not a rendering a large world can use.
 
+## The fast track (2026-11-01)
+
+The owner brought the GPU forward: today's noise on wgpu in WGSL first, the other shader languages as its stretch, before the
+node graph and FastNoise2 parity. Stages 6 and 7 below are therefore served first by [the GPU fast track](2026-11-01-gpu-fast-track.md),
+which ports the current kernels as one shader; when the node graph lands, it calls the same WGSL functions.
+
 ## Decisions to lock
 
 1. **What "parity" means for an algorithm both libraries have.** FastNoise2's Simplex is not FastNoiseLite's OpenSimplex2,
@@ -76,8 +82,8 @@ Roughly 55 to 90 working days end to end, so months, not weeks. The order matter
    working), and FastNoise2's arrive as their own nodes, matched to FastNoise2.
 2. **The GPU tolerance.** Proposed: a per-node bound, defaulting to 1e-5 relative to the node's output range, derived from
    measurement in stage 6, never loosened to make a test pass.
-3. **One shader source.** Proposed: Slang, compiled to WGSL, HLSL, GLSL and Metal, subject to stage 7's spike showing its
-   WGSL output runs through wgpu. The alternative is WGSL as the source with translators for the rest.
+3. **One shader source.** *Decided 2026-11-01:* WGSL is the source and naga, wgpu's translator, emits HLSL, GLSL, Metal and
+   SPIR-V from it ([the GPU fast track](2026-11-01-gpu-fast-track.md)). Slang was the earlier proposal.
 4. **The graph's serialised form.** Proposed: HogNoise's own JSON, with an importer for FastNoise2's encoded trees as a
    later, separate row.
 
