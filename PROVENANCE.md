@@ -45,7 +45,7 @@ Measured on this commit, each in its own virtualenv:
 | Python 3.11, numpy 1.26 (the floor), same extras | 246 passed, 3 skipped |
 | Python 3.13, numpy only | 176 passed, 73 skipped (the skips are the comparisons that need a second rung, and the table writer) |
 
-The 3 skips in every row are the sunset check with no sunset declared. The CI workflow has not run: there is no remote yet.
+The 3 skips in every row are the sunset check with no sunset declared. At stage 2 the CI workflow had not run, as there was no remote; it first ran on 2026-11-01, on publishing, and passed.
 
 ## Stage 3: publish-ready, still private (2026-10-11, branch `stage3/publish-ready`)
 
