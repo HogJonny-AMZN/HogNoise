@@ -12,9 +12,9 @@ Procedural noise for Python: Perlin, OpenSimplex2, cellular (Worley), value and 
 
 If you searched for Perlin or simplex noise in Python, cellular or Voronoi noise over numpy, fractal Brownian motion, domain warping, or "FastNoiseLite, but Python", you are in the right place.
 
-- **Terrain, worlds and levels.** Heightmaps, biome masks, caves, scatter: whole numpy grids at once, a 1024 x 1024 field in about 17 ms.
+- **Terrain, worlds and levels.** Heightmaps, biome masks, caves, scatter: whole numpy grids at once, a 1024 x 1024 field in about 17 ms with numba (numpy alone gives the same numbers, slower).
 - **Game developers who already know FastNoiseLite** from Godot 4, Unity or C++. Same algorithms, same parameters, same seeds, so a tool or a bake in Python agrees with the engine to float32 rounding.
-- **Anyone stuck on `pyfastnoisesimd`.** FastNoiseSIMD's own noise (classic Simplex, Billow, RigidMulti, gradient perturb) is here too, so your old seeds still reproduce, on Python 3.11 to 3.13.
+- **Anyone stuck on `pyfastnoisesimd`.** FastNoiseSIMD's classic Simplex is here as `NoiseType.SIMPLEX_CLASSIC`, with its Billow, RigidMulti and gradient perturb, and its white noise too: seeds for those reproduce, within float32 rounding of the original, on Python 3.11 to 3.13. Its Perlin, value and cellular hash differently, so fields made with those will change.
 - **Technical artists in a DCC host.** It installs with numpy alone, no compiler, and CI tests the numpy 1.26 that Maya 2026 ships.
 - **Textures, generative art and synthetic data.** Seeded and repeatable: the same parameters give the same array, with or without numba.
 
