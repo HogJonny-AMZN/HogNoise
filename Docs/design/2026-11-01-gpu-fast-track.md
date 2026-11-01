@@ -1,8 +1,7 @@
 # The GPU fast track: today's noise on wgpu, in WGSL
 
-**Status:** Proposed. The owner's direction, 2026-11-01: *"fast track ... current noise features but also wgpu/wgsl support,
-stretch other gpu shader languages."* Its four decisions were answered the same day (below); locking the document is the
-owner's.
+**Status:** Accepted (HogJonny-AMZN, 2026-11-01: "lock it"). The owner's direction the same day: *"fast track ... current
+noise features but also wgpu/wgsl support, stretch other gpu shader languages."* Its four decisions are below.
 
 ## Intent
 
