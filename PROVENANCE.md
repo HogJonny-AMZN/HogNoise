@@ -57,7 +57,7 @@ The 3 skips in every row are the sunset check with no sunset declared. The CI wo
 | Carried documents | `Docs/PYTHON_UPGRADE_AND_FASTNOISE.md` is marked Historical with section 4 named as the part that applies; ten links to files that were never copied lost their link; the sentence naming the source project's CI credential was removed. The ADRs are unedited |
 | Checks added | `tests/test_docs_links.py`: every relative link in every Markdown file resolves, shown to fail on a broken one |
 | Sweep | The tree and every commit, for credentials, private-project names, personal and employer identities. No credential values. The name of a CI secret is in two commits (`PYTHON_UPGRADE_AND_FASTNOISE.md`) and is removed from the tip. `pyproject.toml` lists the name only; the source project's address was not copied |
-| Not decided | Filtered or fresh history: the commit messages cite PR numbers and board vocabulary of the source project, and the commit metadata carries the two author names. See *What this is not yet*. Nothing here rewrites history |
+| History | Decided 2026-11-01: a fresh public history (see *The public history starts here*); the filtered history stays private |
 
 ## The public history starts here (2026-11-01)
 
@@ -76,5 +76,4 @@ removed because the template's docs check covers relative links. The code was br
 
 ## What this is not yet
 
-Not published, and nothing has been pushed anywhere. Publishing (stage 4) is gate G1 on the board, and the owner's
-decision alone: the copyright line, the author name on the public commits, the GitHub account, and the PyPI name.
+Not on PyPI. Stage 4 is done: published 2026-11-01 at [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), with only the fresh history pushed.

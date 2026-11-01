@@ -2,7 +2,7 @@
 
 **Section:** gate
 **Owner:** none
-**State:** Open
+**State:** Closed: published 2026-11-01 at [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise) (copyright "HogJonny", author HogJonny-AMZN, PyPI later)
 **Decider:** @HogJonny-AMZN
 
 Nothing is pushed, created on a forge or registered until this closes. It needs four answers from the owner: the copyright
