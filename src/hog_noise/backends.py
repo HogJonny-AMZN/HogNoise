@@ -11,7 +11,8 @@ Selection rules, in order:
 1. ``HOG_NOISE_BACKEND_<CAPABILITY>=<name>`` forces a backend. If it is unavailable the call
    raises with the reason; an explicit request never falls through silently.
 2. Otherwise the highest-priority available backend whose `python_max` admits the running
-   interpreter. Negative-priority backends are legacy rungs: skipped here, reachable only by 1.
+   interpreter. Negative-priority backends are override-only rungs (a legacy implementation, or a reference that
+   must not change results by being installed): skipped here, reachable only by 1.
 3. Every selection can be logged with `describe`, which names what ran and what was skipped and
    why, so the setup log answers "which implementation and why" without a profiler.
 
@@ -49,7 +50,7 @@ class Backend:
 
     :param capability: Capability name, e.g. ``"noise"``.
     :param name: Backend name, unique within the capability, e.g. ``"numba"``.
-    :param priority: Higher wins. Negative marks a legacy rung that only an override selects.
+    :param priority: Higher wins. Negative marks an override-only rung.
     :param is_available: Cheap check that the backend can run in this process. Called at
         selection time, never at registration, so importing optional dependencies stays lazy.
     :param factory: Called by the consumer with whatever arguments the capability defines.
@@ -178,7 +179,7 @@ def select(capability: str, environ: dict[str, str] | None = None, prefer: str |
         if preferred is None:
             skipped.append((prefer, "preferred by the app but not registered"))
         elif preferred.priority < 0:
-            skipped.append((prefer, "preferred by the app but a legacy rung, override only"))
+            skipped.append((prefer, "preferred by the app but an override-only rung"))
         else:
             ok, why = _availability(preferred)
             if ok:
@@ -190,7 +191,7 @@ def select(capability: str, environ: dict[str, str] | None = None, prefer: str |
         if backend.name in already:
             continue
         if backend.priority < 0:
-            skipped.append((backend.name, "legacy rung, override only"))
+            skipped.append((backend.name, "override-only rung"))
             continue
         if chosen is not None:
             skipped.append((backend.name, "lower priority"))

@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-jit = [
+fast = [
     # Optional JIT for the kernels (hog_noise.scalar). Never required: every kernel has a numpy base.
     "numba>=0.61",
 ]
@@ -44,14 +44,14 @@ test = [
     "pytest>=7.4.0",
 ]
 dev = [
-    "hog-noise[jit,reference,sheets,test]",
+    "hog-noise[fast,reference,sheets,test]",
     "ruff>=0.1.0",
 ]
 
 [dependency-groups]
 # The group the template's `make sync` and CI install: the project with every extra, so a fresh clone prepares the whole suite.
 dev = [
-    "hog-noise[jit,reference,sheets]",
+    "hog-noise[fast,reference,sheets]",
     "pytest>=8",
     "ruff>=0.6",
 ]

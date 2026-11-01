@@ -1,5 +1,5 @@
 """
-Tests for hog_noise.backends: selection order, the env override, legacy rungs, sunset strings.
+Tests for hog_noise.backends: selection order, the env override, override-only rungs, sunset strings.
 """
 
 import re
@@ -48,7 +48,7 @@ def test_legacy_rung_is_never_chosen_by_default():
     _reg("base", 0)
     sel = backends.select(CAP, environ={})
     assert sel.backend.name == "base"
-    assert ("legacy", "legacy rung, override only") in sel.skipped
+    assert ("legacy", "override-only rung") in sel.skipped
 
 
 def test_override_selects_a_legacy_rung():
@@ -197,6 +197,6 @@ def test_a_preference_never_picks_a_legacy_rung_and_the_override_beats_it():
     _reg("base", 0)
     sel = backends.select(CAP, environ={}, prefer="legacy")
     assert sel.backend.name == "base"
-    assert dict(sel.skipped)["legacy"] == "preferred by the app but a legacy rung, override only"
+    assert dict(sel.skipped)["legacy"] == "preferred by the app but an override-only rung"
     sel = backends.select(CAP, environ={env_var_for(CAP): "legacy"}, prefer="base")
     assert sel.backend.name == "legacy" and "forced" in sel.reason

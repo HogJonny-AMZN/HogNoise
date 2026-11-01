@@ -685,10 +685,8 @@ def test_seed_is_wrapped_to_int32_like_the_reference(coords):
 def test_ladder_picks_the_best_available_and_override_is_honoured(monkeypatch):
     params = NoiseParams()
     _, selection = make_sampler(params)
-    from hog_noise.samplers import _have_fastnoiselite
-
-    best = "numba" if HAVE_NUMBA else "fastnoiselite" if _have_fastnoiselite() else "numpy"
-    assert selection.backend.name == best
+    # The reference binding is override-only, so the choice never depends on whether it is installed.
+    assert selection.backend.name == ("numba" if HAVE_NUMBA else "numpy")
     monkeypatch.setenv("HOG_NOISE_BACKEND_NOISE", "numpy")
     sampler, selection = make_sampler(params)
     assert selection.backend.name == "numpy" and sampler.name == "numpy"

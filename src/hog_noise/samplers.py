@@ -7,11 +7,12 @@ Registered with `hog_noise.backends` under the capability ``"noise"``:
 | name             | priority | what                                                         |
 | ---------------- | -------- | ------------------------------------------------------------ |
 | ``numba``        | 100      | `scalar.py` compiled by numba, parallel over points          |
-| ``fastnoiselite``| 50       | the `pyfastnoiselite` binding, the reference for the port    |
 | ``numpy``        | 0        | `vectorized.py`, always available, slow but exact            |
+| ``fastnoiselite``| -10      | the `pyfastnoiselite` binding, the reference; override only  |
 
-All three produce the same noise for the same `NoiseParams` (within float32 rounding for the
-binding, exactly between numba and numpy).
+numba and numpy produce the same noise bit for bit, so what is installed changes the speed and never the result.
+The binding agrees with them to float32 rounding; it is the reference the port is compared against, so it is never
+chosen automatically: only by name (``make_sampler(params, backend="fastnoiselite")`` or the override variable).
 
 Every sampler exposes the same three calls, all filling a preallocated float32 ``out``:
 ``sample_points(xs, ys, zs, out)``, ``sample_points_2d(xs, ys, out)`` and ``sample(x, y, z)`` for a
@@ -370,10 +371,10 @@ register(
     Backend(
         CAPABILITY,
         "fastnoiselite",
-        50,
+        -10,  # the reference: override only, so an optional install never changes the numbers
         _have_fastnoiselite,
         FastNoiseLiteSampler,
-        note="pyfastnoiselite binding, single-threaded",
+        note="pyfastnoiselite binding, the reference; single-threaded",
     )
 )
 register(Backend(CAPABILITY, "numpy", 0, lambda: True, NumpySampler, note="vectorised numpy base"))

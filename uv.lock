@@ -32,7 +32,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-jit = [
+fast = [
     { name = "numba" },
 ]
 reference = [
@@ -47,26 +47,26 @@ test = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "hog-noise", extra = ["jit", "reference", "sheets"] },
+    { name = "hog-noise", extra = ["fast", "reference", "sheets"] },
     { name = "pytest" },
     { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "hog-noise", extras = ["jit", "reference", "sheets", "test"], marker = "extra == 'dev'" },
-    { name = "numba", marker = "extra == 'jit'", specifier = ">=0.61" },
+    { name = "hog-noise", extras = ["fast", "reference", "sheets", "test"], marker = "extra == 'dev'" },
+    { name = "numba", marker = "extra == 'fast'", specifier = ">=0.61" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "pillow", marker = "extra == 'sheets'", specifier = ">=10.0.0" },
     { name = "pyfastnoiselite", marker = "extra == 'reference'", specifier = ">=0.0.7" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
 ]
-provides-extras = ["jit", "reference", "sheets", "test", "dev"]
+provides-extras = ["fast", "reference", "sheets", "test", "dev"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "hog-noise", extras = ["jit", "reference", "sheets"] },
+    { name = "hog-noise", extras = ["fast", "reference", "sheets"] },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
 ]

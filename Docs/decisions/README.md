@@ -11,3 +11,4 @@ choose one name; the numbered ones stay as they are. Two ADRs with one id fail t
 | [ADR-007](ADR-007-noise-kernels-port.md) | Procedural noise is our own kernel port, with `pyfastnoiselite` as the reference (carried from the source project) | Accepted |
 | [ADR-008](ADR-008-numba-optional-and-benchmarked.md) | numba is optional, and used only where a benchmark says so (carried from the source project) | Accepted |
 | [ADR-009](ADR-009-backend-ladder.md) | One backend ladder per capability, with an override that never falls through (carried from the source project) | Accepted |
+| [ADR-2026-11-01](ADR-2026-11-01-the-binding-is-reference-only.md) | The FastNoiseLite binding is the reference, chosen only by name | Accepted |

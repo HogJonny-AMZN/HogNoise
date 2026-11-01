@@ -10,10 +10,15 @@ refused as current.
 | Term | Meaning |
 | --- | --- |
 | **NoiseParams** | The one parameter record every rendering of a noise reads: type, seed, frequency, fractal, cellular, warp and perturb settings. |
-| **Rung** | One implementation of a capability on the ladder: `numba` (compiled kernels), `fastnoiselite` (the reference binding), `numpy` (the base). |
-| **Ladder** | The ordered rungs for one capability, chosen by `hog_noise.backends.select`: the best available wins, and an explicit override (`HOG_NOISE_BACKEND_<CAPABILITY>`) never falls through. |
+| **Rung** | One implementation of a capability on the ladder: `numba` (compiled kernels), `numpy` (the base), and `fastnoiselite` (the reference binding, chosen only by name). |
+| **Ladder** | The ordered rungs for one capability, chosen by `hog_noise.backends.select`: the best available wins, an override-only rung (negative priority) is never chosen automatically, and an explicit override (`HOG_NOISE_BACKEND_<CAPABILITY>`) never falls through. |
 | **Oracle vectors** | The outputs captured from the original libraries under `tests/vectors/noise/`, which every rung is compared against. |
 | **Portability table** | `tests/vectors/noise/portability.md`: every comparison and how closely it agreed, rewritten by a full-environment test run. |
+| **North star** | The end state the [roadmap](design/2026-11-01-north-star-roadmap.md) defines: one self-contained package with FastNoise2 parity, 4D, and every rendering of every noise on CPU and GPU. |
+| **Rendering** | One way a noise is computed: numba, numpy, or a shader language (WGSL, HLSL, GLSL, Metal). The renderings of one graph must agree to their tolerance contract. |
+| **Tolerance contract** | The stated bound a rendering must meet against the oracle vectors: zero (bit-identical) for the CPU renderings, a per-node bound for the GPU. |
+| **Node graph** | A noise as nodes whose inputs are constants or other nodes, as in FastNoise2; planned, not built. |
+| **Conformance harness** | The published check any implementation runs against the oracle vectors; planned, not built. |
 
 
 ## Process
