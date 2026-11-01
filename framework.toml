@@ -1,0 +1,26 @@
+[framework]
+template_version = "0.4.0"
+upstream = "HogJonny-AMZN/ai-first-template"
+
+[modules]
+core = "on"
+journal = "on"
+ux = "planned"
+python-uv = "on"
+tasking = "planned"
+hygiene = "on"
+graph = "on"
+harness-adapters = "on"
+specimens = "off"
+lanes = "off"
+branch-ownership = "off"
+devblog = "off"
+
+[harnesses]
+enabled = ["claude", "copilot"]
+
+[checks]
+handoff_max_lines = 150
+
+[layers]
+order = ["hog_noise"]

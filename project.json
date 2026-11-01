@@ -1,0 +1,11 @@
+{
+  "name": "HogNoise",
+  "slug": "hog-noise",
+  "owner": {
+    "name": "HogJonny-AMZN",
+    "email": "hogjonny-github@protonmail.com"
+  },
+  "default_branch": "main",
+  "signoff": true,
+  "hygiene": []
+}

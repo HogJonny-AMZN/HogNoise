@@ -1,0 +1,8 @@
+#!/bin/sh
+# pre-commit: the fast stages of the check runner (everything but the tests).
+#
+# The tests take longer than a commit should; CI and `make check` run them. This stops the cheap failures before they
+# become a commit. It runs unpiped, so a failure stops the commit (a gate whose failure a pipe swallowed passes).
+#
+# Enabled once per clone by: make hooks   (see Docs/standards/tooling.md)
+exec uv run python tools/check.py --fast

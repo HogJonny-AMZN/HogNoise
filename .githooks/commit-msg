@@ -1,0 +1,8 @@
+#!/bin/sh
+# commit-msg: reject an AI attribution trailer, and require an accepted sign-off (the owner's, or a roster person's own)
+# when project.json asks for one.
+#
+# The rules and their reasons are in tools/check_commit_msg.py and Docs/standards/definition-of-done.md (Identity).
+#
+# Enabled once per clone by: make hooks   (see Docs/standards/tooling.md)
+exec uv run python tools/check_commit_msg.py "$1"

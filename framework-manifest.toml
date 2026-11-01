@@ -1,0 +1,312 @@
+# Which class and module every file of the payload belongs to. First matching rule wins; a pattern is an fnmatch
+# pattern over the path relative to the payload, with "/" separators (so "*" crosses directories).
+#
+#   managed        the template owns it; a repository's copy must match
+#   parametrised   the template owns the skeleton; project values are substituted in ({{name}}, {{slug}},
+#                  {{owner_name}}, {{owner_email}}, {{default_branch}}, {{today}}, {{template_version}}; see
+#                  tools/init.py _values). A value is inserted as it is, so put these in prose, not inside a quoted
+#                  string of a structured file. Only {{today}} may appear in a file's path, in the name only
+#   project-owned  seeded once if absent (tokens substituted), never overwritten
+#
+# tests/test_init.py (test_the_real_payload_manifest_...) fails on a payload file no rule matches and on a rule that
+# matches no file; it runs only against the template's own payload, not in a repository made from it.
+
+# A module's own tools and tests come first, so that the module that is off leaves no file behind.
+[[rule]]
+pattern = "tools/check_hygiene.py"
+module = "hygiene"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_check_hygiene.py"
+module = "hygiene"
+kind = "managed"
+
+[[rule]]
+pattern = "tools/check_log_format.py"
+module = "python-uv"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_check_log_format.py"
+module = "python-uv"
+kind = "managed"
+
+[[rule]]
+pattern = "tools/render_framework_graph.py"
+module = "graph"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_render_framework_graph.py"
+module = "graph"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/knowledge/ai-first-framework.graph.json"
+module = "graph"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/knowledge/ai-first-framework-graph.md"
+module = "graph"
+kind = "managed"
+
+[[rule]]
+pattern = "tools/render_journal_index.py"
+module = "journal"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_render_journal_index.py"
+module = "journal"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/journal.md"
+module = "journal"
+kind = "managed"
+
+[[rule]]
+pattern = "tools/boundaries.py"
+module = "python-uv"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_boundaries.py"
+module = "python-uv"
+kind = "managed"
+
+# The mock project: two faux libraries and their tests. Seeds the project replaces, so project-owned; the module that
+# is off leaves none of it behind. The boundary tool and test above are the part that stays.
+[[rule]]
+pattern = "src/*"
+module = "specimens"
+kind = "project-owned"
+
+[[rule]]
+pattern = "tests/test_core_*.py"
+module = "specimens"
+kind = "project-owned"
+
+[[rule]]
+pattern = "tests/test_app_*.py"
+module = "specimens"
+kind = "project-owned"
+
+[[rule]]
+pattern = "tools/sync_adapters.py"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_sync_adapters.py"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/compatibility-matrix.md"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/harness-probes.md"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = "tools/*.py"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_*.py"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/pins.py"
+module = "core"
+kind = "managed"
+
+# The entry file: the template owns the skeleton and the project's values are substituted in. It holds only generic
+# pointers (the project's own go in Docs/README.md), so a repository never needs to edit it.
+[[rule]]
+pattern = "AGENTS.md"
+module = "core"
+kind = "parametrised"
+
+# The ledgers: the framework's entries are the template's (managed); the project's own start empty and are its to edit.
+[[rule]]
+pattern = "Docs/standards/failure-modes.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/failure-modes-project.md"
+module = "core"
+kind = "project-owned"
+
+# The standards: the stack-free ones are core, the Python ones belong to the python-uv module. All are the template's.
+[[rule]]
+pattern = "Docs/standards/tooling.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/ci.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/python.md"
+module = "python-uv"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/testing.md"
+module = "python-uv"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/definition-of-done.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/workflow.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/adopting.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/updating.md"
+module = "core"
+kind = "managed"
+
+# The pull request template and the skills: the template's, for every harness (a harness reads the skills from
+# .agents/skills/ or from a generated mirror).
+[[rule]]
+pattern = ".github/pull_request_template.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = ".agents/skills/*"
+module = "core"
+kind = "managed"
+
+# The generated files of an enabled harness (tools/sync_adapters.py writes them; --check holds them to the generated text).
+# A harness that is off leaves none of them behind. Claude Code is the first harness whose probe has passed.
+[[rule]]
+pattern = "CLAUDE.md"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = ".claude/skills/*"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = ".github/copilot-instructions.md"
+module = "harness-adapters"
+kind = "managed"
+
+# The seeded documents belong to the project from the day they are written. {{today}} may appear in a path.
+[[rule]]
+pattern = "Docs/README.md"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/glossary.md"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/plan/*"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/handoffs/*"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/decisions/*"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/journal/*"
+module = "journal"
+kind = "project-owned"
+
+[[rule]]
+pattern = "framework-manifest.toml"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "framework.toml"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = "README.md"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = ".gitignore"
+module = "core"
+kind = "project-owned"
+
+# pyproject.toml and uv.lock are seeds: a project edits both on its first `uv add`, and uv rewrites the lock itself.
+[[rule]]
+pattern = "pyproject.toml"
+module = "python-uv"
+kind = "project-owned"
+
+[[rule]]
+pattern = "uv.lock"
+module = "python-uv"
+kind = "project-owned"
+
+[[rule]]
+pattern = ".python-version"
+module = "python-uv"
+kind = "project-owned"
+
+# The gate. The hooks are the template's; the Makefile, the workflow and the line-ending rules are seeds a project extends
+# (its own targets, its own steps), and the managed tests hold them to the rules whatever they grow into.
+[[rule]]
+pattern = ".githooks/*"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Makefile"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = ".gitattributes"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = ".github/workflows/ci.yml"
+module = "core"
+kind = "project-owned"
+
+[[rule]]
+pattern = ".github/dependabot.yml"
+module = "core"
+kind = "project-owned"

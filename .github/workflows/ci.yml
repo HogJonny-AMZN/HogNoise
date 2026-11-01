@@ -1,0 +1,76 @@
+# CI: the definition of done, enforced. Rationale: Docs/standards/ci.md
+#
+# One step per stage of tools/check.py, in its order, so that a failure names its stage in the log. tests/test_tooling.py
+# asserts the steps below are the stages `uv run python tools/check.py --list` prints: turn a module on or off in
+# framework.toml and that test names the step to add or remove.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# The token reads the repository and nothing else; a step that needs more says so in its own job.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      # A Windows-only or Linux-only failure is exactly the signal this matrix exists to produce: do not cancel the
+      # other leg when one fails.
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          # Linux is case-sensitive on paths: a link or an import with the wrong case works on Windows and fails here.
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync dependencies
+        run: uv sync --group dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Documentation drift
+        run: uv run python tools/check_docs.py
+
+      - name: Hygiene
+        run: uv run python tools/check_hygiene.py
+
+      - name: Log format
+        run: uv run python tools/check_log_format.py
+
+      - name: Framework graph
+        run: uv run python tools/render_framework_graph.py --check
+
+      - name: Harness adapters
+        run: uv run python tools/sync_adapters.py --check
+
+      - name: Sync check
+        run: uv run python tools/framework_sync.py --check
+
+      - name: Tests
+        run: uv run pytest -q
