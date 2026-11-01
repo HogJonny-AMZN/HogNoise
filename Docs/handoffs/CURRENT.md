@@ -47,5 +47,5 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 
 ## Open, and waiting on a person
 
-- **G2, the roadmap:** its four decisions (see the board row).
+- **G2, the roadmap:** its three remaining decisions (see the board row). The GPU fast track does not wait on it.
 - **PyPI:** when to register and release `hog-noise` 0.1.0.

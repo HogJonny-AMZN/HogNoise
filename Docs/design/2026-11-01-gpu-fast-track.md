@@ -34,7 +34,9 @@ the parameters, exactly as `scalar.py` does on the CPU, and the graph, when it c
 - **FastNoiseLite ships official HLSL and GLSL ports** (about 99 KB each, MIT). They are an independent cross-check for the
   FastNoiseLite half; they do not have the FastNoiseSIMD-only features.
 - **naga has back ends for WGSL, HLSL, GLSL, Metal and SPIR-V.** Running the WGSL on wgpu's DirectX 12, Vulkan and Metal back ends
-  exercises the HLSL, SPIR-V and Metal it produces.
+  tests wgpu's own translation at run time, not the files `tools/emit_shaders.py` writes; the two are checked separately (stage 3).
+- **The package rules forbid a graphics stack today.** [python-project.md](../standards/python-project.md) says the package never
+  imports one, and `tests/test_hog_noise/test_package_boundary.py` lists `wgpu` as forbidden. The port amends both, narrowly (stage 2).
 - **CI can run it.** The source project's Windows runner ran wgpu on its software adapter; Ubuntu needs a Vulkan software driver
   or skips with a reason.
 
@@ -50,8 +52,8 @@ large-coordinate stage describes. Stage 1 below exists to measure this before th
 | Stage | What | Proves it | Cost |
 | --- | --- | --- | --- |
 | 1 | **Spike**: OpenSimplex2 with FBm as a WGSL compute pass over a grid and over scattered points, read back against the numpy rendering on the existing vector coordinates | the measured difference per coordinate range: whether one bound holds, or which features need their own | 1 to 2 d |
-| 2 | **The WGSL port**: every feature, as one shader dispatching on `NoiseParams` (a uniform), a `wgpu` rung for `sample_grid` and `sample_points`, `wgpu` as a new `gpu` extra | every vector within its feature's bound; a GPU comparison table beside `portability.md`; run on a real adapter and on CI's software adapter | 8 to 12 d |
-| 3 | **Stretch: the other languages**: `tools/emit_shaders.py` runs naga to write HLSL, GLSL, Metal and SPIR-V beside the WGSL, shipped with the package | the emitted files compile in CI (a drift test fails when they fall behind the WGSL), and run through wgpu's back ends where the machine has them | 2 to 4 d |
+| 2 | **The WGSL port**: every feature, as one shader dispatching on `NoiseParams` (a uniform), a `wgpu` rung for `sample_grid` and `sample_points`, `wgpu` as a new `gpu` extra, and an amendment to `python-project.md` and the boundary test: `wgpu` is allowed in the one module behind that rung, imported behind a guard, so `import hog_noise` still needs numpy alone and the CPU stays the default | the boundary test passes with and without `wgpu` installed; every vector within its feature's bound; a GPU comparison table beside `portability.md`; run on a real adapter and on CI's software adapter | 8 to 12 d |
+| 3 | **Stretch: the other languages**: `tools/emit_shaders.py` runs naga to write HLSL, GLSL, Metal and SPIR-V beside the WGSL, shipped with the package | two separate checks. **The shipped files**: each compiles with its own language's compiler in CI (DXC for HLSL, glslang for GLSL, the Metal compiler where a macOS runner has it, spirv-val for SPIR-V), and a drift test fails when they fall behind the WGSL. **The WGSL**: it runs on wgpu's DirectX 12, Vulkan and Metal back ends against the vectors, which tests wgpu's translation, not the shipped files. Running each shipped file in its own host against the vectors is a later harness, not this stage | 2 to 4 d |
 
 ## Not in the fast track
 
