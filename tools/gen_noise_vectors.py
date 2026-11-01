@@ -24,7 +24,8 @@ Run from the repo root on the Python 3.9 venv to capture both::
 
 Coordinates are fixed by seed so a regeneration produces value-identical files when the binding is
 unchanged (not byte-identical: the zip entries carry a timestamp, so revert the untouched files after a
-regeneration and commit only the new ones; checked 2026-09-28, 54 files, zero value differences). Scattered samples: 4096 points, x and z in [-4096, 4096], y in [-256, 256]. Grid: 128 x 128
+regeneration and commit only the new ones; checked 2026-09-28, 54 files, zero value differences). Scattered samples:
+4096 points, x and z in [-4096, 4096], y in [-256, 256]. Grid: 128 x 128
 over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. Coordinates are written once to
 ``coords.npz``; each feature file holds only values, so the set stays under 10 MB.
 """
@@ -35,7 +36,6 @@ import logging as _logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -53,7 +53,7 @@ SEED = 12345
 COORD_SEED = 7
 
 
-def coordinates() -> Dict[str, np.ndarray]:
+def coordinates() -> dict[str, np.ndarray]:
     rng = np.random.RandomState(COORD_SEED)
     xs = rng.uniform(-4096, 4096, N_SCATTER).astype(np.float32)
     ys = rng.uniform(-256, 256, N_SCATTER).astype(np.float32)
@@ -64,7 +64,7 @@ def coordinates() -> Dict[str, np.ndarray]:
 
 
 def _write(
-    source: str, feature: str, params: Dict[str, object], values: Dict[str, np.ndarray], coords: Dict[str, np.ndarray]
+    source: str, feature: str, params: dict[str, object], values: dict[str, np.ndarray], coords: dict[str, np.ndarray]
 ) -> Path:
     out = VECTORS / source / f"{feature}.npz"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -109,7 +109,7 @@ FNL_CELL_RET = {
 }
 
 
-def generate_fnl(coords: Dict[str, np.ndarray]) -> List[Path]:
+def generate_fnl(coords: dict[str, np.ndarray]) -> list[Path]:
     from pyfastnoiselite.pyfastnoiselite import (
         CellularDistanceFunction,
         CellularReturnType,
@@ -121,7 +121,7 @@ def generate_fnl(coords: Dict[str, np.ndarray]) -> List[Path]:
 
     written = []
 
-    def run(feature: str, params: Dict[str, object], configure) -> None:
+    def run(feature: str, params: dict[str, object], configure) -> None:
         noise = FastNoiseLite(seed=SEED)
         noise.frequency = params["frequency"]
         configure(noise)
@@ -257,7 +257,7 @@ def _oracle_exe() -> Path:
 
 
 def _oracle(
-    exe: Path, mode: str, points: np.ndarray, params: Dict[str, object], warp_type: int, fractal: int
+    exe: Path, mode: str, points: np.ndarray, params: dict[str, object], warp_type: int, fractal: int
 ) -> np.ndarray:
     import subprocess
     import tempfile
@@ -288,7 +288,7 @@ def _oracle(
         return np.fromfile(outp, dtype=np.float32)
 
 
-def generate_fnl_warp(coords: Dict[str, np.ndarray]) -> List[Path]:
+def generate_fnl_warp(coords: dict[str, np.ndarray]) -> list[Path]:
     """
     Every warp type x warp fractal, amplitude 30 at frequency 0.01 over OpenSimplex2: the warped
     coordinates (``warp_2d`` N x 2, ``warp_3d`` N x 3, ``grid_warp_3d``) and the noise the reference
@@ -333,7 +333,7 @@ def generate_fnl_warp(coords: Dict[str, np.ndarray]) -> List[Path]:
 
 # -------------------------------------------------------------------------
 # FastNoiseSIMD
-def generate_fns(coords: Dict[str, np.ndarray]) -> List[Path]:
+def generate_fns(coords: dict[str, np.ndarray]) -> list[Path]:
     import pyfastnoisesimd as fns
 
     written = []
@@ -346,7 +346,7 @@ def generate_fns(coords: Dict[str, np.ndarray]) -> List[Path]:
         buf[2, : len(xs)] = zs
         return np.array(noise.genFromCoords(buf)[: len(xs)], dtype=np.float32)
 
-    def run(feature: str, params: Dict[str, object], configure) -> None:
+    def run(feature: str, params: dict[str, object], configure) -> None:
         noise = fns.Noise(seed=SEED, numWorkers=1)
         noise.frequency = params["frequency"]
         configure(noise)
@@ -504,7 +504,7 @@ def generate_fns(coords: Dict[str, np.ndarray]) -> List[Path]:
 
 
 # -------------------------------------------------------------------------
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--source", choices=("fnl", "fns", "both"), default="both")
     args = parser.parse_args(argv)

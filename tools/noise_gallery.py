@@ -22,8 +22,8 @@ import argparse
 import json
 import logging as _logging
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -53,7 +53,7 @@ PAGE = ROOT / "Docs" / "noise" / "GALLERY.md"
 VECTORS = ROOT / "tests" / "vectors" / "noise"
 TILE = 96
 
-Tile = Tuple[str, np.ndarray]  # caption, uint8 image (H, W) grey or (H, W, 3)
+Tile = tuple[str, np.ndarray]  # caption, uint8 image (H, W) grey or (H, W, 3)
 
 
 #: The docs' spelling of an enum value, the families module's
@@ -73,7 +73,7 @@ def render_tile(params: NoiseParams, size: int = TILE) -> np.ndarray:
     return grid[:, 0, :]
 
 
-def _grey(values: np.ndarray) -> Tuple[np.ndarray, float, float]:
+def _grey(values: np.ndarray) -> tuple[np.ndarray, float, float]:
     lo, hi = float(values.min()), float(values.max())
     if hi - lo < 1e-9:
         hi = lo + 1.0
@@ -154,7 +154,7 @@ def _params_from_vector(vp: dict) -> NoiseParams:
 #: A representative set, one or two per feature family, not every by-point comparison the tests make (those
 #: are all of PORTED and every perturb mode; portability.md lists them). (oracle directory, vector name, the
 #: noise type our side samples with when the vector's name is the retired library's.)
-COMPARISONS: Tuple[Tuple[str, str, Optional[str]], ...] = (
+COMPARISONS: tuple[tuple[str, str, str | None], ...] = (
     ("fns", "simplex_none", "simplex_classic"),
     ("fns", "simplex_fbm", "simplex_classic"),
     ("fns", "simplex_billow", "simplex_classic"),
@@ -169,7 +169,7 @@ COMPARISONS: Tuple[Tuple[str, str, Optional[str]], ...] = (
 )
 
 
-def comparison_rows() -> List[Tuple[str, compare.ComparisonStats, np.ndarray, np.ndarray]]:
+def comparison_rows() -> list[tuple[str, compare.ComparisonStats, np.ndarray, np.ndarray]]:
     """For each listed vector: its caption, the statistics, the oracle's grid and ours."""
     coords = np.load(VECTORS / "coords.npz")
     n = int(np.sqrt(len(coords["grid_x"])))
@@ -190,7 +190,7 @@ def comparison_rows() -> List[Tuple[str, compare.ComparisonStats, np.ndarray, np
 
 
 def comparison_sheet(rows, path: Path) -> Path:
-    tiles: List[Tile] = []
+    tiles: list[Tile] = []
     for caption, stats, ref, ours in rows:
         lo = min(stats.range_ours[0], stats.range_ref[0])
         hi = max(stats.range_ours[1], stats.range_ref[1])
@@ -267,7 +267,8 @@ def render_page(write_images: bool = True) -> str:
     ]
     for caption, stats, _ref, _ours in rows:
         lines.append(
-            f"| `{caption}` | {compare.classify(stats.max_abs)} | {stats.max_abs:.2e} | {stats.mean_abs:.2e} | {stats.correlation:.6f} |"
+            f"| `{caption}` | {compare.classify(stats.max_abs)} "
+            f"| {stats.max_abs:.2e} | {stats.mean_abs:.2e} | {stats.correlation:.6f} |"
         )
     lines.append("")
     return "\n".join(lines)
@@ -283,7 +284,7 @@ def _nondefault(params: NoiseParams) -> str:
     return ", ".join(parts) or "defaults"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--check", action="store_true", help="compare a fresh page with the committed one; no writes")
     args = parser.parse_args(argv)
@@ -299,7 +300,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             missing.append("comparisons.png")
         if missing:
             print(
-                f"noise gallery: sheets missing under {OUT_DIR}: {', '.join(missing)}; run python tools/noise_gallery.py"
+                f"noise gallery: sheets missing under {OUT_DIR}: {', '.join(missing)}; "
+                "run python tools/noise_gallery.py"
             )
             return 1
         print("noise gallery: page current")

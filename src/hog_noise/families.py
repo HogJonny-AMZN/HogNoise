@@ -8,7 +8,7 @@ the enums, so a newly ported noise appears in both the moment its enum is implem
 """
 
 import logging as _logging
-from typing import Callable, Dict, List, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 from hog_noise.params import (
     CELLULAR_DISTANCE_NAMES,
@@ -39,12 +39,12 @@ SEED = 12345
 FREQ = 0.03
 
 #: A captioned parameter record
-Preset = Tuple[str, NoiseParams]
+Preset = tuple[str, NoiseParams]
 #: ``(key, title, builder, sheet columns)``
-Family = Tuple[str, str, Callable[[], List[Preset]], int]
+Family = tuple[str, str, Callable[[], list[Preset]], int]
 
 
-def enum_name(table: Dict[str, object], value: object) -> str:
+def enum_name(table: dict[str, object], value: object) -> str:
     """The first (canonical) name a `*_NAMES` table gives ``value``."""
     for key, v in table.items():
         if v == value:
@@ -52,7 +52,7 @@ def enum_name(table: Dict[str, object], value: object) -> str:
     return str(getattr(value, "name", value)).lower()
 
 
-def family_types() -> List[Preset]:
+def family_types() -> list[Preset]:
     """Every implemented noise type, one octave."""
     return [
         (enum_name(NOISE_TYPE_NAMES, nt), NoiseParams(seed=SEED, frequency=FREQ, noise_type=nt))
@@ -60,7 +60,7 @@ def family_types() -> List[Preset]:
     ]
 
 
-def family_fractals() -> List[Preset]:
+def family_fractals() -> list[Preset]:
     """Every implemented fractal over OpenSimplex2, four octaves; the warp fractals belong to the warp family."""
     out = []
     for ft in sorted(IMPLEMENTED_FRACTAL_TYPES):
@@ -72,7 +72,7 @@ def family_fractals() -> List[Preset]:
     return out
 
 
-def family_cellular() -> List[Preset]:
+def family_cellular() -> list[Preset]:
     """Every cellular distance against every return, rows by distance."""
     out = []
     for dist in CellularDistance:
@@ -94,7 +94,7 @@ def family_cellular() -> List[Preset]:
     return out
 
 
-def family_warp() -> List[Preset]:
+def family_warp() -> list[Preset]:
     """Every domain warp type in its single, progressive and independent modes over OpenSimplex2 FBm."""
     out = [("no warp", NoiseParams(seed=SEED, frequency=FREQ, fractal_type=FractalType.FBM, octaves=3))]
     modes = (
@@ -117,7 +117,7 @@ def family_warp() -> List[Preset]:
     return out
 
 
-def family_perturb() -> List[Preset]:
+def family_perturb() -> list[Preset]:
     """Every gradient perturb mode over classic Simplex FBm."""
     base = NoiseParams(
         seed=SEED, frequency=FREQ, noise_type=NoiseType.SIMPLEX_CLASSIC, fractal_type=FractalType.FBM, octaves=4
@@ -132,7 +132,7 @@ def family_perturb() -> List[Preset]:
     return out
 
 
-def family_simplex_lineage() -> List[Preset]:
+def family_simplex_lineage() -> list[Preset]:
     """The three simplexes at one seed."""
     return [
         (name, NoiseParams(seed=SEED, frequency=FREQ, noise_type=parse_noise_type(name)))
@@ -160,9 +160,9 @@ FAMILIES: Sequence[Family] = (
 )
 
 
-def all_presets() -> List[Tuple[str, str, NoiseParams]]:
+def all_presets() -> list[tuple[str, str, NoiseParams]]:
     """Every family's rows flattened as ``(family key, caption, params)``, in family order."""
-    out: List[Tuple[str, str, NoiseParams]] = []
+    out: list[tuple[str, str, NoiseParams]] = []
     for key, _title, builder, _columns in FAMILIES:
         out.extend((key, caption, params) for caption, params in builder())
     return out

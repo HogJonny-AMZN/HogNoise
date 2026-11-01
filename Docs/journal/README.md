@@ -16,4 +16,4 @@ The files named `YYYY-MM-DD-session-NN.md`; every one is a row here.
 
 | Date | Session | What |
 | --- | --- | --- |
-| 2026-10-31 | [Session 01](2026-10-31-session-01.md) | Day 0: the repository was made from the template |
+| 2026-10-31 | [Session 01](2026-10-31-session-01.md) | A fresh public history; the repository adopts the template (ADR-001) |

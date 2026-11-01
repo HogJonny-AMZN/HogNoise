@@ -17,7 +17,6 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
-from typing import Set
 
 import pytest
 
@@ -28,12 +27,21 @@ SRC = Path(__file__).resolve().parents[2] / "src" / "hog_noise"
 ALLOWED = {"numpy", "numba", "pyfastnoiselite", "PIL", "hog_noise"}
 
 #: Names this package must never reach: where its code came from, and the graphics stacks.
-FORBIDDEN_AT_RUNTIME = ("large_worlds", "hog_rendering", "hog_color", "hog_color_ui", "hog_wild", "PySide6", "wgpu", "OpenGL")
+FORBIDDEN_AT_RUNTIME = (
+    "large_worlds",
+    "hog_rendering",
+    "hog_color",
+    "hog_color_ui",
+    "hog_wild",
+    "PySide6",
+    "wgpu",
+    "OpenGL",
+)
 
 
-def imported_top_levels(source: str) -> Set[str]:
+def imported_top_levels(source: str) -> set[str]:
     """Every top-level module name a source imports, wherever in the file the import sits."""
-    names: Set[str] = set()
+    names: set[str] = set()
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             names.update(alias.name.split(".")[0] for alias in node.names)
@@ -42,7 +50,7 @@ def imported_top_levels(source: str) -> Set[str]:
     return names
 
 
-def foreign(source: str) -> Set[str]:
+def foreign(source: str) -> set[str]:
     """Imports that are neither standard library nor on the allowed list."""
     return {n for n in imported_top_levels(source) if n not in sys.stdlib_module_names and n not in ALLOWED}
 

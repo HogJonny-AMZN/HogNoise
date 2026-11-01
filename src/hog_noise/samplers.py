@@ -20,7 +20,6 @@ single value.
 
 import logging as _logging
 import sys
-from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -99,9 +98,9 @@ class _KernelSampler:
 
     def sample_grid(
         self,
-        start: Tuple[int, int, int],
-        shape: Tuple[int, int, int],
-        scales: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+        start: tuple[int, int, int],
+        shape: tuple[int, int, int],
+        scales: tuple[float, float, float] = (1.0, 1.0, 1.0),
     ) -> NDArray[np.float32]:
         """
         Values on an axis-aligned grid, ``(nx, ny, nz)`` float32 indexed ``[ix, iy, iz]``, at
@@ -256,8 +255,8 @@ def _have_fastnoiselite() -> bool:
 
 
 def grid_points(
-    start: Tuple[int, int, int], shape: Tuple[int, int, int], scales: Tuple[float, float, float] = (1.0, 1.0, 1.0)
-) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+    start: tuple[int, int, int], shape: tuple[int, int, int], scales: tuple[float, float, float] = (1.0, 1.0, 1.0)
+) -> tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
     """The coordinates a `sample_grid` call samples, materialised, flat and in the grid's C order."""
     nx, ny, nz = (int(n) for n in shape)
     x0, y0, z0 = (int(v) for v in start)
@@ -311,7 +310,7 @@ class FastNoiseLiteSampler:
         self._noise = noise
         # pyfastnoiselite 0.0.7 binds GetNoise only, never DomainWarp, so a warped configuration
         # warps through the numpy base and samples the binding at the warped points (logged once).
-        self._warp: Optional[NumpySampler] = NumpySampler(params) if params.domain_warp else None
+        self._warp: NumpySampler | None = NumpySampler(params) if params.domain_warp else None
         if self._warp is not None:
             _LOGGER.info("pyfastnoiselite exposes no DomainWarp; the numpy base warps, the binding samples")
         # FastNoiseLite has no Billow and no white noise (FastNoiseSIMD's, Phase C): the numpy base
@@ -328,7 +327,7 @@ class FastNoiseLiteSampler:
             )
             or params.perturb != PerturbType.NONE
         )
-        self._delegate: Optional[NumpySampler] = NumpySampler(params) if fns_only else None
+        self._delegate: NumpySampler | None = NumpySampler(params) if fns_only else None
         if self._delegate is not None:
             _LOGGER.info("pyfastnoiselite lacks this FastNoiseSIMD feature; the numpy base answers on this rung")
 
@@ -380,7 +379,7 @@ register(
 register(Backend(CAPABILITY, "numpy", 0, lambda: True, NumpySampler, note="vectorised numpy base"))
 
 
-def make_sampler(params: NoiseParams, backend: Optional[str] = None):
+def make_sampler(params: NoiseParams, backend: str | None = None):
     """
     Build a sampler for ``params`` from the selected backend.
 

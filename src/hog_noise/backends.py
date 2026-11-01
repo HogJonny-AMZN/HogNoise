@@ -26,7 +26,8 @@ import dataclasses
 import logging as _logging
 import os
 import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 _MODULE_NAME = "hog_noise.backends"
 __version__ = "0.1.0"
@@ -62,16 +63,16 @@ class Backend:
     priority: int
     is_available: Callable[[], bool]
     factory: Callable[..., Any]
-    python_max: Optional[Tuple[int, int]] = None
-    sunset: Optional[str] = None
+    python_max: tuple[int, int] | None = None
+    sunset: str | None = None
     note: str = ""
 
-    def admits_python(self, version: Tuple[int, int] = sys.version_info[:2]) -> bool:
+    def admits_python(self, version: tuple[int, int] = sys.version_info[:2]) -> bool:
         """Whether `python_max` admits ``version`` (defaults to the running interpreter)."""
         return self.python_max is None or version <= self.python_max
 
 
-_REGISTRY: Dict[str, Dict[str, Backend]] = {}
+_REGISTRY: dict[str, dict[str, Backend]] = {}
 
 
 def register(backend: Backend) -> Backend:
@@ -85,12 +86,12 @@ def register(backend: Backend) -> Backend:
     return backend
 
 
-def registered(capability: str) -> List[Backend]:
+def registered(capability: str) -> list[Backend]:
     """All backends for ``capability``, highest priority first, then by name."""
     return sorted(_REGISTRY.get(capability, {}).values(), key=lambda b: (-b.priority, b.name))
 
 
-def clear(capability: Optional[str] = None) -> None:
+def clear(capability: str | None = None) -> None:
     """Forget registrations; tests use this. ``None`` clears everything."""
     if capability is None:
         _REGISTRY.clear()
@@ -103,12 +104,13 @@ def env_var_for(capability: str) -> str:
     return f"{ENV_PREFIX}{capability.upper()}{ENV_SUFFIX}"
 
 
-def _availability(backend: Backend) -> Tuple[bool, str]:
+def _availability(backend: Backend) -> tuple[bool, str]:
     """(available, reason-if-not). Never raises: an availability probe that throws is 'no'."""
     if not backend.admits_python():
         return (
             False,
-            f"python_max={backend.python_max[0]}.{backend.python_max[1]} excludes {sys.version_info[0]}.{sys.version_info[1]}",
+            f"python_max={backend.python_max[0]}.{backend.python_max[1]} "
+            f"excludes {sys.version_info[0]}.{sys.version_info[1]}",
         )
     try:
         ok = bool(backend.is_available())
@@ -124,7 +126,7 @@ class Selection:
     capability: str
     backend: Backend
     reason: str
-    skipped: Tuple[Tuple[str, str], ...]  # (name, why) for every backend not chosen
+    skipped: tuple[tuple[str, str], ...]  # (name, why) for every backend not chosen
 
     def describe(self) -> str:
         """One log line: chosen backend, reason, and every skipped rung with its reason."""
@@ -136,7 +138,7 @@ class Selection:
         return "; ".join(parts)
 
 
-def select(capability: str, environ: Optional[Dict[str, str]] = None, prefer: Optional[str] = None) -> Selection:
+def select(capability: str, environ: dict[str, str] | None = None, prefer: str | None = None) -> Selection:
     """
     Choose a backend for ``capability``.
 
@@ -169,8 +171,8 @@ def select(capability: str, environ: Optional[Dict[str, str]] = None, prefer: Op
         skipped = tuple((b.name, f"not requested by {env_var_for(capability)}") for b in backends if b is not chosen)
         return Selection(capability, chosen, f"forced by {env_var_for(capability)}", skipped)
 
-    skipped: List[Tuple[str, str]] = []
-    chosen: Optional[Backend] = None
+    skipped: list[tuple[str, str]] = []
+    chosen: Backend | None = None
     if prefer:
         preferred = next((b for b in backends if b.name == prefer), None)
         if preferred is None:
@@ -203,7 +205,7 @@ def select(capability: str, environ: Optional[Dict[str, str]] = None, prefer: Op
     return Selection(capability, chosen, "highest priority available", tuple(skipped))
 
 
-def is_dcc_host() -> Optional[str]:
+def is_dcc_host() -> str | None:
     """
     Name the DCC this process is running inside, if any. For logging and tests, never for selection.
 

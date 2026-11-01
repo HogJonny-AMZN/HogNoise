@@ -1,6 +1,6 @@
 # Python 3.13, FastNoise, numba, and the road to wgpu
 
-**Status:** Historical, carried from the private project this code was cut from (LargeWorlds). It is that project's Python 3.13, numba and wgpu roadmap. For HogNoise, **section 4 (the noise kernel, specified) is the part that applies**; the rest is context. Names and paths are the source project's; see [README.md](README.md) in this folder.
+**Status:** Superseded by this repository's own README, PROVENANCE.md and ADRs; kept as history, carried from the private project this code was cut from (LargeWorlds). It is that project's Python 3.13, numba and wgpu roadmap. For HogNoise, **section 4 (the noise kernel, specified) is the part that applies**; the rest is context. Names and paths are the source project's; see [README.md](README.md) in this folder.
 **Progress (as written):** Pre-ADR. Measured 2026-09-12, execution not started. Each numbered decision in section 3
 is a candidate for its own ADR in [decisions/](decisions/); section 5 is the seed of a
 superpowers/plans/ document.

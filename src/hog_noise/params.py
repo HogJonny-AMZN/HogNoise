@@ -14,7 +14,6 @@ and a kernel here are talking about the same thing by number, not by name.
 import dataclasses
 import logging as _logging
 from enum import IntEnum
-from typing import Dict, Tuple, Union
 
 _MODULE_NAME = "hog_noise.params"
 __version__ = "0.1.0"
@@ -117,7 +116,7 @@ class Transform3D(IntEnum):
 
 
 #: Caller-facing names. The `FastNoiseSignal` API has always taken strings; these are the strings.
-NOISE_TYPE_NAMES: Dict[str, NoiseType] = {
+NOISE_TYPE_NAMES: dict[str, NoiseType] = {
     "simplex": NoiseType.OPEN_SIMPLEX2,
     "opensimplex2": NoiseType.OPEN_SIMPLEX2,
     "simplex_smooth": NoiseType.OPEN_SIMPLEX2S,
@@ -134,7 +133,7 @@ NOISE_TYPE_NAMES: Dict[str, NoiseType] = {
     "fns_simplex": NoiseType.SIMPLEX_CLASSIC,
 }
 
-PERTURB_NAMES: Dict[str, PerturbType] = {
+PERTURB_NAMES: dict[str, PerturbType] = {
     "none": PerturbType.NONE,
     "off": PerturbType.NONE,
     "gradient": PerturbType.GRADIENT,
@@ -147,7 +146,7 @@ PERTURB_NAMES: Dict[str, PerturbType] = {
     "gradient_fractal_normalise": PerturbType.GRADIENT_FRACTAL_NORMALISE,
 }
 
-DOMAIN_WARP_NAMES: Dict[str, DomainWarpType] = {
+DOMAIN_WARP_NAMES: dict[str, DomainWarpType] = {
     "none": DomainWarpType.NONE,
     "off": DomainWarpType.NONE,
     "opensimplex2": DomainWarpType.OPEN_SIMPLEX2,
@@ -159,7 +158,7 @@ DOMAIN_WARP_NAMES: Dict[str, DomainWarpType] = {
     "basic_grid": DomainWarpType.BASIC_GRID,
 }
 
-FRACTAL_TYPE_NAMES: Dict[str, FractalType] = {
+FRACTAL_TYPE_NAMES: dict[str, FractalType] = {
     "none": FractalType.NONE,
     "fbm": FractalType.FBM,
     "ridged": FractalType.RIDGED,
@@ -172,7 +171,7 @@ FRACTAL_TYPE_NAMES: Dict[str, FractalType] = {
     "domain_warp_independent": FractalType.DOMAIN_WARP_INDEPENDENT,
 }
 
-CELLULAR_DISTANCE_NAMES: Dict[str, CellularDistance] = {
+CELLULAR_DISTANCE_NAMES: dict[str, CellularDistance] = {
     "euclidean": CellularDistance.EUCLIDEAN,
     "euclideansq": CellularDistance.EUCLIDEAN_SQ,
     "euclidean_sq": CellularDistance.EUCLIDEAN_SQ,
@@ -181,7 +180,7 @@ CELLULAR_DISTANCE_NAMES: Dict[str, CellularDistance] = {
     "natural": CellularDistance.NATURAL,  # Phase C, 2026-09-28
 }
 
-CELLULAR_RETURN_NAMES: Dict[str, CellularReturn] = {
+CELLULAR_RETURN_NAMES: dict[str, CellularReturn] = {
     "cellvalue": CellularReturn.CELL_VALUE,
     "cell_value": CellularReturn.CELL_VALUE,
     "distance": CellularReturn.DISTANCE,
@@ -223,7 +222,7 @@ IMPLEMENTED_FRACTAL_TYPES = frozenset(
 
 #: Known names whose kernel has not been ported yet, by the phase that ports them (pre-ADR 4.2).
 #: Empty since Phase C began; the machinery stays for Phase D.
-_UNIMPLEMENTED_REASON: Dict[object, str] = {}
+_UNIMPLEMENTED_REASON: dict[object, str] = {}
 
 
 def parse_noise_type(name: str) -> NoiseType:
@@ -429,7 +428,7 @@ class NoiseParams:
 
     def kernel_args(
         self,
-    ) -> Tuple[Union[int, float], ...]:
+    ) -> tuple[int | float, ...]:
         """
         The positional scalars every kernel takes, in the one order they take them.
 

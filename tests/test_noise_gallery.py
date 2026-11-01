@@ -5,9 +5,10 @@ Package: tests/test_noise_gallery
 
 from pathlib import Path
 
+import pytest
+
 import _tools_path  # noqa: F401  (puts tools/ on sys.path -- see that module; ledger entry 23)
 import noise_gallery  # noqa: E402
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 

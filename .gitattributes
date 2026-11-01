@@ -1,4 +1,26 @@
+# Normalise line endings: text files are LF in the repository and native in the working tree.
 * text=auto
-*.npz binary
-*.png binary
-*.exe binary
+
+*.py      text diff=python
+*.md      text
+*.toml    text
+*.json    text
+*.yml     text
+*.yaml    text
+*.txt     text
+Makefile  text eol=lf
+
+# Shell scripts and the git hooks (no extension, so autodetection would give them CRLF on Windows, which sh cannot run)
+# keep LF everywhere.
+*.sh      text eol=lf
+.githooks/pre-commit   text eol=lf
+.githooks/commit-msg   text eol=lf
+
+*.ps1     text eol=crlf
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# Binary: the oracle vectors, the gallery sheets, the oracle harness build.
+*.npz     binary
+*.png     binary
+*.exe     binary

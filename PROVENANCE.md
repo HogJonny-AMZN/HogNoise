@@ -67,8 +67,14 @@ to 3 commits) stays in the private working copy and is not published: its messag
 and board vocabulary, and its metadata carries two author names. The stage sections above remain the record of what was
 done; their commit hashes refer to that private history.
 
+## Adopting the template (2026-11-01)
+
+The repository runs on `ai-first-template` 0.4.0 with no overrides ([ADR-001](Docs/decisions/ADR-001-adopt-the-framework.md)).
+HogNoise's hand-written `AGENTS.md` and three-entry ledger took the template's versions; their content moved to the
+template's extension files and to `Docs/standards/failure-modes-project.md` (P-1 to P-3). `tests/test_docs_links.py` was
+removed because the template's docs check covers relative links. The code was brought to the template's lint rules.
+
 ## What this is not yet
 
-Not published, and nothing has been pushed anywhere. Next, before publishing: adopting ai-first-template (owner,
-2026-11-01: before publishing), then the copyright line and the GitHub account, which are the owner's to decide. Publishing
-(stage 4) is the owner's decision alone.
+Not published, and nothing has been pushed anywhere. Publishing (stage 4) is gate G1 on the board, and the owner's
+decision alone: the copyright line, the author name on the public commits, the GitHub account, and the PyPI name.

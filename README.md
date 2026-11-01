@@ -40,15 +40,16 @@ dependency is numpy; everything else is an extra.
 import numpy as np
 from hog_noise import FractalType, NoiseParams, NoiseType, make_sampler
 
-params = NoiseParams(seed=1337, frequency=0.02, noise_type=NoiseType.OPEN_SIMPLEX2,
-                     fractal_type=FractalType.FBM, octaves=4)
+params = NoiseParams(
+    seed=1337, frequency=0.02, noise_type=NoiseType.OPEN_SIMPLEX2, fractal_type=FractalType.FBM, octaves=4
+)
 sampler, selection = make_sampler(params)
-print(selection.describe())                  # which rung ran, and why
+print(selection.describe())  # which rung ran, and why
 
-height = sampler.sample_grid((0, 0, 0), (256, 1, 256))   # (nx, ny, nz): a 256 x 256 heightfield, float32
+height = sampler.sample_grid((0, 0, 0), (256, 1, 256))  # (nx, ny, nz): a 256 x 256 heightfield, float32
 xs = np.linspace(0, 100, 4096, dtype=np.float32)
 out = np.empty(4096, np.float32)
-sampler.sample_points(xs, xs, np.zeros_like(xs), out)    # fills out, no allocation per call
+sampler.sample_points(xs, xs, np.zeros_like(xs), out)  # fills out, no allocation per call
 ```
 
 Force a rung with `HOG_NOISE_BACKEND_NOISE=numpy` (an unavailable rung raises; it never falls through silently).

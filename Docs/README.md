@@ -8,9 +8,15 @@
 | [decisions/ADR-007-noise-kernels-port.md](decisions/ADR-007-noise-kernels-port.md) | why a port rather than a binding, with the measurements |
 | [decisions/ADR-008-numba-optional-and-benchmarked.md](decisions/ADR-008-numba-optional-and-benchmarked.md) | numba is optional, and only where a benchmark says so |
 | [decisions/ADR-009-backend-ladder.md](decisions/ADR-009-backend-ladder.md) | the ladder: one capability, ordered rungs, an override that never falls through |
-| [standards/failure-modes.md](standards/failure-modes.md) | how the work has gone wrong, as triggers |
+| [standards/failure-modes.md](standards/failure-modes.md) | the framework's ledger, from the template: how the work has gone wrong, as triggers |
 | [PYTHON_UPGRADE_AND_FASTNOISE.md](PYTHON_UPGRADE_AND_FASTNOISE.md) | the original planning document; section 4 specifies the kernel |
 | [DETAILED_FASTNOISE_PERF.md](DETAILED_FASTNOISE_PERF.md) | the performance measurements |
+| [standards/failure-modes-project.md](standards/failure-modes-project.md) | this project's ledger: how the process went wrong here (P-1 onwards) |
+| [standards/python-project.md](standards/python-project.md), [testing-project.md](standards/testing-project.md), [definition-of-done-project.md](standards/definition-of-done-project.md) | HogNoise's additions to the template's standards: the package boundary, the vectors as the oracle, claims that follow the vectors |
+| [plan/board/README.md](plan/board/README.md) | how a board row is written |
+| [standards/compatibility-matrix.md](standards/compatibility-matrix.md) | which coding harnesses the framework supports, and how well |
+| [standards/harness-probes.md](standards/harness-probes.md) | the conformance probe each enabled harness must pass |
+| [knowledge/ai-first-framework-graph.md](knowledge/ai-first-framework-graph.md) | the framework's documents and checks, as a graph |
 
 ## These came from another project
 

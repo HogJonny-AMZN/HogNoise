@@ -48,6 +48,14 @@ dev = [
     "ruff>=0.1.0",
 ]
 
+[dependency-groups]
+# The group the template's `make sync` and CI install: the project with every extra, so a fresh clone prepares the whole suite.
+dev = [
+    "hog-noise[jit,reference,sheets]",
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
 # =========================================================================
 # Build System
 # =========================================================================
@@ -66,15 +74,16 @@ line-length = 120
 # The library floor: Maya 2026+ is Python 3.11. Nothing newer than 3.11 syntax in library code.
 target-version = "py311"
 indent-width = 4
+src = ["tools", "tests", "src"]
+exclude = [".venv", "__pycache__", "Spikes"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
-ignore = ["E501"]
-
-[tool.ruff.lint.isort]
-known-first-party = ["hog_noise"]
+# The template's rule set; E501 stays on: the formatter does not wrap strings or docstrings.
+select = ["E", "F", "W", "I", "UP", "B"]
 
 [tool.ruff.format]
+# Records carried from the source project keep their code blocks as written: an ADR is append-only, and the roadmap is history.
+exclude = ["Docs/decisions/ADR-009-backend-ladder.md", "Docs/PYTHON_UPGRADE_AND_FASTNOISE.md"]
 quote-style = "double"
 indent-style = "space"
 

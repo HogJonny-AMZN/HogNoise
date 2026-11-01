@@ -9,8 +9,12 @@ refused as current.
 
 | Term | Meaning |
 | --- | --- |
+| **NoiseParams** | The one parameter record every rendering of a noise reads: type, seed, frequency, fractal, cellular, warp and perturb settings. |
+| **Rung** | One implementation of a capability on the ladder: `numba` (compiled kernels), `fastnoiselite` (the reference binding), `numpy` (the base). |
+| **Ladder** | The ordered rungs for one capability, chosen by `hog_noise.backends.select`: the best available wins, and an explicit override (`HOG_NOISE_BACKEND_<CAPABILITY>`) never falls through. |
+| **Oracle vectors** | The outputs captured from the original libraries under `tests/vectors/noise/`, which every rung is compared against. |
+| **Portability table** | `tests/vectors/noise/portability.md`: every comparison and how closely it agreed, rewritten by a full-environment test run. |
 
-Add HogNoise's own terms here, by area.
 
 ## Process
 
