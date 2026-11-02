@@ -5,6 +5,7 @@
 | Read this | For |
 | --- | --- |
 | [design/2026-11-01-north-star-roadmap.md](design/2026-11-01-north-star-roadmap.md) | the north star and the roadmap to it (Proposed) |
+| [findability.md](findability.md) | who searches for HogNoise and why, and the surfaces (README, topics, metadata, llms.txt) that must say so |
 | [noise/GALLERY.md](noise/GALLERY.md) | every noise type rendered, generated from the enums |
 | [decisions/ADR-007-noise-kernels-port.md](decisions/ADR-007-noise-kernels-port.md) | why a port rather than a binding, with the measurements |
 | [decisions/ADR-008-numba-optional-and-benchmarked.md](decisions/ADR-008-numba-optional-and-benchmarked.md) | numba is optional, and only where a benchmark says so |

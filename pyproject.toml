@@ -2,7 +2,7 @@
 [project]
 name = "hog-noise"
 version = "0.1.0.dev0"
-description = "Procedural noise for Python: the FastNoiseLite and FastNoiseSIMD algorithms, checked against the originals"
+description = "Procedural noise for Python: Perlin, OpenSimplex2, cellular and domain warp; the FastNoiseLite and FastNoiseSIMD algorithms, checked against the originals"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
@@ -10,15 +10,25 @@ license-files = ["LICENSE", "NOTICE"]
 authors = [
     {name = "HogJonny"}
 ]
-keywords = ["noise", "procedural-generation", "simplex", "perlin", "cellular", "numba", "numpy"]
+# Kept in step with Docs/findability.md: a term names something shipped.
+keywords = [
+    "noise", "procedural-noise", "procedural-generation", "perlin", "simplex", "opensimplex", "opensimplex2",
+    "cellular", "worley", "voronoi", "domain-warp", "fbm", "fractal-noise", "fastnoise", "fastnoiselite",
+    "fastnoisesimd", "terrain", "heightmap", "gamedev", "numba", "numpy",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+    "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 dependencies = [
