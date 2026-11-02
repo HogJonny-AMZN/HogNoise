@@ -3,8 +3,9 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-01: the public history starts at one commit, and the repository adopted `ai-first-template` 0.4.0
-with no overrides ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Nothing has been pushed; there is no remote.
+**Last updated:** 2026-11-01: **published** at [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), public; CI green on its first run. The repository runs on
+`ai-first-template` 0.4.0 with no overrides ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Next is gate G2, locking the
+[north-star roadmap](../design/2026-11-01-north-star-roadmap.md).
 
 A new session reads this, then [../plan/BOARD.md](../plan/BOARD.md) (gates first), then the newest file in
 [../journal/](../journal/README.md). This file is project truth: where the project is, the gates, what the owner said that
@@ -20,14 +21,15 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 - **Stages done:** 1, the filtered snapshot; 2, standing alone; 3, publish-ready (LICENSE, NOTICE, README) - all 2026-10-11.
   On 2026-11-01 the public history was started fresh at one commit (branch `public/main`); the filtered history behind it
   stays on the private local branches `main`, `stage2/stand-alone` and `stage3/publish-ready` and is never pushed.
-- **The template adoption** is on branch `adopt/template-0.4.0`, on top of `public/main`.
+- **Published** 2026-11-01: `main` on GitHub is the fresh commit, the adoption and the follow-ups. The private history
+  branches were never pushed and never will be.
 
 ## In flight
 
 | Item | State | Waiting on |
 | --- | --- | --- |
-| The template adoption, branch `adopt/template-0.4.0` | Adopted untouched, then the gate made green | The owner's read; there is no pull request to open until a remote exists |
-| Publishing, stage 4 (gate G1 on the board) | Not started | The owner's decisions in G1 |
+| The north-star roadmap (gate G2) | Proposed | The owner, to lock its four decisions |
+| PyPI release of `hog-noise` | Not started | The owner's go; needs the owner's PyPI credentials |
 
 ## What the owner has said that still holds
 
@@ -42,5 +44,5 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 
 ## Open, and waiting on a person
 
-- **G1, publishing:** the copyright line in `LICENSE` (now "HogJonny"); the author name on the public commits (now
-  `HogJonny-AMZN`); which GitHub account or organisation hosts the repository; registering `hog-noise` on PyPI.
+- **G2, the roadmap:** its four decisions (see the board row).
+- **PyPI:** when to register and release `hog-noise` 0.1.0.
