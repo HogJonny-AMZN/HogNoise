@@ -1,0 +1,247 @@
+{
+  "adapter": "NVIDIA GeForce RTX 5090",
+  "backend": "D3D12",
+  "adapter_type": "DiscreteGPU",
+  "cases": {
+    "simplex, one octave, f=0.01": [
+      {
+        "band": [
+          0.0,
+          10.0
+        ],
+        "max_abs": 1.6093254089355469e-06,
+        "p999_abs": 1.2516975402832031e-06,
+        "mean_abs": 1.3591386723108695e-07,
+        "exact_fraction": 0.0980682373046875,
+        "max_normalised": 1.6093254089355469e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          10.0,
+          100.0
+        ],
+        "max_abs": 2.0265579223632812e-06,
+        "p999_abs": 1.6093254089355469e-06,
+        "mean_abs": 2.1514619009260771e-07,
+        "exact_fraction": 0.08294677734375,
+        "max_normalised": 2.0265579223632812e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          100.0,
+          1000.0
+        ],
+        "max_abs": 5.170702934265137e-06,
+        "p999_abs": 3.053694963455096e-06,
+        "mean_abs": 4.49340993309566e-07,
+        "exact_fraction": 0.0418853759765625,
+        "max_normalised": 1.4998777945723067e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          1000.0,
+          4096.0
+        ],
+        "max_abs": 2.4050474166870117e-05,
+        "p999_abs": 1.3440847396850586e-05,
+        "mean_abs": 1.718389957494626e-06,
+        "exact_fraction": 0.0141143798828125,
+        "max_normalised": 6.57615802008812e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          4096.0,
+          32768.0
+        ],
+        "max_abs": 0.00021842122077941895,
+        "p999_abs": 0.00010959491133689849,
+        "mean_abs": 1.2342641712979018e-05,
+        "exact_fraction": 0.0033721923828125,
+        "max_normalised": 7.146208823584152e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          32768.0,
+          262144.0
+        ],
+        "max_abs": 0.0015450119972229004,
+        "p999_abs": 0.0008356324955821031,
+        "mean_abs": 9.815489209632697e-05,
+        "exact_fraction": 0.0004730224609375,
+        "max_normalised": 5.981143564372503e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      }
+    ],
+    "simplex FBm x4, f=0.01": [
+      {
+        "band": [
+          0.0,
+          10.0
+        ],
+        "max_abs": 1.2516975402832031e-06,
+        "p999_abs": 9.5367431640625e-07,
+        "mean_abs": 1.1649876768826672e-07,
+        "exact_fraction": 0.135986328125,
+        "max_normalised": 1.2516975402832031e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          10.0,
+          100.0
+        ],
+        "max_abs": 1.3113021850585938e-06,
+        "p999_abs": 1.0132789611816406e-06,
+        "mean_abs": 1.5888852051074154e-07,
+        "exact_fraction": 0.0665435791015625,
+        "max_normalised": 1.3113021850585938e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          100.0,
+          1000.0
+        ],
+        "max_abs": 5.990266799926758e-06,
+        "p999_abs": 3.5287656646687536e-06,
+        "mean_abs": 4.234969948058165e-07,
+        "exact_fraction": 0.0273590087890625,
+        "max_normalised": 9.358077087347168e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          1000.0,
+          4096.0
+        ],
+        "max_abs": 2.6300549507141113e-05,
+        "p999_abs": 1.574151217937454e-05,
+        "mean_abs": 1.7623706874414502e-06,
+        "exact_fraction": 0.0093841552734375,
+        "max_normalised": 8.391943571777074e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          4096.0,
+          32768.0
+        ],
+        "max_abs": 0.00027004629373550415,
+        "p999_abs": 0.00011980116367340046,
+        "mean_abs": 1.2726741805135777e-05,
+        "exact_fraction": 0.0018310546875,
+        "max_normalised": 8.39109174627065e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          32768.0,
+          262144.0
+        ],
+        "max_abs": 0.0014970600605010986,
+        "p999_abs": 0.0009359567426145049,
+        "mean_abs": 0.00010245022911493408,
+        "exact_fraction": 0.0003204345703125,
+        "max_normalised": 7.608745112622783e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      }
+    ],
+    "simplex FBm x4, f=0.05": [
+      {
+        "band": [
+          0.0,
+          10.0
+        ],
+        "max_abs": 1.2516975402832031e-06,
+        "p999_abs": 7.897615432739258e-07,
+        "mean_abs": 1.1365117975946446e-07,
+        "exact_fraction": 0.0602874755859375,
+        "max_normalised": 1.2516975402832031e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          10.0,
+          100.0
+        ],
+        "max_abs": 3.844499588012695e-06,
+        "p999_abs": 1.817941665649414e-06,
+        "mean_abs": 2.515061884589276e-07,
+        "exact_fraction": 0.040435791015625,
+        "max_normalised": 1.0781612825775251e-06,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          100.0,
+          1000.0
+        ],
+        "max_abs": 2.960115671157837e-05,
+        "p999_abs": 2.0033046603202664e-05,
+        "mean_abs": 1.927948947728214e-06,
+        "exact_fraction": 0.0090789794921875,
+        "max_normalised": 8.681695390238906e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          1000.0,
+          4096.0
+        ],
+        "max_abs": 0.0001516491174697876,
+        "p999_abs": 8.359447121620168e-05,
+        "mean_abs": 8.875167921508498e-06,
+        "exact_fraction": 0.0024566650390625,
+        "max_normalised": 8.250236041482502e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          4096.0,
+          32768.0
+        ],
+        "max_abs": 0.000989297404885292,
+        "p999_abs": 0.0006580593064427307,
+        "mean_abs": 6.411699589286245e-05,
+        "exact_fraction": 0.0005340576171875,
+        "max_normalised": 7.404767921858215e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      },
+      {
+        "band": [
+          32768.0,
+          262144.0
+        ],
+        "max_abs": 0.008497241884469986,
+        "p999_abs": 0.0053667967021464895,
+        "mean_abs": 0.000511460821632552,
+        "exact_fraction": 7.62939453125e-05,
+        "max_normalised": 7.067750455439903e-07,
+        "over_bound": 0,
+        "numba_equals_numpy": true
+      }
+    ]
+  }
+}
