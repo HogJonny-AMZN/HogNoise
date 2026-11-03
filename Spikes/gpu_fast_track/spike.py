@@ -13,7 +13,6 @@ parameters (and numba, which must equal numpy bit for bit). Run it with wgpu sup
 
 import json
 import math
-import os
 import sys
 from pathlib import Path
 
@@ -37,11 +36,20 @@ CASES = {
 }
 
 
+BOUND = 3e-6  # the claimed contract: |gpu - cpu| <= BOUND * max(1, max(|x|, |y|) * frequency)
+
+
 def points(lo: float, hi: float, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
-    """N points whose larger coordinate magnitude lies in [lo, hi), signs mixed."""
-    r = rng.uniform(lo, hi, N)
-    theta = rng.uniform(0.0, 2.0 * math.pi, N)
-    return (r * np.cos(theta)).astype(np.float32), (r * np.sin(theta)).astype(np.float32)
+    """N points whose larger coordinate magnitude, max(|x|, |y|), lies in [lo, hi), signs mixed."""
+    big = rng.uniform(lo, hi, N) * rng.choice([-1.0, 1.0], N)
+    small = rng.uniform(-1.0, 1.0, N) * np.abs(big)
+    x_is_big = rng.random(N) < 0.5
+    return np.where(x_is_big, big, small).astype(np.float32), np.where(x_is_big, small, big).astype(np.float32)
+
+
+def coordinate_norm(xs: np.ndarray, ys: np.ndarray, frequency: float) -> np.ndarray:
+    """The noise-space coordinate the bound scales with: the larger magnitude, times the base-octave frequency."""
+    return np.maximum(np.abs(xs.astype(np.float64)), np.abs(ys.astype(np.float64))) * abs(frequency)
 
 
 class Gpu:
@@ -49,7 +57,9 @@ class Gpu:
         self.adapter = wgpu.gpu.request_adapter_sync(power_preference="high-performance")
         self.device = self.adapter.request_device_sync()
         module = self.device.create_shader_module(code=(HERE / "noise2.wgsl").read_text(encoding="utf-8"))
-        self.pipeline = self.device.create_compute_pipeline(layout="auto", compute={"module": module, "entry_point": "main"})
+        self.pipeline = self.device.create_compute_pipeline(
+            layout="auto", compute={"module": module, "entry_point": "main"}
+        )
         self.grad = self.device.create_buffer_with_data(
             data=np.asarray(GRADIENTS_2D, np.float32).tobytes(), usage=wgpu.BufferUsage.STORAGE
         )
@@ -68,7 +78,9 @@ class Gpu:
         uniform[7] = fractal
         dev = self.device
         ubuf = dev.create_buffer_with_data(data=uniform.tobytes(), usage=wgpu.BufferUsage.UNIFORM)
-        pbuf = dev.create_buffer_with_data(data=np.stack([xs, ys], axis=1).astype(np.float32).tobytes(), usage=wgpu.BufferUsage.STORAGE)
+        pbuf = dev.create_buffer_with_data(
+            data=np.stack([xs, ys], axis=1).astype(np.float32).tobytes(), usage=wgpu.BufferUsage.STORAGE
+        )
         obuf = dev.create_buffer(size=n * 4, usage=wgpu.BufferUsage.STORAGE | wgpu.BufferUsage.COPY_SRC)
         entries = [
             {"binding": 0, "resource": {"buffer": ubuf, "offset": 0, "size": ubuf.size}},
@@ -99,27 +111,42 @@ def main() -> int:
     label = f"{info.get('device', '?')} / {info.get('backend_type', '?')}"
     print(f"adapter: {label}; numba: {HAVE_NUMBA}")
     rng = np.random.default_rng(12345)
-    results = {"adapter": info.get("device"), "backend": info.get("backend_type"), "adapter_type": info.get("adapter_type"), "cases": {}}
+    results = {
+        "adapter": info.get("device"),
+        "backend": info.get("backend_type"),
+        "adapter_type": info.get("adapter_type"),
+        "cases": {},
+    }
     for name, params in CASES.items():
         rows = []
         print(f"\n{name}")
-        print(f"{'band':>20} | {'max abs':>9} | {'p99.9 abs':>9} | {'mean abs':>9} | {'exact':>6} | numba==numpy")
+        print(
+            f"{'band':>20} | {'max abs':>9} | {'p99.9 abs':>9} | {'mean abs':>9} | {'exact':>6}"
+            f" | {'max norm':>9} | {'over':>5} | numba==numpy"
+        )
         for lo, hi in BANDS:
             xs, ys = points(lo, hi, rng)
             ref = cpu(params, "numpy", xs, ys)
             same = bool(np.array_equal(cpu(params, "numba", xs, ys), ref)) if HAVE_NUMBA else None
             got = gpu.run(params, xs, ys)
             d = np.abs(got.astype(np.float64) - ref.astype(np.float64))
+            # pointwise, each error against its own coordinate's bound, so a band's maximum cannot hide a violation
+            normalised = d / np.maximum(1.0, coordinate_norm(xs, ys, params.frequency))
             row = {
                 "band": [lo, hi],
                 "max_abs": float(d.max()),
                 "p999_abs": float(np.quantile(d, 0.999)),
                 "mean_abs": float(d.mean()),
                 "exact_fraction": float(np.mean(d == 0.0)),
+                "max_normalised": float(normalised.max()),
+                "over_bound": int(np.count_nonzero(normalised > BOUND)),
                 "numba_equals_numpy": same,
             }
             rows.append(row)
-            print(f"{f'[{lo:g}, {hi:g})':>20} | {row['max_abs']:9.2e} | {row['p999_abs']:9.2e} | {row['mean_abs']:9.2e} | {row['exact_fraction']:6.1%} | {same}")
+            print(
+                f"{f'[{lo:g}, {hi:g})':>20} | {row['max_abs']:9.2e} | {row['p999_abs']:9.2e} | {row['mean_abs']:9.2e}"
+                f" | {row['exact_fraction']:6.1%} | {row['max_normalised']:9.2e} | {row['over_bound']:>5} | {same}"
+            )
         results["cases"][name] = rows
     tag = (results["backend"] or "default").lower().replace(" ", "_")
     out = HERE / f"results_{tag}.json"
