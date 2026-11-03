@@ -20,7 +20,7 @@ refused as current.
 | **Node graph** | A noise as nodes whose inputs are constants or other nodes, as in FastNoise2; planned, not built. |
 | **Conformance harness** | The published check any implementation runs against the oracle vectors; planned, not built ([design](design/2026-11-02-conformance-harness.md), Proposed). |
 | **Reference set** | One source of expected values in the vectors: *original* (what FastNoiseLite and FastNoiseSIMD produced) or *hog* (HogNoise's numpy rendering). Proposed with the conformance harness. |
-| **Case** | One parameter record over one point set, with its expected values and its bound: the unit the conformance harness checks. Proposed. |
+| **Case** | One parameter record over one point set, with its expected output (noise or warp), how it is compared (points, shape or advisory) and its bound: the unit the conformance harness checks. Proposed. |
 | **Bound** | The largest difference one case accepts: a constant, or a multiple of the noise-space coordinate (`scale * max(1, abs(coordinate) * frequency)`). A rendering's tolerance contract is stated as bounds. Proposed. |
 
 

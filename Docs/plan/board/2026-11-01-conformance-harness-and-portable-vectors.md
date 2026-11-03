@@ -12,4 +12,5 @@ from this package's test data into the reference anyone can use. Published on 20
 which it will check.
 
 [The design](../../design/2026-11-02-conformance-harness.md): both reference sets (*original* and a new *hog*), the vectors
-in a top-level `vectors/` as raw float32 plus one manifest, `check(sample, vectors)` with a per-case bound.
+in a top-level `vectors/` as raw float32 plus one manifest, `check(sample, vectors)` with a per-case bound, and each case
+saying what it outputs (noise or warp) and how it is compared (points, shape or advisory).

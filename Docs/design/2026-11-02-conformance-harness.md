@@ -29,21 +29,37 @@ This is stage 1 of [the north-star roadmap](2026-11-01-north-star-roadmap.md) an
 4. **Parameters in HogNoise's own names.** *Proposed.* The manifest stores each case's `NoiseParams` with its field names and
    enum member names (`"noise_type": "OPEN_SIMPLEX2"`), not the source libraries' spellings, so a port maps one record, and
    `NoiseParams.from_dict` / `to_dict` round-trip it. The original source and its own spelling stay in the case's `source`.
-5. **A case is a parameter record over a set of points.** *Proposed.* Every vector today is points, three ways: 4,096
-   scattered 3D points, the same points in 2D (x, z), and a 128 x 128 grid at y = 0 sampled as points. The harness asks for
-   one thing, a function `sample(params, xs, ys, zs) -> float32 array` (`zs` is `None` for 2D), so a port implements one entry
-   point. `sample_grid` stays tested in the suite against the same values; the harness does not require a grid entry point.
+5. **A case is a parameter record over a named point set, and says what it outputs.** *Proposed.* The shared point sets
+   are `scatter_3d` (4,096 points), `scatter_2d` (the same points as (x, z)) and `grid_y0` (128 x 128 at y = 0, in the order
+   of today's `grid_x` and `grid_z`). A case may have its own instead: the two FastNoiseSIMD `genasgrid_*` fixtures are
+   128 x 128 grids from (-64, -64, 1) at axis scales (1, 1, 1) and (1, 0.5, 2), flattened in `sample_grid`'s C order, and
+   are written out as their own point files, so no port reconstructs a grid. The output is `noise` (N values; a warp in
+   the parameters is applied inside, the end-to-end path) or `warp` (N x 2 or N x 3 warped coordinates: the nine
+   FastNoiseLite warp cases' `warp_2d`, `warp_3d` and `grid_warp_3d`). A port implements
+   `sample(params, xs, ys, zs) -> float32 (N,)` (`zs` is `None` for 2D) and, if it has a warp,
+   `warp(params, xs, ys, zs) -> float32 (N, dims)`; without one, the warp cases are reported as skipped, never as passed.
+   `sample_grid` stays tested in the suite against the same values; the harness does not require a grid entry point.
 6. **A bound, stated per case or passed in.** *Proposed.* `Bound(scale, coordinate_scaled=False)`: a value passes when
-   `|ours - reference| <= scale`, or, when coordinate-scaled, `<= scale * max(1, |coordinate| * frequency)`, the shape the GPU
-   spike measured. *hog* cases default to `Bound(0)`; *original* cases default to their recorded class in the comparison table
-   (exact, float32, tight or loose). A caller passes a `Bound` to override, as the GPU rung will.
+   `|ours - reference| <= scale`, or, when coordinate-scaled, `<= scale * max(1, max(|x|, |y|, |z|) * frequency)`, checked
+   per point, the shape the GPU spike measured. *hog* cases default to `Bound(0)`; *original* cases default to their
+   recorded class in the comparison table (exact, float32, tight or loose). A caller passes a `Bound` to override, as the
+   GPU rung will.
+7. **Each case says how it is compared and whether it decides `report.ok`.** *Proposed.* Today's suite compares the
+   originals three ways, and the manifest keeps all three rather than forcing them into one:
+   - `points`, pointwise within the case's bound. Every *hog* case, and the *original* cases the suite asserts today
+     (classic Simplex, gradient perturb, white noise, the warp field, the `genasgrid` grids). These gate.
+   - `shape`, where the hash differs so points cannot match: the four FastNoiseSIMD Billow cases (mean and standard
+     deviation each within 0.2 of the reference) and the four Phase C cellular cases (standard-deviation ratio between 0.3
+     and 3). The statistic and its limits are stored in the case. These gate.
+   - `advisory`, the FastNoiseLite comparisons that today always report and never fail the build: each gets its match
+     class in the table, with its `accepted.json` verdict if it has one, and never changes `report.ok`.
 
 ## The shape
 
 ```text
 vectors/
-  manifest.json                 every case: id, set, source, dims, params, the point set, file, sha256, bound
-  points/scatter_x.f32 ...      the shared coordinates (scatter x, y, z; grid x, z)
+  manifest.json                 every case: id, set, source, dims, params, point set, output, comparison, file, sha256, bound
+  points/scatter_x.f32 ...      the shared coordinates (scatter x, y, z; grid x, z), and a case's own (the genasgrid grids)
   original/fnl/<case>.f32       FastNoiseLite's values
   original/fns/<case>.f32       FastNoiseSIMD's values
   hog/<case>.f32                HogNoise's numpy values
@@ -62,8 +78,10 @@ assert report.ok, report.table()  # a markdown table, one row per case
 
 ## How it is checked
 
-- numba and numpy pass every *hog* case at `Bound(0)` and every *original* case within its recorded class, on all three CI
-  environments.
+- numba and numpy pass every *hog* case at `Bound(0)` and every gating *original* case, on all three CI environments, and
+  the advisory cases report the classes `portability.md` records today.
+- **Nothing is lost in the conversion**: before the `.npz` files are removed, a test maps every array in every one of
+  them (noise, warp output, the `genasgrid` grids and their coordinates) to a case or point file whose values are equal.
 - **It fails when it should**: a deliberately broken sampler (the seed off by one; one value nudged by 1e-5) fails, so the
   harness is shown able to say no.
 - **Language-neutral, proven**: a test reads `manifest.json` and one case with the standard library only (`json` and `array`),
@@ -85,5 +103,6 @@ size grows by roughly the *hog* set, about 12 MB uncompressed, which git stores 
 
 - **Reference set**: one source of expected values in the vectors: *original* (the C++ libraries) or *hog* (HogNoise's numpy
   rendering).
-- **Case**: one parameter record over one point set, with its expected values and its bound.
+- **Case**: one parameter record over one point set, with its expected output (noise or warp), how it is compared
+  (points, shape or advisory) and its bound.
 - **Bound**: the largest difference a case accepts, a constant or a multiple of the noise-space coordinate.
