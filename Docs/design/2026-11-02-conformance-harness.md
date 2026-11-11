@@ -1,7 +1,7 @@
 # The conformance harness, and the vectors anyone can read
 
-**Status:** Proposed. The owner, 2026-11-02: build it before the GPU port ("do it"), check ports against both reference sets,
-and keep the vectors in the repository with `check` taking a path. The rest is proposed here for the owner to lock.
+**Status:** Accepted 2026-11-11 (the owner: "lock it"). The owner, 2026-11-02: build it before the GPU port ("do it"), check ports against both reference sets,
+and keep the vectors in the repository with `check` taking a path. Decisions 3 to 7 were proposed here and locked as written.
 
 ## Intent
 
@@ -23,13 +23,13 @@ This is stage 1 of [the north-star roadmap](2026-11-01-north-star-roadmap.md) an
 2. **The vectors stay in the repository; `check` takes the folder** (owner, 2026-11-02). They move from `tests/vectors/noise/`
    to a top-level `vectors/`, so they read as a product, not test data. The wheel stays small. A release asset can carry the
    same folder later without changing the format.
-3. **One portable format, and it is the only committed form.** *Proposed.* Raw little-endian `float32` files with no header,
+3. **One portable format, and it is the only committed form.** *Locked 2026-11-11.* Raw little-endian `float32` files with no header,
    and one `manifest.json` describing every case. The `.npz` files are converted once and removed, so there are never two
    copies to drift apart. The comparison sheets, `accepted.json` and `portability.md` stay beside them.
-4. **Parameters in HogNoise's own names.** *Proposed.* The manifest stores each case's `NoiseParams` with its field names and
+4. **Parameters in HogNoise's own names.** *Locked 2026-11-11.* The manifest stores each case's `NoiseParams` with its field names and
    enum member names (`"noise_type": "OPEN_SIMPLEX2"`), not the source libraries' spellings, so a port maps one record, and
    `NoiseParams.from_dict` / `to_dict` round-trip it. The original source and its own spelling stay in the case's `source`.
-5. **A case is a parameter record over a named point set, and says what it outputs.** *Proposed.* The shared point sets
+5. **A case is a parameter record over a named point set, and says what it outputs.** *Locked 2026-11-11.* The shared point sets
    are `scatter_3d` (4,096 points), `scatter_2d` (the same points as (x, z)) and `grid_y0` (128 x 128 at y = 0, in the order
    of today's `grid_x` and `grid_z`). A case may have its own instead: the two FastNoiseSIMD `genasgrid_*` fixtures are
    128 x 128 grids from (-64, -64, 1) at axis scales (1, 1, 1) and (1, 0.5, 2), flattened in `sample_grid`'s C order, and
@@ -39,12 +39,12 @@ This is stage 1 of [the north-star roadmap](2026-11-01-north-star-roadmap.md) an
    `sample(params, xs, ys, zs) -> float32 (N,)` (`zs` is `None` for 2D) and, if it has a warp,
    `warp(params, xs, ys, zs) -> float32 (N, dims)`; without one, the warp cases are reported as skipped, never as passed.
    `sample_grid` stays tested in the suite against the same values; the harness does not require a grid entry point.
-6. **A bound, stated per case or passed in.** *Proposed.* `Bound(scale, coordinate_scaled=False)`: a value passes when
+6. **A bound, stated per case or passed in.** *Locked 2026-11-11.* `Bound(scale, coordinate_scaled=False)`: a value passes when
    `|ours - reference| <= scale`, or, when coordinate-scaled, `<= scale * max(1, max(|x|, |y|, |z|) * frequency)`, checked
    per point, the shape the GPU spike measured. *hog* cases default to `Bound(0)`; *original* cases default to their
    recorded class in the comparison table (exact, float32, tight or loose). A caller passes a `Bound` to override, as the
    GPU rung will.
-7. **Each case says how it is compared and whether it decides `report.ok`.** *Proposed.* Today's suite compares the
+7. **Each case says how it is compared and whether it decides `report.ok`.** *Locked 2026-11-11.* Today's suite compares the
    originals three ways, and the manifest keeps all three rather than forcing them into one:
    - `points`, pointwise within the case's bound. Every *hog* case, and the *original* cases the suite asserts today
      (classic Simplex, gradient perturb, white noise, the warp field, the `genasgrid` grids). These gate.

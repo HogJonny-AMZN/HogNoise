@@ -18,10 +18,10 @@ refused as current.
 | **Rendering** | One way a noise is computed: numba, numpy, or a shader language (WGSL, HLSL, GLSL, Metal). The renderings of one graph must agree to their tolerance contract. |
 | **Tolerance contract** | The stated bound a rendering must meet against the oracle vectors: zero (bit-identical) for the CPU renderings, a per-node bound for the GPU. |
 | **Node graph** | A noise as nodes whose inputs are constants or other nodes, as in FastNoise2; planned, not built. |
-| **Conformance harness** | The published check any implementation runs against the oracle vectors; planned, not built ([design](design/2026-11-02-conformance-harness.md), Proposed). |
-| **Reference set** | One source of expected values in the vectors: *original* (what FastNoiseLite and FastNoiseSIMD produced) or *hog* (HogNoise's numpy rendering). Proposed with the conformance harness. |
-| **Case** | One parameter record over one point set, with its expected output (noise or warp), how it is compared (points, shape or advisory) and its bound: the unit the conformance harness checks. Proposed. |
-| **Bound** | The largest difference one case accepts: a constant, or a multiple of the noise-space coordinate (`scale * max(1, abs(coordinate) * frequency)`). A rendering's tolerance contract is stated as bounds. Proposed. |
+| **Conformance harness** | The published check any implementation runs against the oracle vectors; planned, not built ([design](design/2026-11-02-conformance-harness.md), Accepted 2026-11-11). |
+| **Reference set** | One source of expected values in the vectors: *original* (what FastNoiseLite and FastNoiseSIMD produced) or *hog* (HogNoise's numpy rendering). Accepted with the conformance harness design, not built. |
+| **Case** | One parameter record over one point set, with its expected output (noise or warp), how it is compared (points, shape or advisory) and its bound: the unit the conformance harness checks. Accepted with its design, not built. |
+| **Bound** | The largest difference one case accepts: a constant, or a multiple of the noise-space coordinate (`scale * max(1, max(abs(x), abs(y), abs(z)) * frequency)`, checked per point). A rendering's tolerance contract is stated as bounds. Accepted with the conformance harness design, not built. |
 
 
 ## Process
