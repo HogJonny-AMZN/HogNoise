@@ -5,7 +5,7 @@
 | Read this | For |
 | --- | --- |
 | [design/2026-11-01-north-star-roadmap.md](design/2026-11-01-north-star-roadmap.md) | the north star and the roadmap to it (Proposed) |
-| [design/2026-11-02-conformance-harness.md](design/2026-11-02-conformance-harness.md) | the conformance harness and the portable vectors (Proposed) |
+| [design/2026-11-02-conformance-harness.md](design/2026-11-02-conformance-harness.md) | the conformance harness and the portable vectors (Accepted 2026-11-11) |
 | [findability.md](findability.md) | who searches for HogNoise and why, and the surfaces (README, topics, metadata, llms.txt) that must say so |
 | [noise/GALLERY.md](noise/GALLERY.md) | every noise type rendered, generated from the enums |
 | [decisions/ADR-007-noise-kernels-port.md](decisions/ADR-007-noise-kernels-port.md) | why a port rather than a binding, with the measurements |
