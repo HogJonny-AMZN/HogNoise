@@ -23,7 +23,8 @@ Read from the code at `cb4e051`, not assumed:
 
   | Vectors | Parameters as the test builds them | Compared | Limit |
   | --- | --- | --- | --- |
-  | FastNoiseLite noise, all 66 (3D, 2D, grid) | `_params_from` | advisory: class reported, a sheet and xfail past `tight`, never fails | none |
+  | FastNoiseLite noise, all 66 (`scatter_3d`, `scatter_2d`) | `_params_from` | advisory, never fails: class and correlation reported to `portability.md`; when either is `needs_review` (`compare.ComparisonStats`: looser than `tight`, or correlation below 0.99) and `Verdicts.is_accepted(feature)` is false, a sheet and xfail. A `rejected` verdict does not exempt | none |
+  | FastNoiseLite `grid_3d`, 66 | | not compared: drawn as the reference half of the sheet, only when the scatter needs review | |
   | FastNoiseLite warp field, 9 (`warp_3d`, `warp_2d`) | `_params_from` | by point | max < 4e-3 |
   | FastNoiseLite `grid_warp_3d`, 9 | | not compared | |
   | FastNoiseSIMD classic Simplex, 4 (`scatter_3d`, `grid_3d`) | `SIMPLEX_CLASSIC` | by point | max < 5e-5, 2e-4, 5e-4, 5e-4; correlation > 0.9999 on the scatter |
@@ -119,7 +120,8 @@ vectors/
 
 | From | Comparison |
 | --- | --- |
-| FastNoiseLite noise, every array | advisory |
+| FastNoiseLite noise, `scatter_3d` and `scatter_2d` | advisory |
+| FastNoiseLite noise, `grid_3d` | advisory, **new**: today it is only drawn on the sheet. Its row is reported and never gates or triggers review, and the sheet still draws it |
 | FastNoiseLite `warp_3d`, `warp_2d` | points, `Bound(4e-3)` |
 | FastNoiseLite `grid_warp_3d` | points, `Bound(4e-3)` if the conversion measures it within that; otherwise advisory, and the pull request says which |
 | FastNoiseSIMD classic Simplex, `scatter_3d` | points, its bound, `min_correlation` 0.9999 |
@@ -180,7 +182,8 @@ def check(
   `<= scale * max(1, max(abs(x), abs(y)[, abs(z)]) * params.frequency)`, per point, on the input coordinates. For a warp
   output, every component of a point is held to that point's bound.
 - **`Report`** has one row per case: id, comparison kind, status (`pass`, `fail`, `unsupported`, `skipped`, or for
-  advisory, its match class from `compare.classify` and any `accepted.json` verdict), the largest absolute difference and,
+  advisory, its match class from `compare.classify`, its correlation, whether `ComparisonStats.needs_review` holds, and any
+  `accepted.json` verdict), the largest absolute difference and,
   for points, the largest difference divided by its own bound. A zero bound has no ratio to divide by, so a difference of
   exactly 0 reports 0 and any other difference reports infinity: `Bound(0)` reports 0 on a pass and `inf` on a fail, never
   NaN. `report.ok` is true when no `points` or `shape` case
@@ -206,10 +209,45 @@ python -m hog_noise.conformance vectors --rendering numpy --bound 3e-6 --coordin
 - **`tests/test_hog_noise/test_kernels.py`** reads `vectors/` through `conformance.load`. The reference comparisons become
   `check` calls (numpy, and numba when present, against both sets). The property assertions that are not comparisons with
   a reference stay as they are: the perturb moved the field, white noise is uniform, the warp is a real displacement,
-  RigidMulti is not Ridged. Advisory cases still write a sheet and xfail past `tight` unless `accepted.json` holds a
-  verdict, and still feed `portability.md`.
+  RigidMulti is not Ridged. The advisory rule is today's, unchanged and not reimplemented: the harness and the test call
+  `compare.ComparisonStats.needs_review` (looser than `tight`, or correlation below 0.99) on a feature's `scatter_3d` and
+  `scatter_2d` cases, and when either needs review and `compare.Verdicts.is_accepted(feature)` is false (no verdict, or
+  `rejected`), the test draws the sheet from the `grid_3d` case and xfails. Every advisory case still feeds `portability.md`.
+- **The direct `sample_grid` comparison stays** (the design's decision 5): the two `genasgrid` fixtures are still compared
+  with `sample_grid((-64, -64, 1), (128, 128, 1), scales)` at today's limits, reading the reference values from the loaded
+  case instead of the `.npz`. The harness's check on the stored points runs as well; it does not replace this, because
+  only this one exercises the grid driver.
 - **`tools/noise_gallery.py`** reads `vectors/` through `conformance.load`; its own parameter mapping and the
   `simplex_classic` override go, because the manifest's parameters are already HogNoise's.
+
+## Files
+
+Every file the build adds, changes or removes; a file not listed is out of scope. *Module* and *kind* are from
+`framework-manifest.toml`. None of these files is in `framework.lock`, so the template never checks or rewrites any of
+them. A file the template's payload does not have has no module: the `tools/*.py` and `tests/test_*.py` rules describe the
+template's own tools and tests, not a project's. Every file is owned by the project (@HogJonny-AMZN).
+
+| File | Change | Module | Kind |
+| --- | --- | --- | --- |
+| `src/hog_noise/conformance/__init__.py`, `__main__.py` | add: `Bound`, `load`, `check`, `Report`; the command line | none | project-owned |
+| `src/hog_noise/params.py` | change: `NoiseParams.to_dict`, `from_dict` | none | project-owned |
+| `src/hog_noise/compare.py` | unchanged; `classify`, `compare_values`, `ComparisonStats`, `Verdicts`, `render_sheet` and `write_portability` are called, not copied | none | project-owned |
+| `vectors/manifest.json`, `vectors/points/*.f32`, `vectors/original/**/*.f32`, `vectors/hog/**/*.f32`, `vectors/README.md` | add | none | project-owned |
+| `vectors/accepted.json`, `vectors/portability.md`, `vectors/reports/*` | move from `tests/vectors/noise/`, contents unchanged | none | project-owned |
+| `tests/vectors/noise/**/*.npz`, `tests/vectors/noise/coords.npz` | remove, in the commit after the conversion | none | project-owned |
+| `tools/convert_npz_vectors.py` and its check | add in the conversion commit, remove in the next (temporary) | none | project-owned |
+| `tools/gen_noise_vectors.py`, `tools/noise_gallery.py` | change: write and read `vectors/` | none | project-owned |
+| `tests/test_hog_noise/test_kernels.py` | change: `check` calls; the advisory rule and the direct `sample_grid` test kept | none | project-owned |
+| `tests/test_hog_noise/test_conformance.py`, `test_params_dict.py` | add: acceptance 3 to 7 | none | project-owned |
+| `.gitattributes` | change: `*.f32 binary` | core | project-owned |
+| `README.md` | change: the vector path | core | project-owned |
+| `Docs/glossary.md`, `Docs/README.md` | change: the vector path; the harness rows to built | core | project-owned |
+| `PROVENANCE.md`, `Docs/noise/GALLERY.md`, `Docs/standards/testing-project.md` | change: the vector path | none | project-owned |
+| `Docs/plan/board/2026-11-01-conformance-harness-and-portable-vectors.md`, `Docs/handoffs/CURRENT.md` | change: state | core | project-owned |
+| `Docs/journal/2026-11/<the build's session>.md` | add | journal | project-owned |
+
+The names of the new test files and the converter are the plan's to settle; a different name is a plan detail, a file
+outside this table is a change to this spec.
 
 ## Acceptance
 
@@ -224,7 +262,8 @@ Each line is a test or a recorded run, named in the plan:
    one value moved by one ulp fails hog at `Bound(0)`; a value inside the bound at its band's far edge but outside its own
    point's bound fails a coordinate-scaled bound (the flaw Copilot found in the spike). One coordinate in
    `points/scatter_x.f32`, changed in place without changing the file's size, makes `load` fail. A passing run at
-   `Bound(0)` reports a normalised difference of 0, not NaN, and a failing one reports infinity.
+   `Bound(0)` reports a normalised difference of 0, not NaN, and a failing one reports infinity. An advisory case within
+   `tight` but with correlation below 0.99 needs review, and a `rejected` verdict still draws the sheet and xfails.
 4. **Partial ports report, not fail.** A sampler that raises `NotImplementedError` outside 2D OpenSimplex2 gives
    `report.ok` true and `report.complete` false, with the unsupported cases counted.
 5. **Language-neutral.** A test reads `manifest.json` and one case with `json`, `hashlib` and `array` only, and gets the
