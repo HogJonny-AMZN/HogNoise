@@ -30,7 +30,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 | Item | State | Waiting on |
 | --- | --- | --- |
 | **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port, next after the harness | The conformance harness |
-| **The conformance harness** ([row](../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)) | Design Accepted 2026-11-11 ([design](../design/2026-11-02-conformance-harness.md)); the spec next, then the plan, then code | Nothing; it is next |
+| **The conformance harness** ([row](../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)) | Design Accepted 2026-11-11 ([design](../design/2026-11-02-conformance-harness.md)); [spec](../superpowers/specs/2026-11-11-conformance-harness.md) Proposed, then the plan, then code | The owner, to accept the spec |
 | The north-star roadmap (gate G2) | Proposed | The owner, to lock its three remaining decisions |
 | PyPI release of `hog-noise` | Not started | The owner's go; needs the owner's PyPI credentials |
 

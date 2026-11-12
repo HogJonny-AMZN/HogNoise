@@ -2,7 +2,7 @@
 
 **Section:** next
 **Owner:** @HogJonny-AMZN
-**State:** Design Accepted 2026-11-11 (the owner: "lock it"); the spec next, then the plan, then code
+**State:** Design Accepted 2026-11-11 (the owner: "lock it"); [spec](../../superpowers/specs/2026-11-11-conformance-harness.md) Proposed 2026-11-11; then the plan, then code
 **Cost:** 1 to 2 d
 **Raised:** [README, Wanted](../../../README.md)
 
