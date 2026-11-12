@@ -15,9 +15,10 @@ Read from the code at `cb4e051`, not assumed:
   `warp_2d` and `grid_warp_3d`. FastNoiseSIMD files hold `scatter_3d` and `grid_3d`, except the two `genasgrid_*` files,
   which hold only `grid_as_grid`. Each `params` is a JSON string in the source library's spelling. Every coordinate is
   float32.
-- **The FastNoiseSIMD set cannot be regenerated.** `pyfastnoisesimd` runs only on Python 3.9
-  ([ADR-007](../../decisions/ADR-007-noise-kernels-port.md)). Converting it is one-way, so the conversion is checked before
-  anything is removed.
+- **The FastNoiseSIMD set is costly to regenerate.** `pyfastnoisesimd` publishes wheels only up to Python 3.9; a source
+  build works on 3.12 and 3.13 and gives bit-identical output ([ADR-007](../../decisions/ADR-007-noise-kernels-port.md)),
+  but this repository neither builds nor hosts one. Regenerating means making that build first, so the conversion is
+  treated as one-way and checked before anything is removed.
 - **How the suite compares the originals today** (`tests/test_hog_noise/test_kernels.py`):
 
   | Vectors | Parameters as the test builds them | Compared | Limit |
@@ -86,10 +87,13 @@ vectors/
       "point_set": "scatter_3d",
       "output": "noise",
       "file": "original/fns/simplex_fbm.scatter_3d.f32",
-      "sha256": "...",
       "compare": {"kind": "points", "bound": {"scale": 2e-4, "coordinate_scaled": false}, "min_correlation": 0.9999}
     }
-  ]
+  ],
+  "files": {
+    "points/scatter_x.f32": "<sha256>",
+    "original/fns/simplex_fbm.scatter_3d.f32": "<sha256>"
+  }
 }
 ```
 
@@ -104,7 +108,10 @@ vectors/
   - `{"kind": "shape", ...}` with any of `"range": [lo, hi]`, `"mean_within": m`, `"std_within": s`,
     `"std_ratio": [lo, hi]` and `"finite": true`.
   - `{"kind": "advisory"}`.
-- **`sha256`** is of the referenced file; the loader checks it, so a stale file or a stray edit is an error, not a result.
+- **`files`** maps every `.f32` file in the folder, coordinates and values alike, to its `sha256`. `load` verifies each file
+  against it before reading it, and a file a point set or case names that is not in the map is an error, as is a size that
+  is not `count` (times `dims` for a warp output) float32 values. So an edited coordinate file, which would change the
+  inputs to every case on that point set, is a load error, not a set of comparison results.
 
 ## The cases
 
@@ -174,7 +181,9 @@ def check(
   output, every component of a point is held to that point's bound.
 - **`Report`** has one row per case: id, comparison kind, status (`pass`, `fail`, `unsupported`, `skipped`, or for
   advisory, its match class from `compare.classify` and any `accepted.json` verdict), the largest absolute difference and,
-  for points, the largest difference divided by its own bound. `report.ok` is true when no `points` or `shape` case
+  for points, the largest difference divided by its own bound. A zero bound has no ratio to divide by, so a difference of
+  exactly 0 reports 0 and any other difference reports infinity: `Bound(0)` reports 0 on a pass and `inf` on a fail, never
+  NaN. `report.ok` is true when no `points` or `shape` case
   failed. `report.complete` is true when nothing was unsupported or skipped. `report.table()` is a markdown table.
 
 The command line, which exits 0 when `report.ok` and 1 otherwise, and prints the table:
@@ -188,8 +197,9 @@ python -m hog_noise.conformance vectors --rendering numpy --bound 3e-6 --coordin
 ## The tools and the suite
 
 - **`tools/gen_noise_vectors.py`** writes the new format. `--set hog` regenerates the hog files and their manifest entries
-  in any environment with numpy. `--set original` keeps today's capture paths (the binding, the C++ oracle, the Python 3.9
-  library), writing through the same writer. The writer sorts the manifest and recomputes every `sha256`.
+  in any environment with numpy. `--set original` keeps today's capture paths (the binding, the C++ oracle,
+  `pyfastnoisesimd` from a Python 3.9 wheel or a source build), writing through the same writer. The writer sorts the
+  manifest and recomputes every digest in `files`.
 - **The one-time conversion** reads the `.npz` files and writes `vectors/`. It is committed, run once, and its check (below)
   runs against the `.npz` files in the same commit. The next commit in the same pull request removes the `.npz` files and
   the conversion code; the pull request records the passing run.
@@ -212,12 +222,16 @@ Each line is a test or a recorded run, named in the plan:
    any value fails until `--set hog` is rerun.
 3. **It can say no.** A sampler with the seed off by one fails hog; one value nudged by 1e-5 fails the white-noise original;
    one value moved by one ulp fails hog at `Bound(0)`; a value inside the bound at its band's far edge but outside its own
-   point's bound fails a coordinate-scaled bound (the flaw Copilot found in the spike).
+   point's bound fails a coordinate-scaled bound (the flaw Copilot found in the spike). One coordinate in
+   `points/scatter_x.f32`, changed in place without changing the file's size, makes `load` fail. A passing run at
+   `Bound(0)` reports a normalised difference of 0, not NaN, and a failing one reports infinity.
 4. **Partial ports report, not fail.** A sampler that raises `NotImplementedError` outside 2D OpenSimplex2 gives
    `report.ok` true and `report.complete` false, with the unsupported cases counted.
 5. **Language-neutral.** A test reads `manifest.json` and one case with `json`, `hashlib` and `array` only, and gets the
    same numbers as `load`.
-6. **The record holds.** A full-environment run (numba and the binding) rewrites `portability.md` byte for byte as it is.
+6. **The record holds.** A full-environment run (numba and the binding) rewrites `portability.md` byte for byte as it is,
+   apart from its `Generated <date>.` line, which `write_portability` stamps with the day of the run; the check drops that
+   one line from both sides and compares the rest exactly.
 7. **The parameters round-trip** for every case, and `from_dict` rejects an unknown key and an unknown member name.
 8. **The gate passes** (`tools/check.py`, full), and the docs that named the old path name the new one.
 
