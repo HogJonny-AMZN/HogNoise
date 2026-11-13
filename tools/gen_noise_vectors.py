@@ -339,17 +339,26 @@ def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.nd
         # Against the manifest's digest, not the file: a missing or edited file cannot vouch for the old coordinates
         if hashlib.sha256(_f32_bytes(points[rel])).hexdigest() != digests.get(rel):
             raise ValueError(f"{rel}: these coordinates differ from the ones kept original cases were sampled on")
+    # A recapture with fewer arrays drops cases: their files go, unless a remaining case still uses them. Each path
+    # comes from the old manifest, so it passes the loader's containment guard before anything is written or removed.
+    still_used = {c["file"] for c in cases + new_cases}
+    dropped = sorted(
+        {
+            c["file"]
+            for c in existing
+            if c["set"] == "original"
+            and (c["source"]["library"], c["source"]["feature"]) in redone
+            and c["file"] not in still_used
+        }
+    )
+    dropped_paths = [conformance._inside(root, rel) for rel in dropped]
     for rel, values in points.items():
         write_f32(root, rel, values)
-    # A recapture with fewer arrays drops cases: remove their files unless a remaining case still uses them
-    still_used = {c["file"] for c in cases + new_cases}
-    for c in existing:
-        if c["set"] == "original" and (c["source"]["library"], c["source"]["feature"]) in redone:
-            if c["file"] not in still_used and (root / c["file"]).exists():
-                (root / c["file"]).unlink()
     for library, feature, _record, arrays in captured:
         for case in (c for c in new_cases if c["source"]["library"] == library and c["source"]["feature"] == feature):
             write_f32(root, case["file"], arrays[case["source"]["array"]])
+    for path in dropped_paths:
+        path.unlink(missing_ok=True)
     _LOGGER.info(
         f"original: {len(captured)} captures as {len(new_cases)} cases under {root / 'original'}, "
         f"{len(cases)} cases kept, {len(points)} point files"

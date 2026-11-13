@@ -3,6 +3,7 @@ HogNoise: the vector writer and the rules that make a captured array a case.
 Package: tests/test_gen_noise_vectors
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -249,3 +250,20 @@ def test_a_recapture_with_fewer_arrays_removes_the_files_it_drops(tmp_path):
     assert [c.id for c in conformance.load(tmp_path).cases if c.set == "original"] == [
         "original/fns/perlin_fbm/scatter_3d"
     ]
+
+
+def test_a_dropped_case_naming_a_path_outside_the_folder_deletes_nothing(tmp_path):
+    """Copilot on #17: the removal of a dropped case's file trusted the old manifest's path."""
+    root = tmp_path / "v"
+    record = {"noise_type": "perlin", "fractal_type": "fbm", "seed": 1, "frequency": 0.01, "octaves": 3}
+    both = {"scatter_3d": np.zeros(4096, np.float32), "grid_3d": np.ones(16384, np.float32)}
+    gen.write_originals(root, [("fns", "perlin_fbm", record, both)], coords())
+    victim = tmp_path / "victim.f32"
+    victim.write_bytes(b"keep me")
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    grid = next(c for c in manifest["cases"] if c["point_set"] == "grid_y0")
+    grid["file"] = "../victim.f32"
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(conformance.ConformanceError, match="inside the folder"):
+        gen.write_originals(root, [("fns", "perlin_fbm", record, {"scatter_3d": both["scatter_3d"]})], coords())
+    assert victim.read_bytes() == b"keep me"
