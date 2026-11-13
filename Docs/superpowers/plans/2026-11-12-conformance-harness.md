@@ -1,7 +1,7 @@
 # The conformance harness: implementation plan
 
-**Status:** Proposed. Written 2026-11-12 from [the spec](../specs/2026-11-11-conformance-harness.md), Accepted the same
-day; for the owner to accept before the build starts.
+**Status:** Accepted 2026-11-12 (the owner: "accepted"). Written 2026-11-12 from
+[the spec](../specs/2026-11-11-conformance-harness.md), Accepted the same day. The build ticks each step as it lands.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to carry this out task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -89,7 +89,7 @@ As the spec's *Files* section lists them, with the module as one file and these 
 
 **Files:** modify `src/hog_noise/params.py`; create `tests/test_hog_noise/test_params_dict.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 """
@@ -133,12 +133,12 @@ def test_from_dict_rejects_an_unknown_key_and_an_unknown_member_name():
         NoiseParams.from_dict({"noise_type": 2})  # a number is not a member name
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_params_dict.py -q`
 Expected: 3 failed, `AttributeError: 'NoiseParams' object has no attribute 'to_dict'` (and `from_dict`).
 
-- [ ] **Step 3: implement**, in `params.py`: change `from enum import IntEnum` to `from enum import Enum, IntEnum`,
+- [x] **Step 3: implement**, in `params.py`: change `from enum import IntEnum` to `from enum import Enum, IntEnum`,
   add `from collections.abc import Mapping`, and add to `NoiseParams` after `replace`:
 
 ```python
@@ -184,12 +184,12 @@ def from_dict(cls, data: Mapping[str, object]) -> "NoiseParams":
 
   `isinstance(value, Enum)` is tested before `int` on purpose: these enums are `IntEnum`, so they are also `int`.
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_params_dict.py -q`
 Expected: 3 passed.
 
-- [ ] **Step 5: commit** `src/hog_noise/params.py` and the test: "NoiseParams.to_dict and from_dict, the manifest's form".
+- [x] **Step 5: commit** `src/hog_noise/params.py` and the test: "NoiseParams.to_dict and from_dict, the manifest's form".
 
 ---
 
@@ -197,7 +197,7 @@ Expected: 3 passed.
 
 **Files:** create `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 """
@@ -235,12 +235,12 @@ def test_the_normalised_difference_at_a_zero_bound_is_zero_or_infinity_never_nan
     assert conformance.normalised_difference(np.array([5e-4]), np.array([1e-3])).tolist() == [0.5]
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: collection error, `ModuleNotFoundError: No module named 'hog_noise.conformance'`.
 
-- [ ] **Step 3: implement** the module's head:
+- [x] **Step 3: implement** the module's head:
 
 ```python
 """
@@ -318,12 +318,12 @@ def normalised_difference(diff: NDArray, allowed: NDArray) -> NDArray[np.float64
     return np.where(allowed > 0.0, diff / safe, np.where(diff == 0.0, 0.0, np.inf))
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py tests/test_hog_noise/test_package_boundary.py -q`
 Expected: all passed (the boundary scan now includes `conformance.py`).
 
-- [ ] **Step 5: commit**: "conformance: Bound and the per-point rule".
+- [x] **Step 5: commit**: "conformance: Bound and the per-point rule".
 
 ---
 
@@ -331,7 +331,7 @@ Expected: all passed (the boundary scan now includes `conformance.py`).
 
 **Files:** modify `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests.** They build a tiny vectors folder by hand, with `json` and raw bytes, so
+- [x] **Step 1: write the failing tests.** They build a tiny vectors folder by hand, with `json` and raw bytes, so
   they test the format and not the writer. Imports go at the top of the file, here and in later tasks:
 
 ```python
@@ -447,13 +447,13 @@ def test_a_symlink_out_of_the_folder_is_refused(tmp_path):
         conformance.load(root)
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: the 9 new tests fail with `AttributeError: module 'hog_noise.conformance' has no attribute 'load'` (the
 symlink test skips instead on a system that cannot make one).
 
-- [ ] **Step 3: implement**, after `normalised_difference`:
+- [x] **Step 3: implement**, after `normalised_difference`:
 
 ```python
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -576,12 +576,12 @@ def load(vectors: str | Path) -> Vectors:
     return Vectors(root, point_sets, tuple(sorted(cases, key=lambda case: case.id)))
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 13 passed (12 and 1 skipped where the system cannot make a symlink).
 
-- [ ] **Step 5: commit**: "conformance: load, every file checked against its digest and size, inside the folder".
+- [x] **Step 5: commit**: "conformance: load, every file checked against its digest and size, inside the folder".
 
 ---
 
@@ -589,7 +589,7 @@ Expected: 13 passed (12 and 1 skipped where the system cannot make a symlink).
 
 **Files:** modify `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 def _values(case_values):
@@ -697,12 +697,12 @@ def test_select_and_reference_choose_the_cases(tmp_path):
     assert "| hog/t/f/p3 | points | pass |" in conformance.check(zero, root).table()
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 9 new tests fail, `AttributeError: module 'hog_noise.conformance' has no attribute 'check'`.
 
-- [ ] **Step 3: implement**, after `load`:
+- [x] **Step 3: implement**, after `load`:
 
 ```python
 #: ``sample(params, xs, ys, zs)``: N float32 values; ``zs`` is None on a 2D point set. ``warp`` returns N x dims.
@@ -887,15 +887,15 @@ def _shape(case: Case, ours: NDArray[np.float32]) -> CaseResult:
     )
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 22 passed (or 21 and 1 skipped, as above).
 
-- [ ] **Step 5: run the gate's fast stages**: `uv run python tools/check.py --fast`, unpiped. Expected: all 8 stages
+- [x] **Step 5: run the gate's fast stages**: `uv run python tools/check.py --fast`, unpiped. Expected: all 8 stages
   pass (the log-format stage reads the f-strings).
 
-- [ ] **Step 6: commit**: "conformance: check and Report, by points, shape or advisory".
+- [x] **Step 6: commit**: "conformance: check and Report, by points, shape or advisory".
 
 ---
 
@@ -903,7 +903,7 @@ Expected: 22 passed (or 21 and 1 skipped, as above).
 
 **Files:** modify `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 import subprocess
@@ -932,12 +932,12 @@ def test_the_command_line_exits_one_on_a_failure(tmp_path):
     assert run.returncode == 1 and "| hog/t/f/p3 | points | fail |" in run.stdout, run.stderr
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q -k "rendering or command"`
 Expected: 2 failed (`no attribute 'renderings'`; the subprocess exits non-zero with no table).
 
-- [ ] **Step 3: implement**, at the end of the module:
+- [x] **Step 3: implement**, at the end of the module:
 
 ```python
 def renderings(name: str) -> tuple[Sample, Sample]:
@@ -987,12 +987,12 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 24 passed (or 23 and 1 skipped, as above).
 
-- [ ] **Step 5: commit**: "conformance: the renderings and the command line".
+- [x] **Step 5: commit**: "conformance: the renderings and the command line".
 
 ---
 
@@ -1003,7 +1003,7 @@ Expected: 24 passed (or 23 and 1 skipped, as above).
 The rules that turn one captured array into one case (its id, file, parameters, comparison) are written once, here,
 and used by the one-time conversion and by any future capture.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 """
@@ -1076,12 +1076,12 @@ def test_an_unmapped_record_is_an_error_not_a_skip(tmp_path):
         gen.write_originals(tmp_path, [("fns", "x", record, {"scatter_3d": np.zeros(4096, np.float32)})], coords())
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q`
 Expected: 5 failed, `AttributeError: module 'gen_noise_vectors' has no attribute 'params_for'` and the like.
 
-- [ ] **Step 3: implement**, in `tools/gen_noise_vectors.py`. Add the imports (`hashlib`, `shutil`, and from
+- [x] **Step 3: implement**, in `tools/gen_noise_vectors.py`. Add the imports (`hashlib`, `shutil`, and from
   `hog_noise`: `NoiseParams`, `conformance`, the `parse_*` functions, and `grid_points` from `hog_noise.samplers`),
   set `OUT = ROOT / "vectors"`, and add:
 
@@ -1302,12 +1302,12 @@ def write_originals(root: Path, captured: list[tuple[str, str, dict, dict[str, n
 
   Keep lines within the project's 120 columns; `ruff format` will wrap the long dictionary literals.
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q`
 Expected: 5 passed.
 
-- [ ] **Step 5: commit**: "gen_noise_vectors: the writer and the case rules".
+- [x] **Step 5: commit**: "gen_noise_vectors: the writer and the case rules".
 
 ---
 
@@ -1315,7 +1315,7 @@ Expected: 5 passed.
 
 **Files:** modify `tools/gen_noise_vectors.py` and `tests/test_gen_noise_vectors.py`.
 
-- [ ] **Step 1: write the failing test**
+- [x] **Step 1: write the failing test**
 
 ```python
 def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tmp_path):
@@ -1343,12 +1343,12 @@ def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tm
     assert conformance.check(sample, v, warp=warp).ok
 ```
 
-- [ ] **Step 2: run it and see it fail**
+- [x] **Step 2: run it and see it fail**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q -k hog`
 Expected: FAIL, `no attribute 'generate_hog'`.
 
-- [ ] **Step 3: implement**:
+- [x] **Step 3: implement**:
 
 ```python
 def generate_hog(root: Path = OUT) -> list[str]:
@@ -1410,12 +1410,12 @@ def _write(
   Update the module docstring: it writes `vectors/` (raw float32 and the manifest), `--set hog` needs only numpy, and
   `--set original` needs the bindings and oracle it always did.
 
-- [ ] **Step 4: run the tests and see them pass**
+- [x] **Step 4: run the tests and see them pass**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q`
 Expected: 6 passed.
 
-- [ ] **Step 5: commit**: "gen_noise_vectors: the hog set; captures write through the writer".
+- [x] **Step 5: commit**: "gen_noise_vectors: the hog set; captures write through the writer".
 
 ---
 
@@ -1424,10 +1424,10 @@ Expected: 6 passed.
 **Files:** modify `.gitattributes`; create `tools/convert_npz_vectors.py`, `tests/test_hog_noise/test_conversion.py`,
 and `vectors/` (written by the tools).
 
-- [ ] **Step 1:** add `*.f32     binary` under the `*.npz binary` line of `.gitattributes`, before any `.f32` file
+- [x] **Step 1:** add `*.f32     binary` under the `*.npz binary` line of `.gitattributes`, before any `.f32` file
   exists, so none is ever committed with text conversion.
 
-- [ ] **Step 2: write the converter**, `tools/convert_npz_vectors.py`:
+- [x] **Step 2: write the converter**, `tools/convert_npz_vectors.py`:
 
 ```python
 """
@@ -1481,7 +1481,7 @@ if __name__ == "__main__":
   `gen_noise_vectors` imports). Expected: `INFO converted ...` and `INFO hog: N cases from M original
   cases`. Record N and M for the pull request.
 
-- [ ] **Step 3: measure `grid_warp_3d`** before deciding its comparison (spec, *The cases*):
+- [x] **Step 3: measure `grid_warp_3d`** before deciding its comparison (spec, *The cases*):
 
 ```python
 # scratch/measure_grid_warp.py: written to a file and run, never piped to python -
@@ -1498,7 +1498,7 @@ print(report.table())
   `gen_noise_vectors.py` (a literal: the constant sits above `_points`, so calling it there is a `NameError` at import) and rerun Step 2; otherwise leave it advisory. Write which, with the largest value, in the
   pull request.
 
-- [ ] **Step 4: write the conversion check**, `tests/test_hog_noise/test_conversion.py`. It is acceptance 1:
+- [x] **Step 4: write the conversion check**, `tests/test_hog_noise/test_conversion.py`. It is acceptance 1:
 
 ```python
 """
@@ -1684,17 +1684,17 @@ def test_the_gating_parameters_sample_exactly_as_todays_tests_build_them(vectors
   (`ruff format` will reflow it.) Every gating case and every FastNoiseLite case is checked, by output, not by
   parameter equality: a field that does not change the output (octaves under no fractal) cannot fail it.
 
-- [ ] **Step 5: run it, and the instrument once the other way**
+- [x] **Step 5: run it, and the instrument once the other way**
 
 Run: `uv run pytest tests/test_hog_noise/test_conversion.py -q`
 Expected: 3 passed. Then change one value in one `vectors/original/fns/*.f32` file by hand (and its digest, with
 `write_manifest`), run again, see `test_every_array_in_every_npz_has_a_case_with_equal_values` fail, and restore it by
 rerunning Step 2. A check that has not failed once is not yet evidence (the golden rule).
 
-- [ ] **Step 6: measure the size**: `du -sh vectors tests/vectors/noise` and `git count-objects -vH` after staging.
+- [x] **Step 6: measure the size**: `du -sh vectors tests/vectors/noise` and `git count-objects -vH` after staging.
   Record both in the pull request; the hog set roughly doubles the vectors, which the design accepted.
 
-- [ ] **Step 7: commit** `.gitattributes`, `tools/gen_noise_vectors.py` (if Step 3 changed it), the converter, the
+- [x] **Step 7: commit** `.gitattributes`, `tools/gen_noise_vectors.py` (if Step 3 changed it), the converter, the
   check and `vectors/` (manifest, points, original, hog; not yet accepted.json or portability.md): "Convert the .npz
   vectors to vectors/: raw float32 and the manifest, with the nothing-lost check".
 
@@ -1704,7 +1704,7 @@ rerunning Step 2. A check that has not failed once is not yet evidence (the gold
 
 **Files:** modify `tests/test_hog_noise/test_conformance.py` and `tests/test_hog_noise/test_params_dict.py`.
 
-- [ ] **Step 1: write the tests**
+- [x] **Step 1: write the tests**
 
 ```python
 REAL = Path(__file__).resolve().parents[2] / "vectors"
@@ -1795,10 +1795,10 @@ def test_every_case_in_the_vectors_round_trips():
         assert NoiseParams.from_dict(case.params.to_dict()) == case.params, case.id
 ```
 
-- [ ] **Step 2: run them**: `uv run pytest tests/test_hog_noise/test_conformance.py tests/test_hog_noise/test_params_dict.py -q`.
+- [x] **Step 2: run them**: `uv run pytest tests/test_hog_noise/test_conformance.py tests/test_hog_noise/test_params_dict.py -q`.
   Expected: all pass. Each "fails" test passes because the harness said no; that is the instrument shown to work.
 
-- [ ] **Step 3: commit**: "conformance: the acceptance checks on the committed vectors".
+- [x] **Step 3: commit**: "conformance: the acceptance checks on the committed vectors".
 
 ---
 
@@ -1807,10 +1807,10 @@ def test_every_case_in_the_vectors_round_trips():
 **Files:** modify `tests/test_hog_noise/test_kernels.py`; move `tests/vectors/noise/accepted.json`,
 `portability.md` and `reports/` to `vectors/` with `git mv`.
 
-- [ ] **Step 1: move the record files**: `git mv tests/vectors/noise/accepted.json vectors/accepted.json`, the same
+- [x] **Step 1: move the record files**: `git mv tests/vectors/noise/accepted.json vectors/accepted.json`, the same
   for `portability.md` and `reports`.
 
-- [ ] **Step 2: replace the head of `test_kernels.py`** (lines 42 to 104 at `0e0957d`): the paths, the fixture, and
+- [x] **Step 2: replace the head of `test_kernels.py`** (lines 42 to 104 at `0e0957d`): the paths, the fixture, and
   the two helpers. `PHASE_A`, `PHASE_B`, `PORTED` and `_portability_rows` stay as they are.
 
 ```python
@@ -1842,7 +1842,7 @@ def _original(vectors, library: str, feature: str, point_set: str, *, warp: bool
   Delete `_params_from` and `_load_vector`, and add `conformance` to the `from hog_noise import (...)` list. Every
   test that used `coords` keeps it; a test that used `_load_vector` takes `vectors` too.
 
-- [ ] **Step 3: rewrite the readers of the old files**, keeping every assertion that is not a reference comparison
+- [x] **Step 3: rewrite the readers of the old files**, keeping every assertion that is not a reference comparison
   and every portability row exactly as today (spec, *The tools and the suite*):
 
   - `test_numba_and_numpy_agree_exactly(feature, vectors, coords)`: `params = _original(vectors, "fnl", feature,
@@ -1868,7 +1868,7 @@ def _original(vectors, library: str, feature: str, point_set: str, *, warp: bool
     (`"1.0_1.0_1.0"`, `"1.0_0.5_2.0"`); the `sample_grid` call and `err.max() < 2e-3 and np.mean(err < 1e-4) > 0.98`
     stay exactly as they are (spec: the direct grid test stays).
 
-- [ ] **Step 4: add the harness run**, after the per-feature tests (acceptance 2):
+- [x] **Step 4: add the harness run**, after the per-feature tests (acceptance 2):
 
 ```python
 RENDERINGS = ["numpy"] + (["numba"] if HAVE_NUMBA else [])
@@ -1883,28 +1883,28 @@ def test_the_renderings_pass_every_gating_case_and_the_hog_set(rendering, vector
     assert report.ok and report.complete, report.table()
 ```
 
-- [ ] **Step 5: run the suite, unpiped**
+- [x] **Step 5: run the suite, unpiped**
 
 Run: `uv run pytest tests/test_hog_noise -q`
 Expected: no failures; the advisory xfails as before (one or none, `simplex_pingpong` is accepted). Note the
 suite's wall time before (on `main`) and after, for the pull request.
 
-- [ ] **Step 6: acceptance 6, the record holds.** In an environment with numba and `pyfastnoiselite` (the dev extra),
+- [x] **Step 6: acceptance 6, the record holds.** In an environment with numba and `pyfastnoiselite` (the dev extra),
   `test_write_portability_table` rewrites `vectors/portability.md`. Run `git diff -U0 vectors/portability.md`.
   Expected: one changed line, `Generated <today>.`; nothing else. Restore it with `git checkout -- vectors/portability.md`
   (P-2: the committed record is not rewritten by a run).
 
-- [ ] **Step 7: commit**: "Suite: read vectors/ through conformance.load; the reference comparisons are check calls".
+- [x] **Step 7: commit**: "Suite: read vectors/ through conformance.load; the reference comparisons are check calls".
 
 ---
 
 ### Task 11: remove the `.npz` files and the conversion
 
-- [ ] **Step 1:** `git rm -r tests/vectors/noise/fnl tests/vectors/noise/fns tests/vectors/noise/coords.npz
+- [x] **Step 1:** `git rm -r tests/vectors/noise/fnl tests/vectors/noise/fns tests/vectors/noise/coords.npz
   tools/convert_npz_vectors.py tests/test_hog_noise/test_conversion.py`. Confirm `tests/vectors/` is now empty and
   gone: `git ls-files tests/vectors` prints nothing.
-- [ ] **Step 2:** `uv run pytest tests/test_hog_noise -q`. Expected: as Task 10, minus the three conversion tests.
-- [ ] **Step 3: commit**: "Remove the .npz vectors and the one-time conversion".
+- [x] **Step 2:** `uv run pytest tests/test_hog_noise -q`. Expected: as Task 10, minus the three conversion tests.
+- [x] **Step 3: commit**: "Remove the .npz vectors and the one-time conversion".
 
 ---
 
@@ -1912,7 +1912,7 @@ suite's wall time before (on `main`) and after, for the pull request.
 
 **Files:** modify `tools/noise_gallery.py`; regenerate `Docs/noise/GALLERY.md` and the sheets.
 
-- [ ] **Step 1:** in `tools/noise_gallery.py`: `VECTORS = ROOT / "vectors"`; delete `_params_from_vector` and the
+- [x] **Step 1:** in `tools/noise_gallery.py`: `VECTORS = ROOT / "vectors"`; delete `_params_from_vector` and the
   `parse_*` imports it alone used; `COMPARISONS` becomes `(family, name)` pairs (the third element goes, the manifest's
   parameters already being HogNoise's); `comparison_rows` becomes:
 
@@ -1933,35 +1933,35 @@ def comparison_rows() -> list[tuple[str, compare.ComparisonStats, np.ndarray, np
 
   and the two page lines name `[portability.md](../../vectors/portability.md)` and `vectors/reports/`. Add
   `conformance` to the `from hog_noise import (...)` list.
-- [ ] **Step 2:** `uv run python tools/noise_gallery.py`, then `uv run python tools/noise_gallery.py --check`.
+- [x] **Step 2:** `uv run python tools/noise_gallery.py`, then `uv run python tools/noise_gallery.py --check`.
   Expected: `noise gallery: page current`. `git diff --stat Docs/noise` shows `GALLERY.md` (the two path lines, and
   nothing in the numbers: the parameters are the same) and no change to the PNGs. If a PNG or a number changed, stop:
   a mapping differs.
-- [ ] **Step 3:** `uv run pytest tests/test_noise_gallery.py -q`. Expected: passed.
-- [ ] **Step 4: commit**: "Gallery: read vectors/ through conformance.load".
+- [x] **Step 3:** `uv run pytest tests/test_noise_gallery.py -q`. Expected: passed.
+- [x] **Step 4: commit**: "Gallery: read vectors/ through conformance.load".
 
 ---
 
 ### Task 13: the documents name the new path
 
-- [ ] **Step 1:** find every live reference: `git grep -n "tests/vectors"`. Outside the records (the ADRs, the designs,
+- [x] **Step 1:** find every live reference: `git grep -n "tests/vectors"`. Outside the records (the ADRs, the designs,
   the specs, the plans, the journal, the ledger and `Docs/PYTHON_UPGRADE_AND_FASTNOISE.md`, which keep the old path),
   change each to `vectors/`: `README.md` (the portability link), `PROVENANCE.md`, `llms.txt`, `NOTICE` (section 3's
   paths only: `vectors/original/fnl/` and `vectors/original/fns/`, the attribution text unchanged),
   `Docs/glossary.md` (*Oracle vectors*, *Portability table*), `Docs/standards/testing-project.md`, and the
   `test_kernels.py` docstring at its advisory test.
-- [ ] **Step 2:** `Docs/glossary.md`: the *Conformance harness*, *Reference set*, *Case*, *Bound* and *Point set* rows
+- [x] **Step 2:** `Docs/glossary.md`: the *Conformance harness*, *Reference set*, *Case*, *Bound* and *Point set* rows
   say built. `Docs/README.md`: the spec and the plan rows say built.
-- [ ] **Step 3: write `vectors/README.md`**, one page for a reader with no Python: what the folder is; the file
+- [x] **Step 3: write `vectors/README.md`**, one page for a reader with no Python: what the folder is; the file
   format (raw little-endian IEEE float32, no header; a warp file is N x dims, row-major); the manifest's fields and the
   three comparison kinds with their fields; the case id grammar; "verify each file's sha256 against `files` before
   reading it"; the per-point rule `abs(ours - reference) <= scale`, coordinate-scaled `<= scale * max(1,
   max(abs(x), abs(y)[, abs(z)]) * frequency)`; that `hog` is HogNoise's numpy rendering and `original` the libraries'
   captures; and the command `python -m hog_noise.conformance vectors --rendering numpy`. Every statement in it is
   checked against `conformance.py` as written (P-6).
-- [ ] **Step 4:** `git grep -n "tests/vectors"` again: only the records remain. `uv run python tools/check.py`
+- [x] **Step 4:** `git grep -n "tests/vectors"` again: only the records remain. `uv run python tools/check.py`
   (full, unpiped). Expected: every stage passes.
-- [ ] **Step 5: commit**: "Docs: the vectors live in vectors/".
+- [x] **Step 5: commit**: "Docs: the vectors live in vectors/".
 
 ---
 

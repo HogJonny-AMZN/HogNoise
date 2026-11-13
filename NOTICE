@@ -65,14 +65,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-3. Where the comparison vectors in tests/vectors/noise/ came from. These are
+3. Where the comparison vectors in vectors/original/ came from. These are
    numeric outputs, not copies of code; they are recorded so the provenance is
    not a guess.
 
-   tests/vectors/noise/fnl/  pyfastnoiselite (a Cython binding of FastNoiseLite),
+   vectors/original/fnl/     pyfastnoiselite (a Cython binding of FastNoiseLite),
                              MIT licence per its PyPI classifier. Also an
                              optional runtime extra ("reference").
-   tests/vectors/noise/fns/  pyfastnoisesimd (a binding of FastNoiseSIMD),
+   vectors/original/fns/     pyfastnoisesimd (a binding of FastNoiseSIMD),
                              BSD-3-Clause per its PyPI metadata. Its last
                              release is 2021-03-31 and it is no longer a
                              dependency; it was used once, on Python 3.9, to

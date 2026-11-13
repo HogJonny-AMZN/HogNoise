@@ -19,7 +19,6 @@ difference side by side for the features the oracles check by point.
 """
 
 import argparse
-import json
 import logging as _logging
 import sys
 from collections.abc import Sequence
@@ -34,12 +33,7 @@ from hog_noise import (  # noqa: E402
     NoiseParams,
     NumpySampler,
     compare,
-    parse_cellular_distance,
-    parse_cellular_return,
-    parse_domain_warp,
-    parse_fractal_type,
-    parse_noise_type,
-    parse_perturb,
+    conformance,
 )
 from hog_noise.families import FAMILIES, enum_name  # noqa: E402
 
@@ -50,7 +44,7 @@ _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 OUT_DIR = ROOT / "Docs" / "noise" / "gallery"
 PAGE = ROOT / "Docs" / "noise" / "GALLERY.md"
-VECTORS = ROOT / "tests" / "vectors" / "noise"
+VECTORS = ROOT / "vectors"
 TILE = 96
 
 Tile = tuple[str, np.ndarray]  # caption, uint8 image (H, W) grey or (H, W, 3)
@@ -120,72 +114,35 @@ def contact_sheet(tiles: Sequence[Tile], columns: int, path: Path, title: str) -
 # the families, each a list of (caption, params)
 # -------------------------------------------------------------------------
 # comparisons against the oracles, for the features they check by point
-def _params_from_vector(vp: dict) -> NoiseParams:
-    rotation = {"improve_xy": 1, "improve_xz": 2}.get(vp.get("rotation_3d", ""), 0)
-    kwargs = dict(
-        seed=vp["seed"],
-        frequency=vp["frequency"],
-        noise_type=parse_noise_type(vp["noise_type"]),
-        fractal_type=parse_fractal_type(vp["fractal_type"]),
-        octaves=vp.get("octaves", 1),
-        lacunarity=vp.get("lacunarity", 2.0),
-        gain=vp.get("gain", 0.5),
-        weighted_strength=vp.get("weighted_strength", 0.0),
-        rotation_3d=rotation,
-        cellular_distance=parse_cellular_distance(vp.get("cellular_distance", "euclideansq")),
-        cellular_return=parse_cellular_return(vp.get("cellular_return", "distance")),
-        cellular_jitter=vp.get("cellular_jitter", 1.0),
-        domain_warp=parse_domain_warp(vp.get("domain_warp", "none")),
-        domain_warp_amp=vp.get("domain_warp_amp", 1.0),
-    )
-    if "perturb_type" in vp:
-        kwargs.update(
-            perturb=parse_perturb(vp["perturb_type"]),
-            perturb_amp=vp["perturb_amp"],
-            perturb_frequency=vp["perturb_frequency"],
-            perturb_octaves=vp["perturb_octaves"],
-            perturb_lacunarity=vp["perturb_lacunarity"],
-            perturb_gain=vp["perturb_gain"],
-            perturb_normalise_length=vp["perturb_normalise_length"],
-        )
-    return NoiseParams(**kwargs)
-
-
 #: A representative set, one or two per feature family, not every by-point comparison the tests make (those
-#: are all of PORTED and every perturb mode; portability.md lists them). (oracle directory, vector name, the
-#: noise type our side samples with when the vector's name is the retired library's.)
-COMPARISONS: tuple[tuple[str, str, str | None], ...] = (
-    ("fns", "simplex_none", "simplex_classic"),
-    ("fns", "simplex_fbm", "simplex_classic"),
-    ("fns", "simplex_billow", "simplex_classic"),
-    ("fns", "simplex_rigidmulti", "simplex_classic"),
-    ("fns", "whitenoise_none", None),
-    ("fns", "simplex_fbm_perturb_gradient", "simplex_classic"),
-    ("fns", "simplex_fbm_perturb_gradientfractal_normalise", "simplex_classic"),
-    ("fnl", "simplex_fbm", None),
-    ("fnl", "simplex_smooth_fbm", None),
-    ("fnl", "cellular_euclidean_distance2div", None),
-    ("fnl", "warp_opensimplex2_domain_warp_progressive", None),
+#: are all of PORTED and every perturb mode; portability.md lists them). (library, feature): the case is the
+#: feature's grid, and its parameters are already HogNoise's (FastNoiseSIMD's simplex is its classic Simplex).
+COMPARISONS: tuple[tuple[str, str], ...] = (
+    ("fns", "simplex_none"),
+    ("fns", "simplex_fbm"),
+    ("fns", "simplex_billow"),
+    ("fns", "simplex_rigidmulti"),
+    ("fns", "whitenoise_none"),
+    ("fns", "simplex_fbm_perturb_gradient"),
+    ("fns", "simplex_fbm_perturb_gradientfractal_normalise"),
+    ("fnl", "simplex_fbm"),
+    ("fnl", "simplex_smooth_fbm"),
+    ("fnl", "cellular_euclidean_distance2div"),
+    ("fnl", "warp_opensimplex2_domain_warp_progressive"),
 )
 
 
 def comparison_rows() -> list[tuple[str, compare.ComparisonStats, np.ndarray, np.ndarray]]:
     """For each listed vector: its caption, the statistics, the oracle's grid and ours."""
-    coords = np.load(VECTORS / "coords.npz")
-    n = int(np.sqrt(len(coords["grid_x"])))
+    vectors = conformance.load(VECTORS)
+    grid_x, grid_y, grid_z = vectors.point_sets["grid_y0"].axes
+    n = int(np.sqrt(len(grid_x)))
     rows = []
-    for family, name, noise_override in COMPARISONS:
-        data = np.load(VECTORS / family / f"{name}.npz")
-        vp = json.loads(str(data["params"]))
-        if noise_override:
-            vp = dict(vp, noise_type=noise_override)
-        params = _params_from_vector(vp)
-        ours = _sampler(params).sample_points(
-            coords["grid_x"], np.zeros_like(coords["grid_x"]), coords["grid_z"], np.empty(n * n, np.float32)
-        )
-        ref = data["grid_3d"]
-        stats = compare.compare_values(ours, ref)
-        rows.append((f"{family}/{name}", stats, ref.reshape(n, n), ours.reshape(n, n)))
+    for family, name in COMPARISONS:
+        case = vectors.case(f"original/{family}/{name}/grid_y0")
+        ours = _sampler(case.params).sample_points(grid_x, grid_y, grid_z, np.empty(n * n, np.float32))
+        stats = compare.compare_values(ours, case.values)
+        rows.append((f"{family}/{name}", stats, case.values.reshape(n, n), ours.reshape(n, n)))
     return rows
 
 
@@ -253,8 +210,8 @@ def render_page(write_images: bool = True) -> str:
         "ours, and the signed difference.",
         "`fns` is the retired FastNoiseSIMD (its own hash, so only its own features compare by point); `fnl` is",
         "`pyfastnoiselite`, and the warp row comes from the C++ harness in `tools/noise_oracle`. Every other",
-        "comparison the tests make is in [portability.md](../../tests/vectors/noise/portability.md); a mismatch past",
-        "the advisory bar writes a sheet to `tests/vectors/noise/reports/` and waits for a verdict in `accepted.json`.",
+        "comparison the tests make is in [portability.md](../../vectors/portability.md); a mismatch past",
+        "the advisory bar writes a sheet to `vectors/reports/` and waits for a verdict in `accepted.json`.",
         "",
         "Read the difference tile, not the grids: the captured grids span 4096 units at frequency 0.01, about three",
         "samples per period, so at 128 px they alias into static for every feature but the smoothest. The",

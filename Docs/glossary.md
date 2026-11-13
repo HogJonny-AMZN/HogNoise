@@ -12,18 +12,17 @@ refused as current.
 | **NoiseParams** | The one parameter record every rendering of a noise reads: type, seed, frequency, fractal, cellular, warp and perturb settings. |
 | **Rung** | One implementation of a capability on the ladder: `numba` (compiled kernels), `numpy` (the base), and `fastnoiselite` (the reference binding, chosen only by name). |
 | **Ladder** | The ordered rungs for one capability, chosen by `hog_noise.backends.select`: the best available wins, an override-only rung (negative priority) is never chosen automatically, and an explicit override (`HOG_NOISE_BACKEND_<CAPABILITY>`) never falls through. |
-| **Oracle vectors** | The outputs captured from the original libraries under `tests/vectors/noise/`, which every rung is compared against. |
-| **Portability table** | `tests/vectors/noise/portability.md`: every comparison and how closely it agreed, rewritten by a full-environment test run. |
+| **Oracle vectors** | The outputs captured from the original libraries, the *original* reference set under `vectors/original/`, which every rung is compared against. |
+| **Portability table** | `vectors/portability.md`: every comparison and how closely it agreed, rewritten by a full-environment test run. |
 | **North star** | The end state the [roadmap](design/2026-11-01-north-star-roadmap.md) defines: one self-contained package with FastNoise2 parity, 4D, and every rendering of every noise on CPU and GPU. |
 | **Rendering** | One way a noise is computed: numba, numpy, or a shader language (WGSL, HLSL, GLSL, Metal). The renderings of one graph must agree to their tolerance contract. |
 | **Tolerance contract** | The stated bound a rendering must meet against the oracle vectors: zero (bit-identical) for the CPU renderings, a per-node bound for the GPU. |
 | **Node graph** | A noise as nodes whose inputs are constants or other nodes, as in FastNoise2; planned, not built. |
-| **Conformance harness** | The published check any implementation runs against the oracle vectors; planned, not built ([design](design/2026-11-02-conformance-harness.md), Accepted 2026-11-11). |
-| **Reference set** | One source of expected values in the vectors: *original* (what FastNoiseLite and FastNoiseSIMD produced) or *hog* (HogNoise's numpy rendering). Accepted with the conformance harness design, not built. |
-| **Case** | One parameter record over one point set, with its expected output (noise or warp), how it is compared (points, shape or advisory) and its bound: the unit the conformance harness checks. Accepted with its design, not built. |
-| **Bound** | The largest difference one case accepts: a constant, or a multiple of the noise-space coordinate (`scale * max(1, max(abs(x), abs(y), abs(z)) * frequency)`, checked per point). A rendering's tolerance contract is stated as bounds. Accepted with the conformance harness design, not built. |
-| **Point set** | A named list of coordinates the vectors share, such as `scatter_3d` or a `genasgrid` grid; every case is sampled on one. Specified with the conformance harness, not built. |
-
+| **Conformance harness** | The published check any implementation runs against the vectors: `hog_noise.conformance` (`load`, `check`, `Report`, and `python -m hog_noise.conformance`), over the format in [vectors/README.md](../vectors/README.md). Built 2026-11-12 ([spec](superpowers/specs/2026-11-11-conformance-harness.md)). |
+| **Reference set** | One source of expected values in the vectors: *original* (what FastNoiseLite and FastNoiseSIMD produced) or *hog* (HogNoise's numpy rendering, matched bit for bit). |
+| **Case** | One parameter record over one point set, with its expected output (noise or warp), how it is compared (points, shape or advisory) and its bound: the unit the conformance harness checks. |
+| **Bound** | The largest difference one case accepts: a constant, or a multiple of the noise-space coordinate (`scale * max(1, max(abs(x), abs(y), abs(z)) * frequency)`, checked per point). A rendering's tolerance contract is stated as bounds. |
+| **Point set** | A named list of coordinates the vectors share, such as `scatter_3d` or a `genasgrid` grid; every case is sampled on one. |
 
 ## Process
 

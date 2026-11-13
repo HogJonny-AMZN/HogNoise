@@ -62,7 +62,7 @@ So I ported it, with AI, in days to weeks rather than the weeks to months it wou
 
 ## How it's checked
 
-- 208 comparisons against the originals: 75 bit-identical, the rest within float32 rounding (largest difference 2.0e-4). They are listed in [the comparison table](tests/vectors/noise/portability.md).
+- 208 comparisons against the originals: 75 bit-identical, the rest within float32 rounding (largest difference 2.0e-4). They are listed in [the comparison table](vectors/portability.md).
 - A difference never quietly passes or fails: it produces a side-by-side image and waits for a person's verdict.
 - The suite runs on Python 3.11 with numpy 1.26, on 3.13, and with numpy alone.
 

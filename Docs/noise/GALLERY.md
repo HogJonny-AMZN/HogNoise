@@ -136,8 +136,8 @@ every ported feature and every perturb mode; portability.md has them all): the o
 ours, and the signed difference.
 `fns` is the retired FastNoiseSIMD (its own hash, so only its own features compare by point); `fnl` is
 `pyfastnoiselite`, and the warp row comes from the C++ harness in `tools/noise_oracle`. Every other
-comparison the tests make is in [portability.md](../../tests/vectors/noise/portability.md); a mismatch past
-the advisory bar writes a sheet to `tests/vectors/noise/reports/` and waits for a verdict in `accepted.json`.
+comparison the tests make is in [portability.md](../../vectors/portability.md); a mismatch past
+the advisory bar writes a sheet to `vectors/reports/` and waits for a verdict in `accepted.json`.
 
 Read the difference tile, not the grids: the captured grids span 4096 units at frequency 0.01, about three
 samples per period, so at 128 px they alias into static for every feature but the smoothest. The

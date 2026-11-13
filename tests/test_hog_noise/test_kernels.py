@@ -8,7 +8,6 @@ Advisory, against the original binding: every Phase A feature is compared with t
 from the same comparisons.
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -28,10 +27,10 @@ from hog_noise import (
     NumpySampler,
     PerturbType,
     compare,
+    conformance,
     make_sampler,
     parse_cellular_distance,
     parse_cellular_return,
-    parse_domain_warp,
     parse_fractal_type,
     parse_noise_type,
     parse_perturb,
@@ -39,7 +38,7 @@ from hog_noise import (
     vectorized,
 )
 
-VECTORS = Path(__file__).resolve().parents[1] / "vectors" / "noise"
+VECTORS = Path(__file__).resolve().parents[2] / "vectors"
 REPORTS = VECTORS / "reports"
 ACCEPTED = VECTORS / "accepted.json"
 PORTABILITY = VECTORS / "portability.md"
@@ -71,44 +70,29 @@ _portability_rows = []
 
 
 @pytest.fixture(scope="module")
-def coords():
-    data = np.load(VECTORS / "coords.npz")
-    return {k: data[k] for k in data.files}
+def vectors():
+    return conformance.load(VECTORS)
 
 
-def _params_from(vector_params: dict) -> NoiseParams:
-    rotation = {"improve_xy": 1, "improve_xz": 2}.get(vector_params.get("rotation_3d", ""), 0)
-    return NoiseParams(
-        seed=vector_params["seed"],
-        frequency=vector_params["frequency"],
-        noise_type=parse_noise_type(vector_params["noise_type"]),
-        fractal_type=parse_fractal_type(vector_params["fractal_type"]),
-        octaves=vector_params.get("octaves", 1),
-        lacunarity=vector_params.get("lacunarity", 2.0),
-        gain=vector_params.get("gain", 0.5),
-        weighted_strength=vector_params.get("weighted_strength", 0.0),
-        ping_pong_strength=vector_params.get("ping_pong_strength", 2.0),
-        rotation_3d=rotation,
-        cellular_distance=parse_cellular_distance(vector_params.get("cellular_distance", "euclideansq")),
-        cellular_return=parse_cellular_return(vector_params.get("cellular_return", "distance")),
-        cellular_jitter=vector_params.get("cellular_jitter", 1.0),
-        domain_warp=parse_domain_warp(vector_params.get("domain_warp", "none")),
-        domain_warp_amp=vector_params.get("domain_warp_amp", 1.0),
-    )
+@pytest.fixture(scope="module")
+def coords(vectors):
+    """Today's coordinate names over the point sets, so the property tests below read as they did."""
+    xs, ys, zs = vectors.point_sets["scatter_3d"].axes
+    grid_x, _, grid_z = vectors.point_sets["grid_y0"].axes
+    return {"xs": xs, "ys": ys, "zs": zs, "grid_x": grid_x, "grid_z": grid_z}
 
 
-def _load_vector(feature: str):
-    data = np.load(VECTORS / "fnl" / f"{feature}.npz")
-    params = json.loads(str(data["params"]))
-    return params, {k: data[k] for k in data.files if k != "params"}
+def _original(vectors, library: str, feature: str, point_set: str, *, warp: bool = False, variant: str = ""):
+    suffix = ("/warp" if warp else "") + (f"#{variant}" if variant else "")
+    return vectors.case(f"original/{library}/{feature}/{point_set}{suffix}")
 
 
 # -------------------------------------------------------------------------
 # tight: numba vs numpy base, exact
 @pytest.mark.skipif(not HAVE_NUMBA, reason="numba not installed; the tight test needs both rungs")
 @pytest.mark.parametrize("feature", PORTED)
-def test_numba_and_numpy_agree_exactly(feature, coords):
-    params = _params_from(_load_vector(feature)[0])
+def test_numba_and_numpy_agree_exactly(feature, vectors, coords):
+    params = _original(vectors, "fnl", feature, "scatter_3d").params
     a = np.empty(len(coords["xs"]), np.float32)
     b = np.empty(len(coords["xs"]), np.float32)
     numba_sampler, _ = make_sampler(params, backend="numba")
@@ -135,18 +119,20 @@ def test_the_exact_test_would_catch_a_one_ulp_change(coords):
 # -------------------------------------------------------------------------
 # advisory: our kernels vs the pyfastnoiselite vectors
 @pytest.mark.parametrize("feature", PORTED)
-def test_kernels_against_fastnoiselite_vectors(feature, coords):
+def test_kernels_against_fastnoiselite_vectors(feature, vectors, coords):
     """
-    Always runs, always reports. A mismatch writes a sheet under tests/vectors/noise/reports/ and
+    Always runs, always reports. A mismatch writes a sheet under vectors/reports/ and
     becomes needs-review (xfail) unless accepted.json records a verdict. It never fails the build.
     """
-    vector_params, values = _load_vector(feature)
-    params = _params_from(vector_params)
+    c3 = _original(vectors, "fnl", feature, "scatter_3d")
+    c2 = _original(vectors, "fnl", feature, "scatter_2d")
+    cg = _original(vectors, "fnl", feature, "grid_y0")
+    params = c3.params
     sampler = NumpySampler(params) if not HAVE_NUMBA else make_sampler(params, backend="numba")[0]
     ours_3d = sampler.sample_points(coords["xs"], coords["ys"], coords["zs"], np.empty(len(coords["xs"]), np.float32))
-    stats_3d = compare.compare_values(ours_3d, values["scatter_3d"])
+    stats_3d = compare.compare_values(ours_3d, c3.values)
     ours_2d = sampler.sample_points_2d(coords["xs"], coords["zs"], np.empty(len(coords["xs"]), np.float32))
-    stats_2d = compare.compare_values(ours_2d, values["scatter_2d"])
+    stats_2d = compare.compare_values(ours_2d, c2.values)
     rung = sampler.name
     _portability_rows.append(compare.PortabilityRow(f"{feature} (3D)", rung, "fastnoiselite", stats_3d))
     _portability_rows.append(compare.PortabilityRow(f"{feature} (2D)", rung, "fastnoiselite", stats_2d))
@@ -163,21 +149,22 @@ def test_kernels_against_fastnoiselite_vectors(feature, coords):
         coords["grid_x"], np.zeros_like(coords["grid_x"]), coords["grid_z"], np.empty(len(coords["grid_x"]), np.float32)
     ).reshape(n, n)
     sheet = compare.render_sheet(
-        values["grid_3d"].reshape(n, n), grid_ours, REPORTS / f"{feature}.png", f"{feature}: {rung} vs fastnoiselite"
+        cg.values.reshape(n, n), grid_ours, REPORTS / f"{feature}.png", f"{feature}: {rung} vs fastnoiselite"
     )
     pytest.xfail(f"needs-review: {feature} 3D {stats_3d.summary()} | 2D {stats_2d.summary()} | sheet {sheet}")
 
 
 @pytest.mark.parametrize("feature", PHASE_B_WARP)
-def test_domain_warp_field_matches_the_reference(feature, coords):
+def test_domain_warp_field_matches_the_reference(feature, vectors, coords):
     """
     The warped coordinates themselves (the reference's ``DomainWarp``), from the C++ oracle in
     tools/noise_oracle since the binding does not expose the call. Exact between our rungs; against
     the oracle, within float32 rounding of the coordinates (about 1 ulp at 4096, so 5e-4), which is the
-    oracle's own precision, not ours. Tight, not advisory: a wrong branch moves points by units.
+    oracle's own precision, not ours: that comparison is the harness's (the warp cases, at 4e-3), in
+    `test_the_renderings_pass_every_gating_case_and_the_hog_set`. Here: a real displacement, and exact rungs.
     """
-    vector_params, values = _load_vector(feature)
-    params = _params_from(vector_params)
+    params = _original(vectors, "fnl", feature, "scatter_3d").params
+    w3 = _original(vectors, "fnl", feature, "scatter_3d", warp=True).values
     numpy_sampler = NumpySampler(params)
     ours_3d = numpy_sampler.warp_points(coords["xs"], coords["ys"], coords["zs"])
     ours_2d = numpy_sampler.warp_points_2d(coords["xs"], coords["zs"])
@@ -186,10 +173,7 @@ def test_domain_warp_field_matches_the_reference(feature, coords):
         assert np.array_equal(numba_sampler.warp_points(coords["xs"], coords["ys"], coords["zs"]), ours_3d)
         assert np.array_equal(numba_sampler.warp_points_2d(coords["xs"], coords["zs"]), ours_2d)
     raw_3d = np.stack([coords["xs"], coords["ys"], coords["zs"]], axis=1)
-    assert np.abs(values["warp_3d"] - raw_3d).mean() > 1.0, "the vector carries a real displacement"
-    err_3d = np.abs(ours_3d - values["warp_3d"]).max()
-    err_2d = np.abs(ours_2d - values["warp_2d"]).max()
-    assert err_3d < 4e-3 and err_2d < 4e-3, f"warp field off the oracle: 3D {err_3d:.3g}, 2D {err_2d:.3g}"
+    assert np.abs(w3 - raw_3d).mean() > 1.0, "the vector carries a real displacement"
 
 
 # -------------------------------------------------------------------------
@@ -238,18 +222,9 @@ def test_billow_is_exact_between_rungs_and_is_the_billow_of_its_octaves(noise, w
     np.testing.assert_allclose(ours, total, atol=2e-4)  # float32 frequency rounding per octave, nothing else
 
 
-@pytest.mark.parametrize("noise", ("perlin", "value", "cubic", "simplex"))
-def test_billow_shape_agrees_with_the_fastnoisesimd_vectors(noise, coords):
-    """Shape only: FastNoiseSIMD's Perlin is a differently hashed Perlin, so points cannot match; what
-    Billow adds (the fold to [-1, 1], the spread) must still agree with the captured vectors."""
-    ref = np.load(VECTORS / "fns" / f"{noise}_billow.npz")["scatter_3d"]
-    params = NoiseParams(
-        seed=12345, frequency=0.01, noise_type=parse_noise_type(noise), fractal_type=FractalType.BILLOW, octaves=4
-    )
-    ours = NumpySampler(params).sample_points(coords["xs"], coords["ys"], coords["zs"], np.empty(len(ref), np.float32))
-    assert -1.05 <= ours.min() and ours.max() <= 1.05
-    assert abs(float(ours.mean()) - float(ref.mean())) < 0.2, (ours.mean(), ref.mean())
-    assert abs(float(ours.std()) - float(ref.std())) < 0.2, (ours.std(), ref.std())
+# FastNoiseSIMD's Billow by shape (FastNoiseSIMD's Perlin is a differently hashed Perlin, so points cannot match;
+# what Billow adds, the fold to [-1, 1] and the spread, must still agree) is the harness's: the `shape` cases on
+# original/fns/*_billow/scatter_3d, checked in test_the_renderings_pass_every_gating_case_and_the_hog_set.
 
 
 def test_warp_points_without_a_warp_returns_the_raw_points(coords):
@@ -268,17 +243,14 @@ def test_warp_points_without_a_warp_returns_the_raw_points(coords):
         assert np.array_equal(numba_sampler.warp_points_2d(coords["xs"], coords["zs"]), raw_2d)
 
 
-def test_white_noise_is_exact_between_rungs_and_matches_fastnoisesimd(coords):
+def test_white_noise_is_exact_between_rungs_and_matches_fastnoisesimd(vectors, coords):
     """
     FastNoiseSIMD's white noise hashes the float32 bit patterns of the scaled coordinates, so this
     is the one Phase C feature its vectors can check point by point: tight (float32 rounding of the
-    hash-to-float multiply), and exact between our rungs.
+    hash-to-float multiply; the harness holds it to 1e-6), and exact between our rungs.
     """
-    vector = np.load(VECTORS / "fns" / "whitenoise_none.npz")
-    vector_params = json.loads(str(vector["params"]))
-    params = NoiseParams(
-        seed=vector_params["seed"], frequency=vector_params["frequency"], noise_type=NoiseType.WHITE_NOISE
-    )
+    case = _original(vectors, "fns", "whitenoise_none", "scatter_3d")
+    params = case.params
     n = len(coords["xs"])
     ours = NumpySampler(params).sample_points(coords["xs"], coords["ys"], coords["zs"], np.empty(n, np.float32))
     if HAVE_NUMBA:
@@ -290,9 +262,8 @@ def test_white_noise_is_exact_between_rungs_and_matches_fastnoisesimd(coords):
             numba_sampler.sample_points_2d(coords["xs"], coords["zs"], np.empty(n, np.float32)),
             NumpySampler(params).sample_points_2d(coords["xs"], coords["zs"], np.empty(n, np.float32)),
         )
-    stats = compare.compare_values(ours, vector["scatter_3d"])
+    stats = compare.compare_values(ours, case.values)
     _portability_rows.append(compare.PortabilityRow("whitenoise_none (3D)", "numpy", "fastnoisesimd", stats))
-    assert stats.max_abs < 1e-6, stats.summary()
     assert -1.0 <= ours.min() and ours.max() <= 1.0
     assert abs(float(ours.mean())) < 0.05 and 0.5 < float(ours.std()) < 0.65, "uniform on [-1, 1]"
 
@@ -366,64 +337,24 @@ def test_noise_lookup_is_constant_within_a_cell_and_is_the_lookup_noise(coords):
     assert -1.0 <= spread.min() and spread.max() <= 1.0
 
 
-@pytest.mark.parametrize(
-    "feature",
-    [
-        "cellular_natural_distance",
-        "cellular_natural_cellvalue",
-        "cellular_euclidean_noiselookup",
-        "cellular_euclidean_distance2cave",
-    ],
-)
-def test_cellular_phase_c_spread_agrees_with_fastnoisesimd(feature, coords):
-    """Shape only: FastNoiseSIMD jitters cell points onto a sphere and hashes differently, so points cannot
-    match; the spread of what Natural, NoiseLookup and Distance2Cave produce must still be the same order."""
-    data = np.load(VECTORS / "fns" / f"{feature}.npz")
-    vp = json.loads(str(data["params"]))
-    ref = data["scatter_3d"]
-    params = NoiseParams(
-        seed=vp["seed"],
-        frequency=vp["frequency"],
-        noise_type=NoiseType.CELLULAR,
-        cellular_distance=parse_cellular_distance(vp["cellular_distance"]),
-        cellular_return=parse_cellular_return(vp["cellular_return"]),
-        cellular_jitter=vp["cellular_jitter"],
-        cellular_lookup_frequency=vp.get("lookup_frequency", 0.2),
-    )
-    ours = NumpySampler(params).sample_points(coords["xs"], coords["ys"], coords["zs"], np.empty(len(ref), np.float32))
-    assert np.isfinite(ours).all()
-    ratio = float(ours.std()) / max(float(ref.std()), 1e-6)
-    assert 0.3 < ratio < 3.0, f"spread ratio ours/fns {ratio:.2f} (ours {ours.std():.3f}, fns {ref.std():.3f})"
+# FastNoiseSIMD's Phase C cellular by shape (it jitters cell points onto a sphere and hashes differently, so points
+# cannot match; the spread of Natural, NoiseLookup and Distance2Cave must still be the same order) is the harness's:
+# the `shape` cases on original/fns/cellular_*/scatter_3d.
+
+#: FastNoiseSIMD's own Simplex, hash and all, so its vectors compare by point: the bounds (the harness's, in
+#: tools/gen_noise_vectors.py) are the float32 arithmetic the retired library ran in, growing with the octave sums.
+CLASSIC_SIMPLEX_VECTORS = ("simplex_billow", "simplex_fbm", "simplex_none", "simplex_rigidmulti")
 
 
-CLASSIC_SIMPLEX_VECTORS = {
-    # FastNoiseSIMD's own Simplex, hash and all, so its vectors compare by point: the tolerance is the
-    # float32 arithmetic the retired library ran in, growing with the octave sums
-    "simplex_none": 5e-5,
-    "simplex_fbm": 2e-4,
-    "simplex_billow": 5e-4,
-    "simplex_rigidmulti": 5e-4,
-}
-
-
-@pytest.mark.parametrize("feature", sorted(CLASSIC_SIMPLEX_VECTORS))
-def test_classic_simplex_matches_fastnoisesimd_by_point(feature, coords):
+@pytest.mark.parametrize("feature", CLASSIC_SIMPLEX_VECTORS)
+def test_classic_simplex_matches_fastnoisesimd_by_point(feature, vectors, coords):
     """
-    The retired library's Simplex, by name: exact between rungs, and point for point with the
-    FastNoiseSIMD vectors within float32 rounding, in 3D scatter and on the grid. The rigidmulti row
+    The retired library's Simplex, by name: exact between rungs here, and point for point with the
+    FastNoiseSIMD vectors within float32 rounding, in 3D scatter and on the grid, in the harness. The rigidmulti row
     is the one that found F1's alias wrong: under Ridged it correlated 0.5, under RigidMulti it matches.
     """
-    data = np.load(VECTORS / "fns" / f"{feature}.npz")
-    vp = json.loads(str(data["params"]))
-    params = NoiseParams(
-        seed=vp["seed"],
-        frequency=vp["frequency"],
-        noise_type=NoiseType.SIMPLEX_CLASSIC,
-        fractal_type=parse_fractal_type(vp["fractal_type"]),
-        octaves=vp.get("octaves", 1),
-        lacunarity=vp.get("lacunarity", 2.0),
-        gain=vp.get("gain", 0.5),
-    )
+    case = _original(vectors, "fns", feature, "scatter_3d")
+    params = case.params
     n = len(coords["xs"])
     numpy_sampler = NumpySampler(params)
     ours = numpy_sampler.sample_points(coords["xs"], coords["ys"], coords["zs"], np.empty(n, np.float32))
@@ -436,13 +367,8 @@ def test_classic_simplex_matches_fastnoisesimd_by_point(feature, coords):
             numba_sampler.sample_points_2d(coords["xs"], coords["zs"], np.empty(n, np.float32)),
             numpy_sampler.sample_points_2d(coords["xs"], coords["zs"], np.empty(n, np.float32)),
         )
-    stats = compare.compare_values(ours, data["scatter_3d"])
+    stats = compare.compare_values(ours, case.values)
     _portability_rows.append(compare.PortabilityRow(f"{feature} (classic, 3D)", "numpy", "fastnoisesimd", stats))
-    assert stats.max_abs < CLASSIC_SIMPLEX_VECTORS[feature] and stats.correlation > 0.9999, stats.summary()
-    grid_ours = numpy_sampler.sample_points(
-        coords["grid_x"], np.zeros_like(coords["grid_x"]), coords["grid_z"], np.empty(len(coords["grid_x"]), np.float32)
-    )
-    assert np.abs(grid_ours - data["grid_3d"]).max() < CLASSIC_SIMPLEX_VECTORS[feature]
 
 
 def test_rigidmulti_is_not_ridged_and_is_fastnoisesimd_formula(coords):
@@ -475,28 +401,14 @@ PERTURB_MODES = ("gradient", "gradientfractal", "normalise", "gradient_normalise
 
 
 @pytest.mark.parametrize("mode", PERTURB_MODES)
-def test_gradient_perturb_matches_fastnoisesimd_by_point(mode, coords):
+def test_gradient_perturb_matches_fastnoisesimd_by_point(mode, vectors, coords):
     """
-    FastNoiseSIMD's gradient perturb over its classic Simplex FBm, every mode: exact between rungs, and
-    by point with the captured vectors (float32 rounding; the normalise modes used an approximate rsqrt
-    there, which the tolerance covers). The record carries the perturb's own frequency and octaves.
+    FastNoiseSIMD's gradient perturb over its classic Simplex FBm, every mode: exact between rungs here, and
+    by point with the captured vectors in the harness (float32 rounding; the normalise modes used an approximate
+    rsqrt there, which its 1e-3 covers). The record carries the perturb's own frequency and octaves.
     """
-    data = np.load(VECTORS / "fns" / f"simplex_fbm_perturb_{mode}.npz")
-    vp = json.loads(str(data["params"]))
-    params = NoiseParams(
-        seed=vp["seed"],
-        frequency=vp["frequency"],
-        noise_type=NoiseType.SIMPLEX_CLASSIC,
-        fractal_type=FractalType.FBM,
-        octaves=vp["octaves"],
-        perturb=parse_perturb(vp["perturb_type"]),
-        perturb_amp=vp["perturb_amp"],
-        perturb_frequency=vp["perturb_frequency"],
-        perturb_octaves=vp["perturb_octaves"],
-        perturb_lacunarity=vp["perturb_lacunarity"],
-        perturb_gain=vp["perturb_gain"],
-        perturb_normalise_length=vp["perturb_normalise_length"],
-    )
+    case = _original(vectors, "fns", f"simplex_fbm_perturb_{mode}", "scatter_3d")
+    params = case.params
     n = len(coords["xs"])
     numpy_sampler = NumpySampler(params)
     ours = numpy_sampler.sample_points(coords["xs"], coords["ys"], coords["zs"], np.empty(n, np.float32))
@@ -509,18 +421,17 @@ def test_gradient_perturb_matches_fastnoisesimd_by_point(mode, coords):
             numba_sampler.sample_points_2d(coords["xs"], coords["zs"], np.empty(n, np.float32)),
             numpy_sampler.sample_points_2d(coords["xs"], coords["zs"], np.empty(n, np.float32)),
         )
-    stats = compare.compare_values(ours, data["scatter_3d"])
+    stats = compare.compare_values(ours, case.values)
     _portability_rows.append(
         compare.PortabilityRow(f"simplex_fbm_perturb_{mode} (3D)", "numpy", "fastnoisesimd", stats)
     )
-    assert stats.max_abs < 1e-3 and stats.correlation > 0.9999, stats.summary()
     unperturbed = NumpySampler(params.replace(perturb=PerturbType.NONE)).sample_points(
         coords["xs"], coords["ys"], coords["zs"], np.empty(n, np.float32)
     )
     assert np.abs(ours - unperturbed).max() > 0.05, "the perturb moved the field"
 
 
-def test_sample_grid_equals_the_points_it_stands_for_and_the_fastnoisesimd_grids(coords):
+def test_sample_grid_equals_the_points_it_stands_for_and_the_fastnoisesimd_grids(vectors, coords):
     """
     The grid driver (genAsGrid with axis scales): exact against sample_points over the same float32
     coordinates on both rungs, exact between rungs, and by point with the two captured grids. The
@@ -544,10 +455,23 @@ def test_sample_grid_equals_the_points_it_stands_for_and_the_fastnoisesimd_grids
         ("genasgrid_simplex_fbm_scales_1.0_1.0_1.0", (1.0, 1.0, 1.0)),
         ("genasgrid_simplex_fbm_scales_1.0_0.5_2.0", (1.0, 0.5, 2.0)),
     ):
-        ref = np.load(VECTORS / "fns" / f"{feature}.npz")["grid_as_grid"]
+        point_set = "genasgrid_" + "_".join(repr(s) for s in axis_scales)
+        ref = _original(vectors, "fns", feature, point_set).values  # the design's decision 5: the grid driver itself
         ours = numpy_sampler.sample_grid((-64, -64, 1), (128, 128, 1), axis_scales).ravel()
         err = np.abs(ours - ref)
         assert err.max() < 2e-3 and np.mean(err < 1e-4) > 0.98, f"{feature}: max {err.max():.2e}"
+
+
+RENDERINGS = ["numpy"] + (["numba"] if HAVE_NUMBA else [])
+
+
+@pytest.mark.parametrize("rendering", RENDERINGS)
+def test_the_renderings_pass_every_gating_case_and_the_hog_set(rendering, vectors):
+    """Every hog case at Bound(0) and every gating original, through the harness. Passing hog on numpy is also the
+    staleness check: a kernel change that moves a value fails here until `gen_noise_vectors.py --set hog` is rerun."""
+    sample, warp = conformance.renderings(rendering)
+    report = conformance.check(sample, vectors, reference="both", warp=warp)
+    assert report.ok and report.complete, report.table()
 
 
 def _fastnoiselite_available() -> bool:

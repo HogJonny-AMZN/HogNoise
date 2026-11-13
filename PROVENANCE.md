@@ -74,6 +74,14 @@ HogNoise's hand-written `AGENTS.md` and three-entry ledger took the template's v
 template's extension files and to `Docs/standards/failure-modes-project.md` (P-1 to P-3). `tests/test_docs_links.py` was
 removed because the template's docs check covers relative links. The code was brought to the template's lint rules.
 
+## The vectors move to `vectors/` (2026-11-12)
+
+The oracle vectors listed above under `tests/vectors/noise/` were converted, value for value, to raw little-endian float32
+files and one manifest under a top-level [`vectors/`](vectors/README.md), the form the conformance harness reads
+([spec](Docs/superpowers/specs/2026-11-11-conformance-harness.md)). The conversion checked every array and coordinate
+against its new file before the `.npz` files were removed; `accepted.json`, `portability.md` and `reports/` moved unchanged.
+The paths in the stage 1 list above are where things were then.
+
 ## What this is not yet
 
 Not on PyPI. Stage 4 is done: published 2026-11-01 at [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), with only the fresh history pushed.

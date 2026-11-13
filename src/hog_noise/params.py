@@ -13,7 +13,8 @@ and a kernel here are talking about the same thing by number, not by name.
 
 import dataclasses
 import logging as _logging
-from enum import IntEnum
+from collections.abc import Mapping
+from enum import Enum, IntEnum
 
 _MODULE_NAME = "hog_noise.params"
 __version__ = "0.1.0"
@@ -475,6 +476,45 @@ class NoiseParams:
     def replace(self, **changes: object) -> "NoiseParams":
         """A copy with fields changed, validated like a fresh construction."""
         return dataclasses.replace(self, **changes)
+
+    def to_dict(self) -> dict[str, object]:
+        """Every field, enums as member names, numbers as Python ``int`` and ``float``: the manifest's form."""
+        out: dict[str, object] = {}
+        for field in dataclasses.fields(self):
+            value = getattr(self, field.name)
+            # Enum before int: these enums are IntEnum, so they are ints too
+            if isinstance(value, Enum):
+                out[field.name] = value.name
+            elif isinstance(field.default, int):
+                out[field.name] = int(value)
+            else:
+                out[field.name] = float(value)
+        return out
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, object]) -> "NoiseParams":
+        """
+        The inverse of `to_dict`; a missing field takes its default.
+
+        :raises ValueError: An unknown key, or a value that is not a member name of its enum.
+        """
+        fields = {field.name: field for field in dataclasses.fields(cls)}
+        unknown = sorted(set(data) - set(fields))
+        if unknown:
+            raise ValueError(f"unknown NoiseParams field(s): {unknown}")
+        kwargs: dict[str, object] = {}
+        for name, value in data.items():
+            default = fields[name].default
+            if isinstance(default, Enum):
+                enum_cls = type(default)
+                if not isinstance(value, str) or value not in enum_cls.__members__:
+                    raise ValueError(f"{name}: {value!r} is not a {enum_cls.__name__} member name")
+                kwargs[name] = enum_cls[value]
+            elif isinstance(default, int):
+                kwargs[name] = int(value)
+            else:
+                kwargs[name] = float(value)
+        return cls(**kwargs)
 
 
 if __name__ == "__main__":
