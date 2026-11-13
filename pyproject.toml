@@ -1,7 +1,7 @@
 # pyproject.toml: the workspace root. It builds nothing (Docs/standards/layout.md): the library is the member in
 # packages/python/hog-noise/, with its own manifest. This file holds the workspace, the dev group and the tools.
 [tool.uv.workspace]
-members = ["packages/python/*"]
+members = ["apps/*", "packages/python/*"]
 
 [dependency-groups]
 # The group the template's `make sync` and CI install: the library with every extra, so a fresh clone prepares the whole

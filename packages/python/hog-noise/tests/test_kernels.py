@@ -1,5 +1,6 @@
 """
 Tests for hog_noise: the two standards from the pre-ADR, section 4.3.
+Package: packages/python/hog-noise/tests/test_kernels
 
 Tight, between rungs we own: the numba kernel and the numpy base agree exactly.
 Advisory, against the original binding: every Phase A feature is compared with the committed

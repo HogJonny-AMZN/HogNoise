@@ -18,3 +18,10 @@ def test_the_member_ships_the_repositorys_licence_files_unchanged(name):
 
 def test_the_member_is_not_the_repository_root():
     assert MEMBER_ROOT != REPO_ROOT and (MEMBER_ROOT / "src" / "hog_noise").is_dir()
+
+
+def test_the_path_helper_says_which_marker_it_could_not_find(tmp_path):
+    import hog_noise_repo
+
+    with pytest.raises(RuntimeError, match="no framework.toml at or above"):
+        hog_noise_repo._above(tmp_path, "framework.toml")

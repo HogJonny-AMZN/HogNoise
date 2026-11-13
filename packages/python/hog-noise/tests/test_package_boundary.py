@@ -1,6 +1,6 @@
 """
 HogNoise: the package stands alone. It imports the standard library, numpy, and the optional extras, nothing else.
-Package: tests/test_hog_noise/test_package_boundary
+Package: packages/python/hog-noise/tests/test_package_boundary
 
 Two checks, because each catches what the other misses:
 

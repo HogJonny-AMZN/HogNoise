@@ -1,5 +1,6 @@
 """
 Tests for hog_noise.backends: selection order, the env override, override-only rungs, sunset strings.
+Package: packages/python/hog-noise/tests/test_backends
 """
 
 import re

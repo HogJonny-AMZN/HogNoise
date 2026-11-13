@@ -1,6 +1,6 @@
 """
 HogNoise: the conformance harness, on small vectors built here and on the committed ones.
-Package: tests/test_hog_noise/test_conformance
+Package: packages/python/hog-noise/tests/test_conformance
 """
 
 import hashlib

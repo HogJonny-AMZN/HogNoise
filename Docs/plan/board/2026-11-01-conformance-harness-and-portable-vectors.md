@@ -2,7 +2,7 @@
 
 **Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** Landed 2026-11-13: built in [PR #16](https://github.com/HogJonny-AMZN/HogNoise/pull/16), its review's findings fixed in [PR #17](https://github.com/HogJonny-AMZN/HogNoise/pull/17). Design Accepted 2026-11-11 (the owner: "lock it"); [spec](../../superpowers/specs/2026-11-11-conformance-harness.md) Accepted 2026-11-12 (the owner: "accept"); [plan](../../superpowers/plans/2026-11-12-conformance-harness.md) Accepted 2026-11-12 (the owner: "accepted"); built and merged 2026-11-13 ([PR #16](https://github.com/HogJonny-AMZN/HogNoise/pull/16)); the review's findings fixed in a follow-up
+**State:** Landed 2026-11-13: built in [PR #16](https://github.com/HogJonny-AMZN/HogNoise/pull/16) from the accepted design, spec and plan; its review's findings fixed in [PR #17](https://github.com/HogJonny-AMZN/HogNoise/pull/17).
 **Cost:** 1 to 2 d
 **Raised:** [README, Wanted](../../../README.md)
 

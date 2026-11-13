@@ -1,6 +1,6 @@
 """
 HogNoise: NoiseParams to and from a plain dict, the form the vectors' manifest stores.
-Package: tests/test_hog_noise/test_params_dict
+Package: packages/python/hog-noise/tests/test_params_dict
 """
 
 import json

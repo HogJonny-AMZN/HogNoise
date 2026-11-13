@@ -156,7 +156,7 @@ def _points(scale: float, **extra: object) -> dict[str, object]:
 
 
 def compare_for(library: str, feature: str, array: str, variant: str | None = None) -> dict[str, object]:
-    """How a captured array is compared: today's limits from tests/test_hog_noise/test_kernels.py, carried over."""
+    """How a captured array is compared: the limits from packages/python/hog-noise/tests/test_kernels.py."""
     if library == "fnl":
         if array in ("warp_3d", "warp_2d"):
             return _points(4e-3)

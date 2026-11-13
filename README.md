@@ -23,7 +23,7 @@ What it adds over the other options is proof: the numbers are compared against t
 ## Install
 
 ```bash
-pip install "hog-noise[fast] @ git+https://github.com/HogJonny-AMZN/HogNoise"
+pip install "hog-noise[fast] @ git+https://github.com/HogJonny-AMZN/HogNoise#subdirectory=packages/python/hog-noise"
 ```
 
 Python 3.11 to 3.13. The only dependency is numpy (1.26 or newer); `[fast]` adds numba. Leave it off and you get the same numbers, just slower. Not on PyPI yet.

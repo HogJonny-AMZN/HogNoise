@@ -11,8 +11,19 @@ helper.
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = next(p for p in HERE.parents if (p / "framework.toml").is_file())
-MEMBER_ROOT = next(p for p in [HERE, *HERE.parents] if (p / "pyproject.toml").is_file())
+
+
+def _above(start: Path, marker: str) -> Path:
+    """The nearest folder at or above ``start`` holding ``marker``; a clear error, not ``StopIteration``, when none does
+    (these tests run from a checkout of the repository, never from an sdist)."""
+    found = next((p for p in [start, *start.parents] if (p / marker).is_file()), None)
+    if found is None:
+        raise RuntimeError(f"no {marker} at or above {start}: run these tests from a checkout of the repository")
+    return found
+
+
+REPO_ROOT = _above(HERE, "framework.toml")
+MEMBER_ROOT = _above(HERE, "pyproject.toml")
 VECTORS = REPO_ROOT / "vectors"
 
 

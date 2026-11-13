@@ -1,6 +1,6 @@
 """
 HogNoise: the noise parameter families, the gallery's sheets and the viewer's presets, hold together.
-Package: tests/test_noise_kernels/test_families
+Package: packages/python/hog-noise/tests/test_families
 """
 
 from hog_noise import (
