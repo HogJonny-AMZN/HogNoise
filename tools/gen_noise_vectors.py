@@ -31,6 +31,7 @@ over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. Coordinates 
 """
 
 import argparse
+import hashlib
 import json
 import logging as _logging
 import subprocess
@@ -39,6 +40,18 @@ from pathlib import Path
 
 import numpy as np
 
+from hog_noise import (
+    NoiseParams,
+    conformance,
+    parse_cellular_distance,
+    parse_cellular_return,
+    parse_domain_warp,
+    parse_fractal_type,
+    parse_noise_type,
+    parse_perturb,
+)
+from hog_noise.samplers import grid_points
+
 _MODULE_NAME = "tools.gen_noise_vectors"
 __version__ = "0.1.0"
 __updated__ = "2026-09-13"
@@ -46,6 +59,7 @@ _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
 VECTORS = ROOT / "tests" / "vectors" / "noise"
+OUT = ROOT / "vectors"
 N_SCATTER = 4096
 GRID = 128
 GRID_EXTENT = 2048.0
@@ -74,6 +88,219 @@ def _write(
         **{k: np.asarray(v, dtype=np.float32) for k, v in values.items()},
     )
     return out
+
+
+# -------------------------------------------------------------------------
+# the vectors folder: raw little-endian float32 and one manifest (spec: 2026-11-11-conformance-harness)
+POINT_SETS: dict[str, dict[str, object]] = {
+    "scatter_3d": {
+        "dims": 3,
+        "count": N_SCATTER,
+        "axes": ["points/scatter_x.f32", "points/scatter_y.f32", "points/scatter_z.f32"],
+    },
+    "scatter_2d": {"dims": 2, "count": N_SCATTER, "axes": ["points/scatter_x.f32", "points/scatter_z.f32"]},
+    "grid_y0": {
+        "dims": 3,
+        "count": GRID * GRID,
+        "axes": ["points/grid_x.f32", "points/grid_y.f32", "points/grid_z.f32"],
+    },
+}
+GENASGRID_SCALES = ((1.0, 1.0, 1.0), (1.0, 0.5, 2.0))
+GENASGRID_START, GENASGRID_SHAPE = (-64, -64, 1), (128, 128, 1)
+
+
+def _genasgrid_name(scales) -> str:
+    return "genasgrid_" + "_".join(repr(float(s)) for s in scales)
+
+
+for _scales in GENASGRID_SCALES:
+    POINT_SETS[_genasgrid_name(_scales)] = {
+        "dims": 3,
+        "count": 128 * 128,
+        "axes": [f"points/{_genasgrid_name(_scales)}_{axis}.f32" for axis in "xyz"],
+        "from": {"start": list(GENASGRID_START), "shape": list(GENASGRID_SHAPE), "scales": list(_scales), "order": "C"},
+    }
+
+#: Which point set and output each captured array is on.
+ARRAYS = {
+    "scatter_3d": ("scatter_3d", "noise"),
+    "scatter_2d": ("scatter_2d", "noise"),
+    "grid_3d": ("grid_y0", "noise"),
+    "warp_3d": ("scatter_3d", "warp"),
+    "warp_2d": ("scatter_2d", "warp"),
+    "grid_warp_3d": ("grid_y0", "warp"),
+}
+CLASSIC_SIMPLEX_BOUNDS = {"simplex_none": 5e-5, "simplex_fbm": 2e-4, "simplex_billow": 5e-4, "simplex_rigidmulti": 5e-4}
+BILLOW_SHAPE = {"perlin_billow", "value_billow", "cubic_billow", "simplex_billow"}
+CELLULAR_SHAPE = {
+    "cellular_natural_distance",
+    "cellular_natural_cellvalue",
+    "cellular_euclidean_noiselookup",
+    "cellular_euclidean_distance2cave",
+}
+#: FastNoiseLite's grid_warp_3d had never been compared; the conversion measured it and set this (spec, "The cases").
+GRID_WARP_COMPARE: dict[str, object] = {"kind": "advisory"}
+
+
+def _points(scale: float, **extra: object) -> dict[str, object]:
+    return {"kind": "points", "bound": {"scale": scale, "coordinate_scaled": False}, **extra}
+
+
+def compare_for(library: str, feature: str, array: str, variant: str | None = None) -> dict[str, object]:
+    """How a captured array is compared: today's limits from tests/test_hog_noise/test_kernels.py, carried over."""
+    if library == "fnl":
+        if array in ("warp_3d", "warp_2d"):
+            return _points(4e-3)
+        if array == "grid_warp_3d":
+            return dict(GRID_WARP_COMPARE)
+        return {"kind": "advisory"}
+    if feature in CLASSIC_SIMPLEX_BOUNDS and variant is None and array in ("scatter_3d", "grid_3d"):
+        bound = CLASSIC_SIMPLEX_BOUNDS[feature]
+        return _points(bound, min_correlation=0.9999) if array == "scatter_3d" else _points(bound)
+    if feature.startswith("simplex_fbm_perturb_") and array == "scatter_3d":
+        return _points(1e-3, min_correlation=0.9999)
+    if feature == "whitenoise_none" and array == "scatter_3d":
+        return _points(1e-6)
+    if feature in BILLOW_SHAPE and array == "scatter_3d" and (feature != "simplex_billow" or variant == "shape"):
+        return {"kind": "shape", "range": [-1.05, 1.05], "mean_within": 0.2, "std_within": 0.2}
+    if feature in CELLULAR_SHAPE and array == "scatter_3d":
+        return {"kind": "shape", "finite": True, "std_ratio": [0.3, 3.0]}
+    if feature.startswith("genasgrid_"):
+        return _points(2e-3, within={"scale": 1e-4, "fraction": 0.98})
+    return {"kind": "advisory"}
+
+
+def params_for(library: str, feature: str, record: dict, variant: str | None = None) -> NoiseParams:
+    """
+    A capture's record, in its library's spelling, as the parameters the suite samples it with. FastNoiseSIMD's
+    ``simplex`` is its classic Simplex, except in the shape comparison of ``simplex_billow``, which is OpenSimplex2.
+    """
+    noise = record["noise_type"]
+    if library == "fns" and noise == "simplex" and variant != "shape":
+        noise = "simplex_classic"
+    kwargs: dict[str, object] = dict(
+        seed=record["seed"],
+        frequency=record["frequency"],
+        noise_type=parse_noise_type(noise),
+        fractal_type=parse_fractal_type(record["fractal_type"]),
+        octaves=record.get("octaves", 1),
+        lacunarity=record.get("lacunarity", 2.0),
+        gain=record.get("gain", 0.5),
+        weighted_strength=record.get("weighted_strength", 0.0),
+        ping_pong_strength=record.get("ping_pong_strength", 2.0),
+        rotation_3d={"improve_xy": 1, "improve_xz": 2}.get(record.get("rotation_3d", ""), 0),
+        cellular_distance=parse_cellular_distance(record.get("cellular_distance", "euclideansq")),
+        cellular_return=parse_cellular_return(record.get("cellular_return", "distance")),
+        cellular_jitter=record.get("cellular_jitter", 1.0),
+        cellular_lookup_frequency=record.get("lookup_frequency", 0.2),
+        domain_warp=parse_domain_warp(record.get("domain_warp", "none")),
+        domain_warp_amp=record.get("domain_warp_amp", 1.0),
+    )
+    if "perturb_type" in record:
+        kwargs.update(
+            perturb=parse_perturb(record["perturb_type"]),
+            perturb_amp=record["perturb_amp"],
+            perturb_frequency=record["perturb_frequency"],
+            perturb_octaves=record["perturb_octaves"],
+            perturb_lacunarity=record["perturb_lacunarity"],
+            perturb_gain=record["perturb_gain"],
+            perturb_normalise_length=record["perturb_normalise_length"],
+        )
+    return NoiseParams(**kwargs)
+
+
+def _where(array: str, record: dict) -> tuple[str, str]:
+    if array == "grid_as_grid":
+        return _genasgrid_name(record["axes_scales"]), "noise"
+    return ARRAYS[array]
+
+
+def case_id(set_: str, library: str, feature: str, point_set: str, output: str, variant: str | None = None) -> str:
+    warp = "/warp" if output == "warp" else ""
+    return f"{set_}/{library}/{feature}/{point_set}{warp}" + (f"#{variant}" if variant else "")
+
+
+def case_file(set_: str, library: str, feature: str, point_set: str, output: str, variant: str | None = None) -> str:
+    warp = ".warp" if output == "warp" else ""
+    return f"{set_}/{library}/{feature}.{point_set}{warp}" + (f"#{variant}" if variant else "") + ".f32"
+
+
+def original_cases(library: str, feature: str, record: dict, arrays: list[str]) -> list[dict[str, object]]:
+    """The manifest entries for one capture's arrays; ``simplex_billow``'s scatter is also a ``#shape`` case."""
+    cases = []
+    for array in arrays:
+        point_set, output = _where(array, record)
+        file = case_file("original", library, feature, point_set, output)
+        variants = [None, "shape"] if (library, feature, array) == ("fns", "simplex_billow", "scatter_3d") else [None]
+        for variant in variants:
+            cases.append(
+                {
+                    "id": case_id("original", library, feature, point_set, output, variant),
+                    "set": "original",
+                    "source": {"library": library, "feature": feature, "array": array, "params": record},
+                    "params": params_for(library, feature, record, variant).to_dict(),
+                    "point_set": point_set,
+                    "output": output,
+                    "file": file,
+                    "compare": compare_for(library, feature, array, variant),
+                }
+            )
+    return cases
+
+
+def write_f32(root: Path, rel: str, values: np.ndarray) -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(np.ascontiguousarray(np.asarray(values, dtype="<f4")).tobytes())
+
+
+def write_manifest(root: Path, point_sets: dict[str, dict[str, object]], cases: list[dict[str, object]]) -> Path:
+    """Write the manifest sorted, with every digest recomputed from the files on disk."""
+    named = [a for ps in point_sets.values() for a in ps["axes"]] + [c["file"] for c in cases]
+    files = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in sorted(set(named))}
+    manifest = {
+        "format": conformance.FORMAT,
+        "point_sets": dict(sorted(point_sets.items())),
+        "cases": sorted(cases, key=lambda c: c["id"]),
+        "files": files,
+    }
+    path = root / "manifest.json"
+    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return path
+
+
+def write_points(root: Path, coords: dict[str, np.ndarray]) -> None:
+    write_f32(root, "points/scatter_x.f32", coords["xs"])
+    write_f32(root, "points/scatter_y.f32", coords["ys"])
+    write_f32(root, "points/scatter_z.f32", coords["zs"])
+    write_f32(root, "points/grid_x.f32", coords["grid_x"])
+    write_f32(root, "points/grid_y.f32", np.zeros_like(coords["grid_x"]))
+    write_f32(root, "points/grid_z.f32", coords["grid_z"])
+    for scales in GENASGRID_SCALES:
+        for axis, values in zip("xyz", grid_points(GENASGRID_START, GENASGRID_SHAPE, scales), strict=True):
+            write_f32(root, f"points/{_genasgrid_name(scales)}_{axis}.f32", values)
+
+
+def write_originals(root: Path, captured: list[tuple[str, str, dict, dict[str, np.ndarray]]], coords) -> Path:
+    """
+    Write captured arrays as original cases. Cases of features captured again are replaced; every other case in an
+    existing manifest is kept. Run ``--set hog`` afterwards.
+    """
+    existing = []
+    if (root / "manifest.json").exists():
+        existing = json.loads((root / "manifest.json").read_text(encoding="utf-8"))["cases"]
+    redone = {(library, feature) for library, feature, _, _ in captured}
+    cases = [
+        c for c in existing if c["set"] != "original" or (c["source"]["library"], c["source"]["feature"]) not in redone
+    ]
+    new_cases = []
+    for library, feature, record, arrays in captured:
+        new_cases.extend(original_cases(library, feature, record, sorted(arrays)))  # maps every record first
+    write_points(root, coords)
+    for library, feature, _record, arrays in captured:
+        for case in (c for c in new_cases if c["source"]["library"] == library and c["source"]["feature"] == feature):
+            write_f32(root, case["file"], arrays[case["source"]["array"]])
+    return write_manifest(root, POINT_SETS, cases + new_cases)
 
 
 # -------------------------------------------------------------------------

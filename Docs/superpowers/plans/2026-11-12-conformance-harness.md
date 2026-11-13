@@ -1003,7 +1003,7 @@ Expected: 24 passed (or 23 and 1 skipped, as above).
 The rules that turn one captured array into one case (its id, file, parameters, comparison) are written once, here,
 and used by the one-time conversion and by any future capture.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 """
@@ -1076,12 +1076,12 @@ def test_an_unmapped_record_is_an_error_not_a_skip(tmp_path):
         gen.write_originals(tmp_path, [("fns", "x", record, {"scatter_3d": np.zeros(4096, np.float32)})], coords())
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q`
 Expected: 5 failed, `AttributeError: module 'gen_noise_vectors' has no attribute 'params_for'` and the like.
 
-- [ ] **Step 3: implement**, in `tools/gen_noise_vectors.py`. Add the imports (`hashlib`, `shutil`, and from
+- [x] **Step 3: implement**, in `tools/gen_noise_vectors.py`. Add the imports (`hashlib`, `shutil`, and from
   `hog_noise`: `NoiseParams`, `conformance`, the `parse_*` functions, and `grid_points` from `hog_noise.samplers`),
   set `OUT = ROOT / "vectors"`, and add:
 
@@ -1302,12 +1302,12 @@ def write_originals(root: Path, captured: list[tuple[str, str, dict, dict[str, n
 
   Keep lines within the project's 120 columns; `ruff format` will wrap the long dictionary literals.
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q`
 Expected: 5 passed.
 
-- [ ] **Step 5: commit**: "gen_noise_vectors: the writer and the case rules".
+- [x] **Step 5: commit**: "gen_noise_vectors: the writer and the case rules".
 
 ---
 
