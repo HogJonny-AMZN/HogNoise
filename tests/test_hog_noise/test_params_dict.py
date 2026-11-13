@@ -46,3 +46,24 @@ def test_every_case_in_the_vectors_round_trips():
     assert len(vectors.cases) > 600
     for case in vectors.cases:
         assert NoiseParams.from_dict(case.params.to_dict()) == case.params, case.id
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"octaves": 3.9},  # would truncate to 3
+        {"seed": "12"},  # a string is not a number
+        {"frequency": True},  # a bool is not a number
+        {"seed": None},
+        {"octaves": True},
+    ],
+)
+def test_from_dict_refuses_a_value_of_the_wrong_type_naming_the_field(record):
+    """Review on #16: a manifest for other languages is read as written, not converted."""
+    (field,) = record
+    with pytest.raises(ValueError, match=field):
+        NoiseParams.from_dict(record)
+
+
+def test_from_dict_takes_an_integer_for_a_float_field():
+    assert NoiseParams.from_dict({"frequency": 1}).frequency == 1.0

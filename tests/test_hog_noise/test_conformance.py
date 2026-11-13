@@ -346,3 +346,124 @@ def test_a_reader_with_no_numpy_gets_the_same_numbers(real):
     if sys.byteorder == "big":
         values.byteswap()
     assert values.tolist() == real.case(case["id"]).values.tolist()
+
+
+# -------------------------------------------------------------------------
+# review on #16: a malformed folder is a ConformanceError naming what is wrong (testing.md, Error paths)
+def _manifest(root: Path) -> dict:
+    return json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+
+
+def _rewrite(root: Path, manifest: dict) -> None:
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def _one_case_folder(tmp_path: Path) -> Path:
+    return make_vectors(tmp_path, [a_case("hog/t/f/p3", "hog/f.f32")], {"hog/f.f32": np.zeros(4, np.float32)})
+
+
+def test_a_missing_manifest_or_one_that_is_not_json_is_a_conformance_error(tmp_path):
+    with pytest.raises(conformance.ConformanceError, match="manifest.json"):
+        conformance.load(tmp_path)
+    (tmp_path / "manifest.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(conformance.ConformanceError, match="not JSON"):
+        conformance.load(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "break_it, says",
+    [
+        (lambda m: m.pop("files"), "files"),
+        (lambda m: m["point_sets"]["p3"].update(count="4"), "count"),
+        (lambda m: m["point_sets"]["p3"].update(dims=True), "dims"),
+        (lambda m: m["cases"][0]["compare"].pop("kind"), "hog/t/f/p3"),
+        (lambda m: m["cases"][0].update(params={"octaves": 3.9}), "hog/t/f/p3"),
+        (lambda m: m["cases"][0].pop("point_set"), "hog/t/f/p3"),
+    ],
+)
+def test_a_malformed_manifest_is_a_conformance_error_naming_the_part(tmp_path, break_it, says):
+    root = _one_case_folder(tmp_path)
+    manifest = _manifest(root)
+    break_it(manifest)
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match=says):
+        conformance.load(root)
+
+
+def test_a_named_file_that_is_missing_is_a_conformance_error(tmp_path):
+    root = _one_case_folder(tmp_path)
+    (root / "hog" / "f.f32").unlink()
+    with pytest.raises(conformance.ConformanceError, match="hog/f.f32"):
+        conformance.load(root)
+
+
+def test_every_f32_file_is_in_the_map_and_every_digest_names_a_used_file(tmp_path):
+    """The spec: `files` maps every .f32 file in the folder."""
+    root = _one_case_folder(tmp_path)
+    (root / "hog" / "stray.f32").write_bytes(np.zeros(4, "<f4").tobytes())
+    with pytest.raises(conformance.ConformanceError, match="stray.f32"):
+        conformance.load(root)
+    (root / "hog" / "stray.f32").unlink()
+    manifest = _manifest(root)
+    manifest["files"]["hog/unused.f32"] = "0" * 64
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match="unused.f32"):
+        conformance.load(root)
+
+
+def test_load_can_read_one_set_without_the_others_files(tmp_path):
+    """What regenerating the hog set needs: the originals, whatever state the hog files are in."""
+    cases = [a_case("hog/t/f/p3", "hog/f.f32"), a_case("original/t/f/p3", "o/f.f32")]
+    root = make_vectors(tmp_path, cases, {"hog/f.f32": np.zeros(4, np.float32), "o/f.f32": np.ones(4, np.float32)})
+    (root / "hog" / "f.f32").unlink()
+    with pytest.raises(conformance.ConformanceError):
+        conformance.load(root)
+    only = conformance.load(root, sets=("original",))
+    assert [c.id for c in only.cases] == ["original/t/f/p3"]
+
+
+def test_a_rejected_verdict_is_reported_and_still_needs_review(tmp_path):
+    """Spec acceptance 3: only `accepted` exempts; `rejected` is reported and still needs review."""
+    ref = np.linspace(-1, 1, 4).astype(np.float32)
+    advisory = {"kind": "advisory"}
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=advisory)], {"o/f.f32": ref})
+    (root / "accepted.json").write_text(json.dumps({"f": {"verdict": "rejected", "by": "x", "date": "d"}}))
+    result = conformance.check(_values(ref[::-1]), root, reference="original").results[0]
+    assert result.verdict == "rejected" and result.needs_review
+    from hog_noise import compare
+
+    assert not compare.Verdicts(root / "accepted.json").is_accepted("f"), "the suite draws the sheet and xfails"
+
+
+def test_a_wrong_shaped_output_fails_the_report_whatever_the_kind(tmp_path):
+    advisory = {"kind": "advisory"}
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=advisory)], {"o/f.f32": np.zeros(4)})
+    report = conformance.check(_values(np.zeros(3, np.float32)), root, reference="original")
+    assert report.results[0].status == "fail" and not report.ok
+
+
+@pytest.mark.parametrize("args, says", [(["--rendering", "no_such_rendering"], "no_such_rendering"), ([], "")])
+def test_the_command_line_reports_a_bad_rendering_or_folder_and_exits_two(tmp_path, args, says):
+    folder = str(_one_case_folder(tmp_path)) if args else str(tmp_path / "missing")
+    run = subprocess.run([sys.executable, "-m", "hog_noise.conformance", folder, *args], capture_output=True, text=True)
+    assert run.returncode == 2 and "Traceback" not in run.stderr, run.stderr
+    assert says in run.stderr
+
+
+def test_a_rendering_builds_one_sampler_per_distinct_parameters(monkeypatch):
+    from hog_noise import NoiseParams, samplers
+
+    built = []
+    real = samplers.make_sampler
+
+    def counting(params, backend=None):
+        built.append(params)
+        return real(params, backend=backend)
+
+    monkeypatch.setattr(samplers, "make_sampler", counting)
+    sample, _ = conformance.renderings("numpy")
+    xs = np.array([1.0, 2.0], np.float32)
+    for _ in range(3):
+        sample(NoiseParams(seed=1), xs, xs, xs)
+    sample(NoiseParams(seed=2), xs, xs, xs)
+    assert len(built) == 2
