@@ -3,7 +3,7 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-12: the conformance harness is built and in review; the GPU port is next. Published
+**Last updated:** 2026-11-13: the conformance harness is built and merged, its review's findings fixed in a follow-up; the GPU port's spec is next. Published
 2026-11-01 at [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template`
 0.4.0 with no overrides ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2, locking the
 [north-star roadmap](../design/2026-11-01-north-star-roadmap.md), waits on the owner and blocks neither.
@@ -29,8 +29,8 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 
 | Item | State | Waiting on |
 | --- | --- | --- |
-| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port, next: checked by the harness (`python -m hog_noise.conformance`) | The harness's merge |
-| **The conformance harness** ([row](../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)) | Design Accepted 2026-11-11 ([design](../design/2026-11-02-conformance-harness.md)); [spec](../superpowers/specs/2026-11-11-conformance-harness.md) Accepted 2026-11-12; [plan](../superpowers/plans/2026-11-12-conformance-harness.md) Accepted; built 2026-11-12: `hog_noise.conformance` and the vectors in [`vectors/`](../../vectors/README.md), in review | The owner, to review and merge |
+| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port, next: its spec, then checked by the harness (`python -m hog_noise.conformance`) | The owner's go on the spec |
+| **The conformance harness** ([row](../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)) | Design Accepted 2026-11-11 ([design](../design/2026-11-02-conformance-harness.md)); [spec](../superpowers/specs/2026-11-11-conformance-harness.md) Accepted 2026-11-12; [plan](../superpowers/plans/2026-11-12-conformance-harness.md) Accepted; built 2026-11-12: `hog_noise.conformance` and the vectors in [`vectors/`](../../vectors/README.md), merged ([PR #16](https://github.com/HogJonny-AMZN/HogNoise/pull/16)); the review's findings in a follow-up | The owner, to merge the follow-up |
 | The north-star roadmap (gate G2) | Proposed | The owner, to lock its three remaining decisions |
 | PyPI release of `hog-noise` | Not started | The owner's go; needs the owner's PyPI credentials |
 

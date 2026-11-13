@@ -18,7 +18,7 @@ from enum import Enum, IntEnum
 
 _MODULE_NAME = "hog_noise.params"
 __version__ = "0.1.0"
-__updated__ = "2026-09-13"
+__updated__ = "2026-11-13"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 
@@ -494,9 +494,11 @@ class NoiseParams:
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> "NoiseParams":
         """
-        The inverse of `to_dict`; a missing field takes its default.
+        The inverse of `to_dict`; a missing field takes its default. Values are read as written, never converted: an
+        integer field takes an ``int``, a float field an ``int`` or ``float``, and a ``bool`` is neither.
 
-        :raises ValueError: An unknown key, or a value that is not a member name of its enum.
+        :raises ValueError: An unknown key, a value that is not a member name of its enum, or a value of the wrong
+            type; the message names the field.
         """
         fields = {field.name: field for field in dataclasses.fields(cls)}
         unknown = sorted(set(data) - set(fields))
@@ -510,8 +512,12 @@ class NoiseParams:
                 if not isinstance(value, str) or value not in enum_cls.__members__:
                     raise ValueError(f"{name}: {value!r} is not a {enum_cls.__name__} member name")
                 kwargs[name] = enum_cls[value]
+            elif isinstance(value, bool) or not isinstance(value, int | float):
+                raise ValueError(f"{name}: {value!r} is not a number")
             elif isinstance(default, int):
-                kwargs[name] = int(value)
+                if not isinstance(value, int):
+                    raise ValueError(f"{name}: {value!r} is not an integer")
+                kwargs[name] = value
             else:
                 kwargs[name] = float(value)
         return cls(**kwargs)
