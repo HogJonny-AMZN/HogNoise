@@ -331,7 +331,7 @@ Expected: all passed (the boundary scan now includes `conformance.py`).
 
 **Files:** modify `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests.** They build a tiny vectors folder by hand, with `json` and raw bytes, so
+- [x] **Step 1: write the failing tests.** They build a tiny vectors folder by hand, with `json` and raw bytes, so
   they test the format and not the writer. Imports go at the top of the file, here and in later tasks:
 
 ```python
@@ -447,13 +447,13 @@ def test_a_symlink_out_of_the_folder_is_refused(tmp_path):
         conformance.load(root)
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: the 9 new tests fail with `AttributeError: module 'hog_noise.conformance' has no attribute 'load'` (the
 symlink test skips instead on a system that cannot make one).
 
-- [ ] **Step 3: implement**, after `normalised_difference`:
+- [x] **Step 3: implement**, after `normalised_difference`:
 
 ```python
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -576,12 +576,12 @@ def load(vectors: str | Path) -> Vectors:
     return Vectors(root, point_sets, tuple(sorted(cases, key=lambda case: case.id)))
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 13 passed (12 and 1 skipped where the system cannot make a symlink).
 
-- [ ] **Step 5: commit**: "conformance: load, every file checked against its digest and size, inside the folder".
+- [x] **Step 5: commit**: "conformance: load, every file checked against its digest and size, inside the folder".
 
 ---
 
