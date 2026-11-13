@@ -34,6 +34,7 @@ import json
 import keyword
 import logging as _logging
 import re
+import stat
 import sys
 import tomllib
 import unicodedata
@@ -46,8 +47,8 @@ from typing import Any
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.framework_config"
-__version__ = "0.5.0"
-__updated__ = "2026-10-11"
+__version__ = "0.6.1"
+__updated__ = "2026-11-07"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 MODULES = (
@@ -63,7 +64,11 @@ MODULES = (
     "lanes",
     "branch-ownership",
     "devblog",
+    "process-map",
 )
+#: Modules added after 0.4.0. A ``framework.toml`` written before a module existed does not name it, so an absent one
+#: reads as ``off``; a present one is validated like every other. The modules of 0.4.0 stay required.
+OPTIONAL_MODULES = ("process-map",)
 MODULE_STATES = ("on", "off", "planned")
 HARNESSES = ("claude", "gemini", "copilot", "codex", "cursor")
 DEFAULT_HANDOFF_MAX_LINES = 150
@@ -193,6 +198,7 @@ class FrameworkConfig:
 class Owner:
     name: str
     email: str
+    login: str | None = None  # a GitHub login: with one, init new seeds the owner's row on the roster
 
 
 @dataclass(frozen=True)
@@ -413,6 +419,221 @@ def _package_name(value: Any, field: str) -> str:
     return text
 
 
+#: Standard-library modules removed in Python 3.12 and 3.13: still importable on the 3.11 floor.
+_REMOVED_STDLIB = frozenset(
+    "aifc asynchat asyncore audioop cgi cgitb chunk crypt distutils imghdr imp lib2to3 mailcap msilib nis nntplib "
+    "ossaudiodev pipes smtpd sndhdr spwd sunau telnetlib uu xdrlib".split()
+)
+#: Import names a project's packages may not take: the standard library's, and the framework's own folders.
+#: The framework's modules, importable when the tests run (``tools/`` and ``tests/`` are on the path then).
+_FRAMEWORK_MODULES = frozenset(p.stem for p in Path(__file__).resolve().parent.glob("*.py")) | {"pins", "conftest"}
+TAKEN_NAMES = (
+    frozenset(sys.stdlib_module_names) | _REMOVED_STDLIB | _FRAMEWORK_MODULES | {"tools", "tests", "test", "__future__"}
+)
+#: Names Windows reserves for devices: no folder or file may be called one, with any extension.
+WINDOWS_RESERVED = frozenset({"con", "prn", "aux", "nul"} | {f"{d}{n}" for d in ("com", "lpt") for n in range(1, 10)})
+
+
+def import_name(slug: str) -> str:
+    """The import name of a slug: its hyphens become underscores (``acme-tools`` is ``acme_tools``).
+
+    A slug is lower-case already (``_SLUG_RE``), so this is the only change. Paths and distribution names keep the slug;
+    an import package cannot hold a hyphen. A slug that is not one is refused, and so is one whose import name is a
+    keyword, or would shadow a standard-library module or the framework's ``tools`` and ``tests`` (``logging``,
+    ``tools``): the mock members are named for it, and a package that shadows another fails the gate on day 0.
+    """
+    if not isinstance(slug, str) or not _SLUG_RE.fullmatch(slug):
+        raise ConfigError("slug", f"{slug!r} is not a slug: lower-case words joined by single hyphens, a letter first")
+    name = slug.replace("-", "_")
+    if keyword.iskeyword(name):
+        raise ConfigError("slug", f"{slug!r} gives the import name {name!r}, which is a Python keyword")
+    if slug in WINDOWS_RESERVED:
+        raise ConfigError("slug", f"{slug!r} is a name Windows reserves: no folder can be called it there")
+    shadowed = sorted({name, f"{name}_core"} & TAKEN_NAMES)
+    if shadowed:
+        raise ConfigError(
+            "slug",
+            f"{slug!r} gives the import name {shadowed[0]!r}, which the standard library or the framework already "
+            "uses (its tools and tests are importable when the tests run): a package of that name would shadow it",
+        )
+    return name
+
+
+@dataclass(frozen=True)
+class Author:
+    """One entry of a member manifest's ``[project] authors`` (PEP 621): a field that is absent, blank or not text is
+    ``None``, and an entry that is not a table is ``Author(None, None, table=False)``, so the boundary check can name
+    it."""
+
+    name: str | None
+    email: str | None
+    table: bool = True
+
+
+@dataclass(frozen=True)
+class Member:
+    """One workspace member: its folder (relative, POSIX), its distribution name and the members it may import.
+
+    ``name`` and ``dependencies`` are normalised as packaging compares distribution names (lower case, runs of ``-``,
+    ``_`` and ``.`` as one ``-``); ``packages`` are the top-level packages of its ``src/``, the names its code imports.
+    ``authors`` is its manifest's ``[project] authors``, read leniently: absent or not a list is ``()``.
+    """
+
+    path: str
+    name: str
+    dependencies: tuple[str, ...]
+    packages: tuple[str, ...]
+    authors: tuple[Author, ...] = ()
+
+
+_DIST_SEPARATORS_RE = re.compile(r"[-_.]+")
+_REQUIREMENT_NAME_RE = re.compile(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def _distribution_name(text: str) -> str:
+    return _DIST_SEPARATORS_RE.sub("-", text).lower()
+
+
+def _toml_file(path: Path, field: str) -> dict[str, Any]:
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as e:
+        raise ConfigError(field, f"cannot be read: {e}") from e
+
+
+def _member_at(root: Path, folder: Path) -> Member:
+    rel = folder.relative_to(root).as_posix()
+    manifest = _toml_file(folder / "pyproject.toml", f"{rel}/pyproject.toml")
+    project = manifest.get("project", {}) if isinstance(manifest.get("project"), dict) else {}
+    name = project.get("name") if isinstance(project.get("name"), str) else folder.name
+    dependencies: list[str] = []
+    for requirement in project.get("dependencies", []) if isinstance(project.get("dependencies"), list) else []:
+        found = _REQUIREMENT_NAME_RE.match(requirement) if isinstance(requirement, str) else None
+        if found:
+            dependencies.append(_distribution_name(found.group(1)))
+    raw_authors = project.get("authors")
+    authors = raw_authors if isinstance(raw_authors, list) else []
+    return Member(
+        rel,
+        _distribution_name(name),
+        tuple(dependencies),
+        tuple(src_packages(folder / "src")),
+        tuple(_author(entry) for entry in authors),
+    )
+
+
+def _author(entry: Any) -> Author:
+    """One ``authors`` entry, leniently: a field that is not non-blank text is ``None``."""
+    if not isinstance(entry, dict):
+        return Author(None, None, table=False)
+    name, email = entry.get("name"), entry.get("email")
+    return Author(
+        name if isinstance(name, str) and name.strip() else None,
+        email if isinstance(email, str) and email.strip() else None,
+    )
+
+
+def path_kind(path: Path) -> str:
+    """``"dir"``, ``"file"``, ``"other"`` or ``"missing"``, read with ``stat()``: ``is_dir()`` and ``is_file()`` answer
+    False for a symlink loop and raise nothing (or, on Python 3.11 to 3.13, raise a permission error), so a check built
+    on them passes what it never saw (framework ledger 43). The one copy every tool's walk uses.
+
+    :raises OSError: the path is there and cannot be read (a loop, a denied folder); only a path that is not there
+        (``FileNotFoundError``, ``NotADirectoryError``, a dangling link) is ``"missing"``.
+    """
+    try:
+        mode = path.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return "missing"
+    return "dir" if stat.S_ISDIR(mode) else "file" if stat.S_ISREG(mode) else "other"
+
+
+def is_link(path: Path) -> bool:
+    """A symlink, or a Windows junction, which ``is_symlink()`` does not see and ``os.walk`` follows (out of the
+    repository, or round a loop until the path is too long). ``Path.is_junction`` is Python 3.12 and later; before it,
+    a junction is not recognised. Read with ``lstat()`` here, not ``is_symlink()``, whose answer to a refusal changes
+    between Python versions.
+
+    :raises OSError: the entry is there and cannot be read (a folder that can be listed but not searched refuses it on
+        POSIX); a path that is not there is no link.
+    """
+    try:
+        mode = path.lstat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    is_junction = getattr(path, "is_junction", None)
+    return stat.S_ISLNK(mode) or bool(is_junction is not None and is_junction())
+
+
+def src_packages(src: Path) -> list[str]:
+    """The top-level names a ``src/`` provides: every folder with Python in it (a namespace package too) and every
+    module at the top, as the boundary check reads them. Hidden folders, caches and ``*.egg-info`` are not packages.
+
+    :raises ConfigError: the folder cannot be read or listed."""
+    try:
+        if path_kind(src) != "dir":
+            return []
+    except OSError as e:
+        raise ConfigError(src.as_posix(), f"cannot be read: {e}") from e
+    try:
+        entries = sorted(src.iterdir())
+        names = set()
+        for entry in entries:
+            if entry.name.startswith(".") or entry.name == "__pycache__" or entry.name.endswith(".egg-info"):
+                continue
+            if entry.is_dir() and any(entry.rglob("*.py")):
+                names.add(entry.name)
+            elif entry.is_file() and entry.suffix == ".py" and entry.stem != "__init__":
+                names.add(entry.stem)
+    except OSError as e:
+        raise ConfigError(src.as_posix(), f"cannot be listed: {e}") from e
+    return sorted(names)
+
+
+def _globs(workspace: dict[str, Any], key: str) -> list[str]:
+    """``members`` or ``exclude`` of a workspace table: a list of relative globs, or a ``ConfigError`` naming it."""
+    value = workspace.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(p, str) and is_relative_path(p) for p in value):
+        raise ConfigError(
+            "pyproject.toml", f"[tool.uv.workspace] {key} must be a list of relative paths or globs, got {value!r}"
+        )
+    return value
+
+
+def workspace_members(root: Path) -> tuple[Member, ...]:
+    """The members the root ``pyproject.toml`` names in ``[tool.uv.workspace]``, as uv resolves them.
+
+    Each ``members`` entry is a glob relative to the root; a match that is a folder with its own ``pyproject.toml`` is a
+    member, unless an ``exclude`` glob matches it. A matched folder with no manifest is not a member (uv would refuse
+    the workspace; that is uv's message to give). No root manifest, or one with no workspace, means no members. Sorted
+    by path, so callers and their findings are stable.
+    """
+    manifest_path = root / "pyproject.toml"
+    if not manifest_path.is_file():
+        return ()
+    data = _toml_file(manifest_path, "pyproject.toml")
+    workspace: Any = data
+    for key in ("tool", "uv", "workspace"):
+        if key not in workspace:
+            return ()
+        workspace = workspace[key]
+        if not isinstance(workspace, dict):
+            raise ConfigError("pyproject.toml", f"[{key}] in the root manifest must be a table")
+    patterns = _globs(workspace, "members")
+    excluded = {f.resolve() for p in _globs(workspace, "exclude") for f in root.glob(p)}
+    folders = {
+        found.resolve()
+        for pattern in patterns
+        for found in root.glob(pattern)
+        if found.is_dir() and (found / "pyproject.toml").is_file()
+    }
+    base = root.resolve()
+    outside = sorted(f for f in folders if not f.is_relative_to(base))
+    if outside:
+        raise ConfigError("pyproject.toml", f"a workspace member resolves outside the repository: {outside[0]}")
+    return tuple(_member_at(base, f) for f in sorted(folders - excluded))
+
+
 def parse_layers(data: Any) -> LayersConfig:
     """Validate the optional ``[layers]`` table: ``order`` is required and non-empty; ``pure`` and ``unlayered`` default
     to empty; ``pure`` is a subset of ``order``; ``unlayered`` shares no name with ``order``."""
@@ -443,11 +664,7 @@ def _parse_people(value: Any) -> tuple[Person, ...]:
         if not isinstance(item, dict):
             raise ConfigError(field, "must be a table with 'login', 'name' and 'role'")
         _table(item, field, ("login", "name", "role", "emails"), ("login", "name", "role"))
-        login = item["login"]
-        if not isinstance(login, str) or len(login) > LOGIN_MAX or not _LOGIN_RE.fullmatch(login):
-            raise ConfigError(
-                f"{field}.login", f"must be a GitHub login (1 to {LOGIN_MAX} letters, digits or single hyphens)"
-            )
+        login = _login(item["login"], f"{field}.login")
         if login.lower() in seen:
             raise ConfigError(f"{field}.login", f"'{login}' is on the roster twice (logins compare ignoring case)")
         seen.add(login.lower())
@@ -491,9 +708,10 @@ def parse_framework(data: Any) -> FrameworkConfig:
     if not _is_plain_int(max_age) or not age_low <= max_age <= age_high:
         raise ConfigError("framework.max_age_days", f"must be a whole number of days from {age_low} to {age_high}")
 
-    raw_modules = _table(data["modules"], "modules", MODULES, MODULES)
+    required_modules = tuple(name for name in MODULES if name not in OPTIONAL_MODULES)
+    raw_modules = dict(_table(data["modules"], "modules", MODULES, required_modules))
     for name in MODULES:
-        state = raw_modules[name]
+        state = raw_modules.setdefault(name, "off")
         if not isinstance(state, str) or state not in MODULE_STATES:
             raise ConfigError(f"modules.{name}", f"must be one of {', '.join(MODULE_STATES)}")
     if raw_modules["core"] != "on":
@@ -545,7 +763,7 @@ def parse_framework_text(text: str) -> FrameworkConfig:
 _TOML_ESCAPES = {'"': '\\"', "\\": "\\\\", "\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\f", "\r": "\\r"}
 
 
-def _toml_string(value: str) -> str:
+def toml_string(value: str) -> str:
     """A TOML basic string: quotes, backslashes and control characters escaped, everything else literal."""
     out = []
     for char in value:
@@ -604,14 +822,14 @@ def _docs_changes(docs: DocsConfig) -> dict[str, Any]:
 def dump_framework(config: FrameworkConfig) -> str:
     """The deterministic TOML text of ``config``; refuses a config that ``parse_framework`` would refuse."""
     config = parse_framework(_framework_as_data(config))
-    lines = ["[framework]", f"template_version = {_toml_string(config.template_version)}"]
+    lines = ["[framework]", f"template_version = {toml_string(config.template_version)}"]
     if config.upstream is not None:
-        lines += [f"upstream = {_toml_string(config.upstream)}"]
+        lines += [f"upstream = {toml_string(config.upstream)}"]
     if config.max_age_days != DEFAULT_MAX_AGE_DAYS:
         lines += [f"max_age_days = {config.max_age_days}"]
     lines += ["", "[modules]"]
-    lines += [f"{name} = {_toml_string(config.modules[name])}" for name in MODULES]
-    enabled = ", ".join(_toml_string(h) for h in config.harnesses)
+    lines += [f"{name} = {toml_string(config.modules[name])}" for name in MODULES]
+    enabled = ", ".join(toml_string(h) for h in config.harnesses)
     lines += ["", "[harnesses]", f"enabled = [{enabled}]", "", "[checks]"]
     lines += [f"handoff_max_lines = {config.handoff_max_lines}"]
     changed = _docs_changes(config.docs)
@@ -619,9 +837,9 @@ def dump_framework(config: FrameworkConfig) -> str:
         lines += ["", "[docs]"]
         for key, value in changed.items():
             shown = (
-                "[" + ", ".join(_toml_string(item) for item in value) + "]"
+                "[" + ", ".join(toml_string(item) for item in value) + "]"
                 if isinstance(value, list)
-                else _toml_string(value)
+                else toml_string(value)
             )
             lines += [f"{key} = {shown}"]
     if config.layers is not None:
@@ -629,27 +847,42 @@ def dump_framework(config: FrameworkConfig) -> str:
         for key in LAYERS_KEYS:
             names = getattr(config.layers, key)
             if key == "order" or names:
-                lines += [f"{key} = [" + ", ".join(_toml_string(n) for n in names) + "]"]
+                lines += [f"{key} = [" + ", ".join(toml_string(n) for n in names) + "]"]
     for allowed in config.hygiene_allow:
         lines += [
             "",
             "[[hygiene_allow]]",
-            f"path = {_toml_string(allowed.path)}",
-            f"reason = {_toml_string(allowed.reason)}",
+            f"path = {toml_string(allowed.path)}",
+            f"reason = {toml_string(allowed.reason)}",
         ]
     for override in config.overrides:
-        lines += ["", "[[overrides]]", f"target = {_toml_string(override.target)}"]
-        lines += [f"reason = {_toml_string(override.reason)}"]
+        lines += ["", "[[overrides]]", f"target = {toml_string(override.target)}"]
+        lines += [f"reason = {toml_string(override.reason)}"]
     for person in config.people:
-        lines += ["", "[[people]]", f"login = {_toml_string(person.login)}", f"name = {_toml_string(person.name)}"]
-        lines += [f"role = {_toml_string(person.role)}"]
-        if person.emails:
-            lines += ["emails = [" + ", ".join(_toml_string(e) for e in person.emails) + "]"]
+        lines += ["", *dump_person(person).rstrip("\n").split("\n")]  # not splitlines: a name may hold U+2028
+    return "\n".join(lines) + "\n"
+
+
+def dump_person(person: Person) -> str:
+    """One ``[[people]]`` table, as ``dump_framework`` writes it (``init new`` appends the owner's with it)."""
+    lines = ["[[people]]", f"login = {toml_string(person.login)}", f"name = {toml_string(person.name)}"]
+    lines += [f"role = {toml_string(person.role)}"]
+    if person.emails:
+        lines += ["emails = [" + ", ".join(toml_string(e) for e in person.emails) + "]"]
     return "\n".join(lines) + "\n"
 
 
 # -------------------------------------------------------------------------
 # project.json and answers.json
+def _login(value: Any, field: str) -> str:
+    """A GitHub login (a roster's, or the owner's in ``project.json``); raises ``ConfigError`` naming ``field``."""
+    if value == "" and field == "owner.login":  # the prompt's empty reply omits the key; a file says so
+        raise ConfigError(field, "must not be empty: omit the key for no roster")
+    if not isinstance(value, str) or len(value) > LOGIN_MAX or not _LOGIN_RE.fullmatch(value):
+        raise ConfigError(field, f"must be a GitHub login (1 to {LOGIN_MAX} letters, digits or single hyphens)")
+    return value
+
+
 def _branch(value: Any) -> str:
     if not isinstance(value, str) or not value:
         raise ConfigError("default_branch", "must be a branch name")
@@ -700,14 +933,16 @@ def parse_project(data: Any) -> ProjectConfig:
     slug = data["slug"]
     if not isinstance(slug, str) or not _SLUG_RE.fullmatch(slug):
         raise ConfigError("slug", "must be lower-case words joined by single hyphens, starting with a letter")
+    import_name(slug)  # its import name names the project's packages, so a keyword is refused here
 
-    owner = _table(data["owner"], "owner", ("name", "email"), ("name", "email"))
+    owner = _table(data["owner"], "owner", ("name", "email", "login"), ("name", "email"))
     owner_name = _text(owner["name"], "owner.name")
     if any(c in owner_name for c in _NAME_FORBIDDEN):
         raise ConfigError("owner.name", "must not contain < or >: it is written into a Signed-off-by trailer")
     email = owner["email"]
     if not isinstance(email, str) or not _EMAIL_RE.fullmatch(email):
         raise ConfigError("owner.email", "must look like name@domain.tld over letters, digits and . _ % + -")
+    login = _login(owner["login"], "owner.login") if "login" in owner else None
 
     branch = _branch(data["default_branch"])
     if not isinstance(data["signoff"], bool):
@@ -725,7 +960,7 @@ def parse_project(data: Any) -> ProjectConfig:
         seen.add(identifier.lower())
         cleaned.append(identifier)
 
-    return ProjectConfig(name.strip(), slug, Owner(owner_name, email), branch, data["signoff"], tuple(cleaned))
+    return ProjectConfig(name.strip(), slug, Owner(owner_name, email, login), branch, data["signoff"], tuple(cleaned))
 
 
 def parse_project_text(text: str) -> ProjectConfig:
@@ -741,7 +976,11 @@ def dump_project(config: ProjectConfig) -> str:
     data = {
         "name": config.name,
         "slug": config.slug,
-        "owner": {"name": config.owner.name, "email": config.owner.email},
+        "owner": {
+            "name": config.owner.name,
+            "email": config.owner.email,
+            **({"login": config.owner.login} if config.owner.login is not None else {}),
+        },
         "default_branch": config.default_branch,
         "signoff": config.signoff,
         "hygiene": list(config.hygiene),

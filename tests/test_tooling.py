@@ -203,7 +203,8 @@ def workflow_commands(text: str) -> list[str]:
                     commands.append(lines[i].strip())
                 i += 1
         elif value:
-            commands.append(value.strip("'\""))
+            quoted = len(value) > 1 and value[0] == value[-1] and value[0] in "'\""
+            commands.append(value[1:-1] if quoted else value)  # a quoted scalar; a command ending in a quote keeps it
     return commands
 
 
@@ -220,8 +221,9 @@ def test_the_workflow_command_parser() -> None:
         "    env:\n"
         "      K: v\n"
         "  - run: 'uv d'\n"
+        '  - run: uv e --flag "$X"\n'
     )
-    assert workflow_commands(text) == ["uv a", "uv b", "uv c", "uv d"]
+    assert workflow_commands(text) == ["uv a", "uv b", "uv c", "uv d", 'uv e --flag "$X"']
 
 
 def _stage_commands() -> list[str]:
@@ -251,7 +253,7 @@ def test_the_workflow_runs_no_gate_command_the_check_runner_does_not() -> None:
 def workflow_steps(text: str) -> list[str]:
     """The workflow's steps as text, each from its first key (``- name:``, ``- uses:``, ``- run:``) to the next step."""
     steps: list[list[str]] = []
-    dash_indent = -1
+    dash_indent: int | None = None
     for line in text.splitlines():
         if line.lstrip().startswith("#") or not line.strip():
             continue
@@ -259,10 +261,10 @@ def workflow_steps(text: str) -> list[str]:
         if re.match(r"^\s*- (name|uses|run)\s*:", line):
             steps.append([line])
             dash_indent = indent
-        elif steps and indent > dash_indent:
+        elif dash_indent is not None and indent > dash_indent:
             steps[-1].append(line)
         else:
-            dash_indent = -1  # a line back at job level ends the step list
+            dash_indent = None  # a line back at job level ends the step list, until the next job's first step
     return ["\n".join(step) for step in steps]
 
 
@@ -272,6 +274,9 @@ def test_the_step_splitter_keeps_a_steps_keys_together() -> None:
         "  - uses: y\n    with:\n      k: v\nnext: 1\n"
     )
     assert workflow_steps(text) == ["  - name: a\n    if: false\n    run: uv x", "  - uses: y\n    with:\n      k: v"]
+    # a second job: its own keys (name, if) belong to no step of the first job
+    two_jobs = "  a:\n    steps:\n      - run: uv x\n  b:\n    if: false\n    steps:\n      - run: uv y\n"
+    assert workflow_steps(two_jobs) == ["      - run: uv x", "      - run: uv y"]
 
 
 def test_no_stage_step_can_fail_silently_or_be_skipped() -> None:
@@ -377,3 +382,30 @@ def test_the_workflow_runs_on_pushes_to_the_projects_own_default_branch(tmp_path
     capsys.readouterr()
     text = (target / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert f"branches: [{branch}]" in text and "{{" not in text.replace("${{", "")
+
+
+# ---- the commits job: the one CI check that is not a stage (Docs/standards/ci.md)
+def _job(text: str, name: str) -> str:
+    """The text of one job under ``jobs:``, from its key to the next job's key or the end of the file."""
+    lines = text.splitlines()
+    key = f"  {name}:"
+    assert key in lines, f"no {name!r} job in the workflow"
+    body = [key]
+    for line in lines[lines.index(key) + 1 :]:
+        if line.strip() and len(line) - len(line.lstrip()) <= 2 and not line.lstrip().startswith("#"):
+            break  # the next job, or a top-level key
+        body.append(line)
+    return "\n".join(body)
+
+
+def test_the_workflow_checks_every_commit_of_a_pull_request() -> None:
+    job = _job(WORKFLOW.read_text(encoding="utf-8"), "commits")
+    assert "if: github.event_name == 'pull_request'" in job
+    assert "fetch-depth: 0" in job  # both ends of the range
+    assert "BASE: ${{ github.event.pull_request.base.sha }}" in job
+    assert "HEAD: ${{ github.event.pull_request.head.sha }}" in job
+    assert "OPENED_BY: ${{ github.event.pull_request.user.login }}" in job  # GitHub's record, not the commit's text
+    commands = workflow_commands(job)
+    want = 'uv run --no-sync python tools/check_commit_msg.py --range "$BASE..$HEAD" --opened-by "$OPENED_BY"'
+    assert want in commands
+    assert not [c for c in commands if "${{" in c], "an expression in a run line runs text an author controls"

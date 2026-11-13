@@ -19,10 +19,20 @@ It does not rewrite the repository's own documents, code or history, run `uv syn
 A project-owned file (a README, `pyproject.toml`, the board, the handoff) is **never overwritten**: if it is absent it is
 seeded, and if it is present it is left alone.
 
+## Keep a findings log
+
+Adoption meets a repository the template has never seen, so this procedure will be wrong somewhere. Keep the findings
+log from the first step, as [updating.md](updating.md) describes it (*Keep a findings log*): each place this guide or
+the report was wrong, unclear or silent, with the step, what it said, what was true, what was done and the evidence. The
+adoption's pull request (step 5) carries it as *Template findings*, or "none", and on the owner's go it is filed upstream
+as one issue.
+
 ## The steps
 
 1. **Answers.** An `answers.json` in the `project.json` schema: the name, slug, owner, default branch, whether commits are
-   signed off, and any identifiers the hygiene check must refuse.
+   signed off, and any identifiers the hygiene check must refuse. The owner may carry a `login`, which `project.json`
+   keeps; `adopt` seeds no roster from it (unlike `init new`), so add the owner's `[[people]]` row by hand
+   ([journal.md](journal.md), *The roster*) if you want authorship checked.
 2. **The report (nothing is written).** From the template's checkout:
    `uv run python payload/tools/init.py adopt --target <the repository> --answers answers.json [--off specimens]`.
    Each file the template would write is one of: `identical` (already what the template would write), `differs` (a managed or
@@ -32,18 +42,24 @@ seeded, and if it is present it is left alone.
    rule: resolve it first). The report starts with the counts, then the `differs` files largest first, then the rest counted
    per folder (`-v` lists every file; `--json` gives every entry). `--diff PATH` shows how one file differs. Run it on a
    **copy** the first time, read the `differs` list, and decide per file.
-3. **Leave out what does not apply.** `--off MODULE` leaves a module off (a repository with its own source layout turns
-   `specimens` off, so the mock `src/` is neither added nor reported). A module the seeded documents link to (`journal`,
+3. **Leave out what does not apply.** `--off MODULE` leaves a module off (a repository with code of its own turns
+   `specimens` off, so the mock members are neither added nor reported). A module the seeded documents link to (`journal`,
    `python-uv`, `graph`, `harness-adapters`) cannot be off: the report says so as `blocked`. Turning `specimens` off also
-   drops the seeded `[layers]` table, which names the mock `src/`: if the repository has a `src/` the table is written from
-   the packages found there **in alphabetical order, a placeholder**, and the apply says to set the real order (see *Layers*
-   in `python.md`); the boundary test then holds the repository to it.
+   drops the seeded `[layers]` table, which names the mock members: if the repository already has workspace members the
+   table is written from their packages **in alphabetical order, a placeholder**, and the apply says to set the real
+   order (see *Layers* in `python.md`). **A root `src/` is layout debt**: the report names its packages, the boundary
+   test fails on it (`legacy-src`) until they move into members, and no `[layers]` is written from it. A package at the
+   root (a flat layout), or a root manifest that builds a project, is the same debt, `legacy-root`. Moving them is
+   the repository's own change, by the steps in `updating.md`, "0.7.0: the repository layout". **A member manifest
+   without `[project] authors`** (or an entry without a name or an email) is a finding of the same test, `no-authors`,
+   for an app or a package; add them by hand.
 4. **Apply.** On the root of a clean git working tree (it refuses otherwise, so that the adoption is one diff, and it refuses
    a path the repository's `.gitignore` would hide from that commit, such as `*.lock` or a generated folder): the same command with
    `--apply`. It adds what is missing, seeds what is absent, writes `project.json`, `framework.toml` (the repository must not
    have one yet) and `framework.lock`, and for each `differs` file records an override: `adopted: differs from template X;
    reconcile`. `--take PATH` (repeatable) or `--take-all` takes the template's version of a differing file instead.
-5. **Commit it on a branch** and open one pull request. Nothing was committed for you.
+5. **Commit it on a branch** and open one pull request, with *Template findings*: the findings log, or "none". Nothing
+   was committed for you.
 6. **Reconcile the overrides, one at a time.** Each is a decision, and each is its own commit:
    - *take the template's*: copy it over, delete the override (the sync check calls a stale override a finding);
    - *extend*: the repository only adds rules; move them into the extension the base names (`python-project.md`

@@ -4,6 +4,7 @@
 [the design](../../design/2026-11-02-conformance-harness.md), Accepted the same day. The plan:
 [2026-11-12-conformance-harness.md](../plans/2026-11-12-conformance-harness.md), which made one correction here: the
 module is one file (see *The module*).
+**Board:** [`2026-11-01-conformance-harness-and-portable-vectors`](../../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)
 
 What gets built, exactly enough that the plan is a list of tasks and a reviewer can check the result against this page. The
 design says why; this says what. Where the two disagree, the design's decisions hold and this page is the bug.

@@ -29,10 +29,15 @@ lock holds the **template's** hash for every managed and parametrised file, over
 ``framework_sync.py --check`` passes on the day of adoption, each override is a visible to-do, and ``init new`` over
 the result changes nothing.
 
+A target with a root ``src/`` that holds packages has **layout debt**: since 0.7.0 code lives in workspace members
+(``apps/``, ``packages/<language>/``), and the gate's boundary check fails on a root ``src/`` (``legacy-src``). The
+report says so, naming the packages and the migration guide; adopting moves no code, which is the repository's own
+reviewed change.
+
 ``--off MODULE`` (repeatable) leaves a module off in the ``framework.toml`` it writes, so its files are neither added
-nor reported as debt. Turning ``specimens`` off also drops the seeded ``[layers]`` table (it names the mock ``src/``):
-if the target has a ``src/`` the table is written from the packages found there, in alphabetical order as a
-placeholder, and the report says to set the real order.
+nor reported as debt. Turning ``specimens`` off also drops the seeded ``[layers]`` table (it names the mock members):
+if the target already has workspace members the table is written from their packages, in alphabetical order as a
+placeholder, and the report says to set the real order; a root ``src/`` is never the source of one.
 
 ``--apply`` refuses a target that is not the root of a clean git working tree, so that the adoption is one diff to
 review; a target that already has a ``framework.toml`` or a ``framework.lock`` (adopted, made, or half adopted);
@@ -107,6 +112,7 @@ class AdoptPlan:
     version: str  # the template version of the source
     modules_off: tuple[str, ...] = ()  # modules the adoption leaves off (``--off``)
     notes: list[str] = field(default_factory=list)
+    layout_debt: tuple[str, ...] = ()  # the packages of a root ``src/``, which belong in workspace members
 
     @property
     def blocked(self) -> list[Entry]:
@@ -251,7 +257,7 @@ def plan_adopt(
         _LOGGER.debug(f"blocked: {message}")
     entries.sort(key=lambda e: (e.path, e.state))
     _LOGGER.info(f"planned the adoption of {target}: {len(entries)} entries, {len(differing)} differ")
-    return AdoptPlan(entries, plan, version, modules_off, notes)
+    return AdoptPlan(entries, plan, version, modules_off, notes, tuple(_src_packages(target)))
 
 
 def _size(entry: Entry) -> int:
@@ -292,6 +298,14 @@ def format_report(adopt: AdoptPlan, verbose: bool = False) -> list[str]:
             lines.append(
                 f"{state:<{width}}  {len(group)}: " + ", ".join(f"{f} {n}" for f, n in sorted(folders.items()))
             )
+    if adopt.layout_debt:
+        names = adopt.layout_debt
+        many = len(names) != 1
+        lines.append(
+            f"{'layout debt':<{width}}  src/ has {len(names)} package{'s' if many else ''} ({', '.join(names)}): the "
+            f"gate fails on {'them' if many else 'it'} (legacy-src) until {'each moves' if many else 'it moves'} "
+            'into a member; the migration guide is Docs/standards/updating.md, "0.7.0: the repository layout"'
+        )
     lines += [f"note: {note}" for note in adopt.notes]
     return lines
 
@@ -304,6 +318,7 @@ def report_data(adopt: AdoptPlan) -> dict:
         "entries": [dataclasses.asdict(e) for e in adopt.entries],
         "counts": adopt.counts(),
         "notes": list(adopt.notes),
+        "layout_debt": list(adopt.layout_debt),
     }
 
 
@@ -360,15 +375,18 @@ def apply_adopt(adopt: AdoptPlan, target: Path, take: set[str]) -> list[str]:
     seeded = dataclasses.replace(seeded, modules={**seeded.modules, **{name: "off" for name in adopt.modules_off}})
     notes = []
     if "specimens" in adopt.modules_off and seeded.layers is not None:
-        packages = _src_packages(target)
+        packages = sorted({p for member in fc.workspace_members(target) for p in member.packages})
         layers = fc.LayersConfig(order=tuple(packages)) if packages else None
         seeded = dataclasses.replace(seeded, layers=layers)
-        notes.append(
-            f"[layers] was written from the packages of src/ ({', '.join(packages)}) in alphabetical order, "
-            "a placeholder: set the real order (Docs/standards/python.md, Layers)"
-            if packages
-            else "specimens is off and src/ has no packages, so no [layers] table was written"
-        )
+        if packages:
+            notes.append(
+                f"[layers] was written from the packages of the workspace's members ({', '.join(packages)}) in "
+                "alphabetical order, a placeholder: set the real order (Docs/standards/python.md, Layers)"
+            )
+        elif adopt.layout_debt:
+            notes.append("src/ is layout debt, so no [layers] was written from it: move its packages into members")
+        else:
+            notes.append("specimens is off and there are no workspace members, so no [layers] table was written")
     reason = f"adopted: differs from template {adopt.version}; reconcile"
     seeded = dataclasses.replace(seeded, overrides=tuple(fc.Override(path, reason) for path in left))
     writes["framework.toml"] = fc.dump_framework(seeded).encode("utf-8")
@@ -378,7 +396,7 @@ def apply_adopt(adopt: AdoptPlan, target: Path, take: set[str]) -> list[str]:
     for path in ordered:
         data = generated[path] if path in generated else writes[path]
         created = path not in take
-        ini.write_atomic(target / path, data, create_only=created)
+        ini.write_atomic(target / path, data, create_only=created, executable=path in plan.executable)
         lines.append(f"wrote {path}")
         verb = "took the template's" if path in take else "wrote"
         _LOGGER.info(f"{verb} {path} ({len(data)} bytes)")

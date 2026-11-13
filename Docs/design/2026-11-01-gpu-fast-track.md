@@ -2,6 +2,7 @@
 
 **Status:** Accepted (HogJonny-AMZN, 2026-11-01: "lock it"). The owner's direction the same day: *"fast track ... current
 noise features but also wgpu/wgsl support, stretch other gpu shader languages."* Its four decisions are below.
+**Board:** [`2026-11-01-gpu-fast-track`](../plan/board/2026-11-01-gpu-fast-track.md)
 
 ## Intent
 

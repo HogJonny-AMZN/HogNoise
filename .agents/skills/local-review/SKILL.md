@@ -77,7 +77,10 @@ contaminates exactly the fresh eyes this review exists for.
 
 Instruct it to score every applicable metric 1 to 10, mark inapplicable ones `n/a`, justify every sub-7 score with a
 `file:line` anchor and a concrete fix, not inflate scores to be agreeable, **run the code where it can** (a probe beats a
-reading), not modify tracked files, and return the filled output template as its final result.
+reading), not modify tracked files, and return the filled output template as its final result. **Fill the template's
+*Error paths* table** for every function the change has that reads the filesystem, runs a subprocess, calls the network
+or parses text it did not write: each case of `testing.md`'s *Error paths* checklist, and the test that covers it or
+"missing". A checklist the reviewer is only told to consult is one a reviewer skips (framework 18, 42 and 43).
 
 ## 5. Relay, then act on the findings
 

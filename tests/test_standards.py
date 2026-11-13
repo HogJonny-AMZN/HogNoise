@@ -128,7 +128,7 @@ def test_the_python_standard_holds_the_picks_of_the_extraction() -> None:
         "`# lazy-log: <the measurement>`",
         "`_LOGGER` from `_MODULE_NAME`, never `__name__`",
         "`__version__` before `__updated__`",
-        "no `__author__` field",
+        "`__author__` (the people on the roster who wrote the module) may follow them",
         "`print()` only for a script's final summary",
     ):
         assert phrase in python, phrase
@@ -179,6 +179,25 @@ def test_the_python_standard_points_at_the_error_path_checklist() -> None:
     assert "A call to the outside world has three outcomes" in python and "*Error paths*" in python
 
 
+# ---------------------------------------------------------------------------- logging in tiers (#143)
+@pins("Docs/standards/python.md")
+def test_the_python_standard_holds_the_tool_root_pattern_as_a_declared_tier() -> None:
+    python = _text("python.md")
+    assert "### The tool-root pattern" in (STANDARDS / "python.md").read_text(encoding="utf-8")
+    assert "The three loggers" not in python
+    assert "says so in its design or spec" in python
+    assert "examples/tool_root_logging.py" in python
+    assert (STANDARDS / "examples" / "tool_root_logging.py").is_file()
+
+
+@pins("Docs/standards/testing.md")
+def test_the_testing_standard_says_how_to_capture_logs_under_a_tool_root_logger() -> None:
+    testing = (STANDARDS / "testing.md").read_text(encoding="utf-8")
+    assert "## Capturing logs under a tool-root logger" in testing
+    assert "def tool_root_caplog(" in testing
+    assert "A test never switches `propagate` on" in testing
+
+
 @pins(".agents/skills/local-review/references/rubric.md")
 def test_the_review_rubric_cites_the_error_path_checklist() -> None:
     lines = (ROOT / ".agents/skills/local-review/references/rubric.md").read_text(encoding="utf-8").splitlines()
@@ -189,7 +208,8 @@ def test_the_review_rubric_cites_the_error_path_checklist() -> None:
 @pins("Docs/standards/workflow.md")
 def test_the_workflow_holds_the_two_standing_rules_the_defect_scan_added() -> None:
     workflow = _text("workflow.md")
-    assert "A spec lists, for every file it adds or changes, its manifest module, its kind" in workflow
+    assert "A spec lists, for every framework file it adds or changes" in workflow
+    assert "project's own files are in no manifest" in workflow  # #93: the rule is not asked of them
     assert "A script or a patch that contains backslashes or quotes is written to a file and the file run" in workflow
 
 

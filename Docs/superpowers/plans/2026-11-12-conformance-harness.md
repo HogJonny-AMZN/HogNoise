@@ -2,6 +2,7 @@
 
 **Status:** Accepted 2026-11-12 (the owner: "accepted"). Written 2026-11-12 from
 [the spec](../specs/2026-11-11-conformance-harness.md), Accepted the same day. The build ticks each step as it lands.
+**Board:** [`2026-11-01-conformance-harness-and-portable-vectors`](../../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to carry this out task by task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -2,6 +2,7 @@
 
 **Status:** Proposed. The owner's intent, 2026-11-01, written down for the owner to lock: FastNoise2 parity, 4D, a GPU path,
 and equivalent shader versions (HLSL, WGSL and the rest), byte-identical on the CPU and loose on the GPU.
+**Board:** [`2026-11-01-g2-lock-the-north-star-roadmap`](../plan/board/2026-11-01-g2-lock-the-north-star-roadmap.md)
 
 ## The north star
 

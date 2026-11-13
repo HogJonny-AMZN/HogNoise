@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import framework_config as fc  # noqa: E402
 import sync_adapters as sa  # noqa: E402
 
-TODAY = datetime.date.today().isoformat()
+TODAY = datetime.datetime.now(datetime.UTC).date().isoformat()  # the tool judges by the UTC day
 PASSED = f"passed {TODAY} by Ada Example"
 
 FRAMEWORK = """[framework]
@@ -225,8 +225,32 @@ def test_an_enabled_harness_with_no_matrix_at_all_is_a_corpus_finding(tmp_path: 
     assert any(f.startswith("[corpus] ") and "no probe can be shown to have passed" in f for f in _checks(root))
 
 
+class _LocalDate(datetime.date):
+    @classmethod
+    def today(cls):  # noqa: ANN206 - the signature date.today has
+        return cls(2026, 1, 1)
+
+
+class _UtcAhead(datetime.datetime):
+    """A clock at 2026-01-02 01:00 UTC whose local date is still 2026-01-01 (an evening in the Americas)."""
+
+    @classmethod
+    def now(cls, tz=None):  # noqa: ANN001, ANN206 - the signature datetime.now has
+        return cls(2026, 1, 2, 1, 0, tzinfo=tz) if tz is not None else cls(2026, 1, 1, 19, 0)
+
+
+def test_a_pass_recorded_on_the_utc_day_is_not_in_the_future_where_the_local_date_is_behind(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Records carry the UTC day (framework ledger 38); judging one against the local date called it the future."""
+    root = _repo(tmp_path, enabled=("claude",), passed=("claude",), date="2026-01-02")
+    clock = type("clock", (), {"date": _LocalDate, "datetime": _UtcAhead, "UTC": datetime.UTC, "timedelta": None})
+    monkeypatch.setattr(sa, "datetime", clock)
+    assert not any("in the future" in f for f in _checks(root)), _checks(root)
+
+
 def test_a_pass_dated_in_the_future_is_a_finding(tmp_path: Path) -> None:
-    future = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+    future = (datetime.datetime.now(datetime.UTC).date() + datetime.timedelta(days=1)).isoformat()
     found = _checks(_repo(tmp_path, enabled=("claude",), passed=("claude",), date=future))
     assert any("records a pass dated" in f and "in the future" in f for f in found)
 
@@ -805,3 +829,14 @@ def test_a_symbolic_link_as_the_mirror_folder_or_the_source_folder_is_refused(tm
         sa.write_all(root)
     assert (outside / "keep.md").read_text(encoding="utf-8") == "not ours\n"  # nothing outside was touched
     assert sorted(p.name for p in outside.iterdir()) == ["keep.md"]
+
+
+def test_a_v_run_logs_with_the_tools_prefix(tmp_path: Path) -> None:
+    """Every tool logs through log_setup: the time, the level and the module, at INFO with -v (logging in tiers)."""
+    from test_log_setup import PROBE_LINE, tool_log_line
+
+    line, level = tool_log_line(
+        "sync_adapters", [a.replace("{empty}", str(tmp_path)) for a in ["-v", "--check", "--root", "{empty}"]]
+    )
+    assert PROBE_LINE.fullmatch(line), line
+    assert level == 20

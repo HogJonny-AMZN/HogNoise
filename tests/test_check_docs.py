@@ -9,10 +9,15 @@ that was only ever shown passing has not been shown to work (ledger entry 6).
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import posixpath
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -125,6 +130,7 @@ def test_every_check_fires_on_one_corpus_and_emits_only_its_own_name(tmp_path: P
     files["Docs/handoffs/CURRENT.md"] = "# H\n\n**Status:** Living.\n**Last updated:** 2026-10-12: x\n" + "line\n" * 200
     files["Docs/README.md"] += "[gone](nowhere.md)\n"  # links
     files["Docs/fenced.md"] = _doc(body="```\nnever closed\n")  # fences
+    files["Docs/handoffs/CURRENT.md"] += f"a backspace{chr(8)}\n"  # control-char
     files["Docs/standards/one.md"] = _doc("Draft")  # status
     files["Docs/twice.md"] = _doc() + "\n" * 20 + "**Status:** Living.\n"  # single-status
     files["Docs/journal/2026-10-11-session-02.md"] = "# S2\n"  # journal-index (unindexed)
@@ -156,9 +162,18 @@ def test_every_check_fires_on_one_corpus_and_emits_only_its_own_name(tmp_path: P
     write_repo(tmp_path, files, framework=toml(extra=ROSTER))
     (tmp_path / "Docs" / "bad.md").write_bytes(b"\xff\xfe not utf-8")  # corpus
     ctx = cd.load_context(tmp_path)
+    # The checks that read row files see nothing on a hand-kept board, so they get a directory-form board of their own
+    rows = directory_board()
+    rows[f"{BOARD_DIR}/2026-10-08-landed-in-next.md"] = _row("next", "L", "@ada", "Landed as #74")  # board-state
+    rows[f"{BOARD_DIR}/2026-10-09-waiting.md"] = _row(
+        "icebox", "W", "none", "Iceboxed", ICEBOX_LINES + "**Waits on:** [Done thing](2026-09-30-done-thing.md)\n"
+    )  # waits-on
+    with_design(rows, None)  # row-ref
+    directory_ctx = cd.load_context(write_repo(tmp_path / "directory", rows))
+    directory_ctx = dataclasses.replace(directory_ctx, base_rows=frozenset({"2026-10-01-gone"}))  # row-kept
     assert list(cd.CHECKS) == list(dict.fromkeys(cd.CHECKS))
     for name, check in cd.CHECKS.items():
-        found = check(ctx)
+        found = check(directory_ctx if name in ("board-state", "waits-on", "row-ref", "row-kept") else ctx)
         assert found, f"{name} found nothing on a corpus broken for it"
         assert {f.check for f in found} == {name}, [str(f) for f in found]
 
@@ -241,6 +256,90 @@ def test_links_in_fences_urls_and_fragments_are_not_paths(tmp_path: Path) -> Non
         "```\n[inside](nowhere.md)\n```\n"
     )
     assert findings_of(write_repo(tmp_path, files)) == []
+
+
+# --------------------------------------------------------------------------- control-char
+# The characters are built with chr(), so this file stays clean (#128).
+@pytest.mark.parametrize("code", [0x08, 0x00, 0x0B, 0x0C, 0x1B, 0x1F, 0x7F])
+def test_a_control_character_is_a_finding_naming_the_file_the_line_and_the_code_point(
+    tmp_path: Path, code: int
+) -> None:
+    def mutate(files: dict[str, str]) -> None:
+        files["Docs/standards/one.md"] += f"A clean line.\nA word{chr(code)}with a control in it.\n"
+
+    found = broken(tmp_path, "control-char", mutate)
+    assert [(f.location, f"U+{code:04X}" in f.detail) for f in found] == [("Docs/standards/one.md:7", True)]
+
+
+def test_each_control_character_is_its_own_finding(tmp_path: Path) -> None:
+    def mutate(files: dict[str, str]) -> None:
+        files["Docs/README.md"] += f"two{chr(8)}{chr(8)} here\n```\nin code{chr(0x7F)} too\n```\n"
+
+    found = broken(tmp_path, "control-char", mutate)
+    assert [f.detail.split(" ")[0] for f in found] == ["U+0008", "U+0008", "U+007F"]
+
+
+# C1 controls, the bidirectional embeddings, overrides and isolates, the zero-width space, and a byte-order mark
+# after the start of a file (#159)
+@pytest.mark.parametrize("code", [0x80, 0x85, 0x9F, 0x202A, 0x202D, 0x202E, 0x2066, 0x2069, 0x200B, 0xFEFF])
+def test_an_invisible_character_beyond_c0_is_a_finding_naming_its_code_point(tmp_path: Path, code: int) -> None:
+    def mutate(files: dict[str, str]) -> None:
+        files["Docs/standards/one.md"] += f"A clean line.\nA word{chr(code)}with it inside.\n"
+
+    found = broken(tmp_path, "control-char", mutate)
+    assert [(f.location, f.detail.split(" ")[0]) for f in found] == [("Docs/standards/one.md:7", f"U+{code:04X}")]
+
+
+# The line and paragraph separators: an editor shows nothing, str.splitlines() breaks the line there, and an agent's
+# file tools wrote one where a backslash escape was meant (2026-11-09)
+@pytest.mark.parametrize("code", [0x2028, 0x2029])
+def test_a_line_or_paragraph_separator_is_a_finding_that_says_it_breaks_a_line(tmp_path: Path, code: int) -> None:
+    def mutate(files: dict[str, str]) -> None:
+        files["Docs/standards/one.md"] += f"A clean line.\nThe escape `{chr(code)}` written as the character.\n"
+
+    found = broken(tmp_path, "control-char", mutate)
+    assert [(f.location, f.detail.split(" ")[0]) for f in found] == [("Docs/standards/one.md:7", f"U+{code:04X}")]
+    assert "separator" in found[0].detail and "breaks the line" in found[0].detail
+
+
+def test_a_bidirectional_override_says_the_text_can_display_other_than_it_reads(tmp_path: Path) -> None:
+    def mutate(files: dict[str, str]) -> None:
+        files["Docs/standards/one.md"] += f"Never {chr(0x202E)}egrem{chr(0x202C)} without asking.\n"
+
+    found = broken(tmp_path, "control-char", mutate)
+    assert sorted(f.detail.split(" ")[0] for f in found) == ["U+202C", "U+202E"]
+    assert all("displays other than it reads" in f.detail for f in found)
+
+
+def test_joiners_marks_and_a_leading_byte_order_mark_are_not_findings(tmp_path: Path) -> None:
+    """U+200C and U+200D join scripts and emoji, U+200E and U+200F mark direction in right-to-left text, and U+2060
+    joins words: each has a use in prose. A byte-order mark that starts a file is read as the encoding's, not text."""
+    files = base_files()
+    files["Docs/standards/one.md"] += (
+        f"zwnj{chr(0x200C)}zwj{chr(0x200D)}lrm{chr(0x200E)}rlm{chr(0x200F)}wj{chr(0x2060)} "
+        f"and a family {chr(0x1F468)}{chr(0x200D)}{chr(0x1F469)}\n"
+    )
+    root = write_repo(tmp_path, files)
+    readme = root / "Docs" / "README.md"
+    readme.write_bytes(b"\xef\xbb\xbf" + readme.read_bytes())
+    assert findings_of(root) == []
+
+
+def test_a_tab_a_crlf_file_and_text_beyond_ascii_are_not_control_characters(tmp_path: Path) -> None:
+    files = base_files()
+    files["Docs/standards/one.md"] += f"a{chr(9)}tab, an é, a ½ and a — dash, a non-breaking{chr(0xA0)}space\n"
+    root = write_repo(tmp_path, files)
+    crlf = _doc().replace("\n", "\r\n").encode("utf-8")
+    (root / "Docs" / "crlf.md").write_bytes(crlf + b"lone\rcarriage return\r\n")
+    (root / "Docs" / "README.md").write_text(files["Docs/README.md"] + "[crlf](crlf.md)\n", encoding="utf-8")
+    assert findings_of(root) == []
+
+
+def test_an_unreadable_file_is_the_corpus_finding_not_a_control_character_pass(tmp_path: Path) -> None:
+    """A file that cannot be decoded is never read for control characters: the corpus check reports it instead."""
+    write_repo(tmp_path, base_files())
+    (tmp_path / "Docs" / "bad.md").write_bytes(b"# T\n\n\xff\x08\n")
+    assert {f.check for f in findings_of(tmp_path)} == {"corpus"}
 
 
 # --------------------------------------------------------------------------- fences
@@ -733,7 +832,12 @@ def test_line_separators_inside_a_line_do_not_count_as_lines(tmp_path: Path) -> 
     files = base_files()
     head = f"# H\n\n**Status:** Living.\n**Last updated:** {TODAY}: x.\n"
     files["Docs/handoffs/CURRENT.md"] = head + ("a" + chr(0x2028) + "b" + chr(0x0C) + "c\n") * 140  # 144 lines, 3 each
-    assert findings_of(write_repo(tmp_path, files)) == []
+    found = findings_of(write_repo(tmp_path, files))
+    # The handoff is within its limit; the separators and form feeds are control characters (#128), two on each line
+    assert {f.check for f in found} == {"control-char"}
+    assert sorted(f.location for f in found) == sorted(
+        f"Docs/handoffs/CURRENT.md:{n}" for n in range(5, 145) for _ in range(2)
+    )
 
 
 def test_a_finding_in_the_board_points_at_the_physical_line_even_after_a_line_separator(tmp_path: Path) -> None:
@@ -744,7 +848,11 @@ def test_a_finding_in_the_board_points_at_the_physical_line_even_after_a_line_se
     files["Docs/plan/BOARD.md"] = board
     found = findings_of(write_repo(tmp_path, files))
     line = board.split("\n").index("| ~~**Late**~~ | none |") + 1
-    assert [f.location for f in found] == [f"Docs/plan/BOARD.md:{line}"]
+    # the separator is a finding of its own, on the line before
+    assert [(f.check, f.location) for f in found] == [
+        ("control-char", f"Docs/plan/BOARD.md:{line - 1}"),
+        (next(f.check for f in found if f.check != "control-char"), f"Docs/plan/BOARD.md:{line}"),
+    ]
 
 
 def test_findings_come_back_sorted_by_location_then_detail(tmp_path: Path) -> None:
@@ -1712,6 +1820,7 @@ HELD = {
     26: {"links"},
     27: {"orphan"},
     32: {"status-copy"},
+    34: {"board-state", "waits-on"},
 }
 
 
@@ -2366,20 +2475,40 @@ def test_a_quote_tag_after_a_very_long_indent_is_still_read() -> None:
     assert any("'@zed:' tags a quote" in p for p in _author_problems("**Summary:** s\n" + " " * 1500 + "@zed: hi\n"))
 
 
-def test_the_entry_scan_grows_in_proportion_to_the_number_of_entries() -> None:
+def _best_times(run_small: Callable[[], object], run_large: Callable[[], object], runs: int = 5) -> tuple[float, float]:
+    """The fastest of ``runs`` timings of each, taken alternately: a shared runner that stalls once (issue #120, a 4x
+    input once took 10x on Windows) stalls one sample, and the best of several alternating samples is the work."""
     import time
 
-    def seconds(entries: int) -> float:
-        session = "**Summary:** s\n" + "### A\n**By:** @ada · **Agent:** x\n\nProse.\n" * entries
-        best = float("inf")
-        for _ in range(2):
+    best = [float("inf"), float("inf")]
+    for _ in range(runs):
+        for slot, run in enumerate((run_small, run_large)):
             started = time.perf_counter()
-            assert _author_problems(session) == []
-            best = min(best, time.perf_counter() - started)
-        return best
+            run()
+            best[slot] = min(best[slot], time.perf_counter() - started)
+    return best[0], best[1]
 
-    small, large = seconds(4000), seconds(16000)  # four times the entries: about four times the time, not sixteen
+
+def _sessions(entries: int) -> str:
+    return "**Summary:** s\n" + "### A\n**By:** @ada · **Agent:** x\n\nProse.\n" * entries
+
+
+def test_the_entry_scan_grows_in_proportion_to_the_number_of_entries() -> None:
+    small_text, large_text = _sessions(4000), _sessions(16000)
+    assert _author_problems(small_text) == [] and _author_problems(large_text) == []
+    small, large = _best_times(lambda: _author_problems(small_text), lambda: _author_problems(large_text))
+    # four times the entries: about four times the time; quadratic growth would be sixteen
     assert large < 8 * small + 0.05, f"{small:.3f}s for 4,000 entries, {large:.3f}s for 16,000"
+
+
+def test_the_growth_measure_tells_quadratic_from_linear() -> None:
+    """The negative control: the same measure and limit fail a scan whose work grows with the square of its input."""
+
+    def quadratic(n: int) -> int:
+        return sum(1 for _ in range(n) for _ in range(n))
+
+    small, large = _best_times(lambda: quadratic(1000), lambda: quadratic(4000), runs=3)  # large well over the 0.05s
+    assert not large < 8 * small + 0.05, f"{small:.3f}s for 1,000, {large:.3f}s for 4,000: the limit would pass it"
 
 
 # --------------------------------------------------------------------------- ADR ids and adr-duplicate (dated ADRs)
@@ -2663,6 +2792,34 @@ def test_the_journal_directory_is_the_configured_one(tmp_path: Path) -> None:
 
     assert len(mine(write_repo(tmp_path / "default", files))) == 1  # the positive control
     moved = write_repo(tmp_path / "moved", files, framework=toml(extra='[docs]\njournal_dir = "Docs/notes"\n'))
+    assert mine(moved) == []
+
+
+def test_a_per_login_handoff_is_not_read_for_status_copies_but_the_handoff_still_is(tmp_path: Path) -> None:
+    """A per-login handoff is that login's view, written by that login alone: a lock by another login must not fail the
+    gate on it (#82). The project's handoff, which any session writes, is still read."""
+    stale = "[the spec](../../standards/one.md) (Proposed)\n"
+    files = base_files()
+    _with_ada(files)
+    files[f"{PEOPLE}/ada.md"] += stale
+    assert [f for f in findings_of(write_repo(tmp_path / "people", files)) if f.check == "status-copy"] == []
+    files = base_files()
+    files["Docs/handoffs/CURRENT.md"] += "[the spec](../standards/one.md) (Proposed)\n"
+    found = [f for f in findings_of(write_repo(tmp_path / "handoff", files)) if f.check == "status-copy"]
+    assert [f.location.split(":")[0] for f in found] == ["Docs/handoffs/CURRENT.md"]
+
+
+def test_the_per_login_handoff_directory_is_the_configured_one(tmp_path: Path) -> None:
+    """Moved by the configuration, the old folder is read again and the new one is not."""
+    files = base_files()
+    files["Docs/people/ada.md"] = _person(body="[the spec](../standards/one.md) (Proposed)\n")
+    files["Docs/README.md"] += "[ada](people/ada.md)\n"
+
+    def mine(root: Path) -> list[cd.Finding]:
+        return [f for f in findings_of(root) if f.check == "status-copy"]
+
+    assert len(mine(write_repo(tmp_path / "default", files))) == 1  # the positive control
+    moved = write_repo(tmp_path / "moved", files, framework=toml(extra='[docs]\nhandoff_people_dir = "Docs/people"\n'))
     assert mine(moved) == []
 
 
@@ -3022,7 +3179,11 @@ def test_a_non_markdown_file_in_the_board_directory_is_a_finding(tmp_path: Path)
         ("now", "# T\n\n**Section:** done\n**Owner:** @ada\n**State:** Open\n", "Section"),
         ("now", "# T\n\n**Section:** now\n**Owner:** none\n**State:** Open\n", "Owner"),
         ("now", "# T\n\n**Section:** now\n**Owner:** @ada\n**State:** Open\n**Decider:** @ada\n", "Decider"),
-        ("now", "# T\n\n**Section:** now\n**Owner:** @ada\n**State:** Open\n**Verdict:** Good\n", "Verdict"),
+        (
+            "now",
+            "# T\n\n**Section:** now\n**Owner:** @ada\n**State:** Open\n**Waits on:** [B](2026-10-02-build-it.md)\n",
+            "Waits on",
+        ),
         ("now", "# T\n\n**Section:** now\n**Owner:** @ada\n**State:** Open\n**Costs:** 2 d\n", "Costs"),
         ("now", "# T\n\n**Section:** now\n**Owner:** @ada\n**State:** Open\n**State:** Twice\n", "twice"),
         ("now", "**Section:** now\n**Owner:** @ada\n**State:** Open\n", "title"),
@@ -3092,6 +3253,55 @@ def test_every_cost_form_on_the_board_today_parses(tmp_path: Path, cost: str) ->
     assert findings_of(write_repo(tmp_path, files)) == []
 
 
+def _icebox_row(state: str = "Iceboxed", cost: str | None = "2 d") -> str:
+    cost_line = "" if cost is None else f"**Cost:** {cost}\n"
+    return _row("icebox", "An idea", "none", state, f"{cost_line}**Verdict:** Good\n**Raised:** [x](../../README.md)\n")
+
+
+@pytest.mark.parametrize("cost", ["unsized: a design first", "unsized: after the command bus (HogShade, 2026-11-03)"])
+def test_unsized_with_its_reason_is_a_cost(tmp_path: Path, cost: str) -> None:
+    files = directory_board()
+    files[f"{BOARD_DIR}/2026-10-05-an-idea.md"] = _icebox_row(cost=cost)
+    assert findings_of(write_repo(tmp_path, files)) == []
+
+
+@pytest.mark.parametrize("cost", ["unsized", "unsized:", "unsized:   ", "Unsized: no", "unsized - later"])
+def test_unsized_without_a_reason_or_in_another_form_is_a_finding(tmp_path: Path, cost: str) -> None:
+    def bad(f: dict[str, str]) -> None:
+        f.update(directory_board())
+        f[f"{BOARD_DIR}/2026-10-05-an-idea.md"] = _icebox_row(cost=cost)
+
+    found = broken_dir(tmp_path, "board", bad)
+    assert len(found) == 1 and "unsized: <reason>" in found[0].detail
+
+
+@pytest.mark.parametrize("state", ["Closed: the idea went into another row", "Dropped 2026-11-01: not needed"])
+def test_a_done_icebox_row_needs_no_cost(tmp_path: Path, state: str) -> None:
+    files = directory_board()
+    files[f"{BOARD_DIR}/2026-10-05-an-idea.md"] = _icebox_row(state, cost=None)
+    assert findings_of(write_repo(tmp_path, files)) == []
+
+
+def test_an_open_icebox_row_without_a_cost_is_still_a_finding(tmp_path: Path) -> None:
+    def bad(f: dict[str, str]) -> None:
+        f.update(directory_board())
+        f[f"{BOARD_DIR}/2026-10-05-an-idea.md"] = _icebox_row(cost=None)
+
+    found = broken_dir(tmp_path, "board", bad)
+    assert len(found) == 1 and "no `**Cost:**` line" in found[0].detail
+
+
+def test_a_done_icebox_row_with_a_bad_cost_is_still_a_finding(tmp_path: Path) -> None:
+    """A done row may leave its cost out; one it keeps is still read, so a malformed one is not hidden."""
+
+    def bad(f: dict[str, str]) -> None:
+        f.update(directory_board())
+        f[f"{BOARD_DIR}/2026-10-05-an-idea.md"] = _icebox_row("Closed: elsewhere", cost="soon")
+
+    found = broken_dir(tmp_path, "board", bad)
+    assert len(found) == 1 and "Cost" in found[0].detail
+
+
 @pytest.mark.parametrize("cost", ["soon", "2", "d 2", "two days", "2 d3", ""])
 def test_a_cost_without_a_number_and_a_unit_is_a_finding(tmp_path: Path, cost: str) -> None:
     def bad(f: dict[str, str]) -> None:
@@ -3143,6 +3353,204 @@ def test_a_landed_row_file_names_its_pull_request(tmp_path: Path, state: str, fi
     files[f"{BOARD_DIR}/2026-09-30-done-thing.md"] = _row("now", "Done thing", "@ada", state)
     found = findings_of(write_repo(tmp_path, files))
     assert ([f.check for f in found] == ["landed-rows"]) is finding, [str(f) for f in found]
+
+
+# --------------------------------------------------------------------------- board rows stay true
+BAD_ROW = f"{BOARD_DIR}/2026-10-09-bad-row.md"
+
+
+def _with_row(tmp: Path, section: str, state: str, extra: str = "") -> list[cd.Finding]:
+    """The directory board with one more row; its findings."""
+    files = directory_board()
+    owner = "none" if section in ("gate", "icebox") else "@ada"
+    lines = (ICEBOX_LINES if section == "icebox" else "") + extra
+    files[BAD_ROW] = _row(section, "The row", owner, state, lines)
+    return findings_of(write_repo(tmp, files))
+
+
+@pytest.mark.parametrize("section", ["now", "next", "blocked"])
+def test_a_moved_row_may_keep_its_verdict(tmp_path: Path, section: str) -> None:
+    state = "Queued" if section == "next" else "Started"
+    assert _with_row(tmp_path, section, state, "**Verdict:** Good\n") == []
+
+
+@pytest.mark.parametrize("section", ["next", "blocked", "icebox"])
+def test_a_waits_on_line_linking_an_open_row_is_allowed(tmp_path: Path, section: str) -> None:
+    state = {"next": "Queued", "blocked": "Waiting", "icebox": "Iceboxed"}[section]
+    assert _with_row(tmp_path, section, state, "**Waits on:** [Build it](2026-10-02-build-it.md)\n") == []
+
+
+@pytest.mark.parametrize(("section", "state"), [("now", "Started"), ("gate", "Open")])
+def test_a_waits_on_line_is_refused_on_now_and_on_a_gate(tmp_path: Path, section: str, state: str) -> None:
+    found = _with_row(tmp_path, section, state, "**Waits on:** [Build it](2026-10-02-build-it.md)\n")
+    assert [(f.check, f.location) for f in found] == [("board", BAD_ROW)], [str(f) for f in found]
+    assert "Waits on" in found[0].detail
+
+
+@pytest.mark.parametrize(
+    ("section", "state", "words"),
+    [
+        ("next", "Landed 2026-10-30 as #74", "belongs in now"),
+        ("blocked", "landed as #3", "belongs in now"),  # the word is matched whatever its case
+        ("icebox", "Landed 2026-10-01 as #12", "belongs in now"),
+        ("now", "Queued", "belongs in next"),
+        ("icebox", "Pulled forward: see the Now row", "move this row"),
+    ],
+)
+def test_a_row_whose_section_contradicts_its_state_is_a_finding(
+    tmp_path: Path, section: str, state: str, words: str
+) -> None:
+    found = _with_row(tmp_path, section, state)
+    assert [(f.check, f.location) for f in found] == [("board-state", BAD_ROW)], [str(f) for f in found]
+    assert words in found[0].detail
+
+
+@pytest.mark.parametrize(
+    ("section", "state"),
+    [
+        ("now", "Landed 2026-10-01 as #12"),
+        ("gate", "Closed 2026-10-01 by the owner"),
+        ("next", "Dropped: superseded"),
+        ("icebox", "Dropped: superseded"),
+        ("icebox", "Iceboxed"),
+        ("next", "Queued"),
+        ("now", "Pulled forward by the owner 2026-11-03; building"),  # moved, so its state may say so
+        ("gate", "Landed on a decision"),  # a gate closes in place, by a person's decision
+        ("next", "Started; landed in part as #74"),  # only the first word is the state's kind
+    ],
+)
+def test_a_row_whose_section_agrees_with_its_state_is_not(tmp_path: Path, section: str, state: str) -> None:
+    assert _with_row(tmp_path, section, state) == []
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "Pulled forward 2026-11-05; the design locked by #114; Landed 2026-11-05 as #116",  # #117's row, as written
+        "Started. Closed 2026-11-01 by the owner",
+        "Started, Dropped: superseded",
+        "Building: Landed in part as #74",
+    ],
+)
+def test_a_done_word_that_opens_a_later_clause_of_the_state_is_a_finding(tmp_path: Path, state: str) -> None:
+    """A row is done only when its state starts with the word: later on, the row still reads as open."""
+    found = _with_row(tmp_path, "now", state)
+    assert [(f.check, f.location) for f in found] == [("board-state", BAD_ROW)], [str(f) for f in found]
+    assert "starts with" in found[0].detail
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "Started; landed in part as #74",  # lower case: prose, not a state word
+        "Second in the sequence, after the row id, which landed",
+        "Landed 2026-11-05 as #116; Pulled forward earlier",  # done already: the first word decides
+        "Started; the Landed rows are read by waits-on",  # capitalised, but not opening a clause
+    ],
+)
+def test_a_done_word_in_prose_or_after_a_done_state_is_not_a_finding(tmp_path: Path, state: str) -> None:
+    assert _with_row(tmp_path, "now", state) == []
+
+
+@pytest.mark.parametrize(
+    ("section", "state", "extra"),
+    [
+        ("done", "Landed as #3", ""),  # an unknown section: the board check's, not board-state's
+        ("now", "Started", "**Waits on:** [Done thing](2026-09-30-done-thing.md)\n"),  # refused on now: not read
+    ],
+)
+def test_a_row_the_board_check_refuses_gets_that_finding_alone(
+    tmp_path: Path, section: str, state: str, extra: str
+) -> None:
+    found = _with_row(tmp_path, section, state, extra)
+    assert [(f.check, f.location) for f in found] == [("board", BAD_ROW)], [str(f) for f in found]
+
+
+def _waiting(tmp: Path, line: str, also: dict[str, str] | None = None) -> list[cd.Finding]:
+    files = directory_board()
+    files.update(also or {})
+    files[BAD_ROW] = _row("icebox", "The row", "none", "Iceboxed", ICEBOX_LINES + line)
+    return findings_of(write_repo(tmp, files))
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Waits on:** [Build it](2026-10-02-build-it.md)\n",
+        "**Waits on:** [Build it](2026-10-02-build-it.md), [Then this](2026-10-03-then-this.md)\n",
+        "**Waits on:** [Build it](./2026-10-02-build-it.md)\n",
+        # the link forms the links check reads: an angle destination, a title, a fragment, percent-encoding
+        "**Waits on:** [Build it](<2026-10-02-build-it.md>)\n",
+        '**Waits on:** [Build it](2026-10-02-build-it.md "the build")\n',
+        "**Waits on:** [Build it](2026-10-02-build-it.md#part)\n",
+        "**Waits on:** [Build it](2026-10-02-build%2Dit.md)\n",
+    ],
+)
+def test_a_wait_on_open_rows_is_not_a_finding(tmp_path: Path, line: str) -> None:
+    assert _waiting(tmp_path, line) == []
+
+
+@pytest.mark.parametrize(
+    ("line", "words"),
+    [
+        ("**Waits on:** [Done thing](2026-09-30-done-thing.md)\n", "which is done"),
+        ("**Waits on:** [Build it](2026-10-02-build-it.md), [Done thing](2026-09-30-done-thing.md)\n", "which is done"),
+        ("**Waits on:** [Gone](2026-10-08-gone.md)\n", "nothing the board has"),
+        ("**Waits on:** [The README](../../README.md)\n", "nothing the board has"),
+        ("**Waits on:** increment 2\n", "nothing the board has"),
+        ("**Waits on:** [Done thing](<2026-09-30-done-thing.md>)\n", "which is done"),
+        ("**Waits on:** [A pull request](https://github.com/example/proj/pull/1)\n", "a URL is not a row"),
+    ],
+)
+def test_a_wait_on_done_work_or_on_nothing_is_a_finding(tmp_path: Path, line: str, words: str) -> None:
+    found = [f for f in _waiting(tmp_path, line) if f.check != "links"]  # a link to no file is a broken link as well
+    assert [(f.check, f.location) for f in found] == [("waits-on", BAD_ROW)], [str(f) for f in found]
+    assert words in found[0].detail
+
+
+def _waiting_with_body(tmp: Path, line: str, body: str) -> list[cd.Finding]:
+    """A waiting row whose prose carries reference definitions."""
+    files = directory_board()
+    files[BAD_ROW] = _row("icebox", "The row", "none", "Iceboxed", ICEBOX_LINES + line) + body
+    return findings_of(write_repo(tmp, files))
+
+
+DEFS = "\n[build]: 2026-10-02-build-it.md\n[Done Thing]: 2026-09-30-done-thing.md\n[gone]: 2026-10-08-gone.md\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Waits on:** [Build it][build]\n",  # a full reference
+        "**Waits on:** [build][]\n",  # a collapsed reference
+        "**Waits on:** [Build it][BUILD]\n",  # a label matches whatever its case
+    ],
+)
+def test_a_reference_style_wait_on_an_open_row_is_not_a_finding(tmp_path: Path, line: str) -> None:
+    found = [f for f in _waiting_with_body(tmp_path, line, DEFS) if f.check != "links"]  # [gone] is a broken link
+    assert found == [], [str(f) for f in found]
+
+
+@pytest.mark.parametrize(
+    ("line", "words"),
+    [
+        ("**Waits on:** [Build it](2026-10-02-build-it.md), [Done][done thing]\n", "which is done"),  # mixed forms
+        ("**Waits on:** [Done][Done  thing]\n", "which is done"),  # whitespace in a label is collapsed
+        ("**Waits on:** [Gone][gone]\n", "nothing the board has"),
+        ("**Waits on:** [Nowhere][undefined]\n", "nothing the board has"),  # a label with no definition
+    ],
+)
+def test_a_reference_style_wait_on_done_work_or_on_nothing_is_a_finding(tmp_path: Path, line: str, words: str) -> None:
+    found = [f for f in _waiting_with_body(tmp_path, line, DEFS) if f.check != "links"]
+    assert [(f.check, f.location) for f in found] == [("waits-on", BAD_ROW)], [str(f) for f in found]
+    assert words in found[0].detail
+
+
+@pytest.mark.parametrize("state", ["Closed 2026-10-01 by the owner", "Dropped: superseded"])
+def test_a_wait_on_a_closed_or_dropped_row_is_a_wait_on_done_work(tmp_path: Path, state: str) -> None:
+    also = {f"{BOARD_DIR}/2026-10-08-other.md": _row("next", "Other", "@ada", state)}
+    found = _waiting(tmp_path, "**Waits on:** [Other](2026-10-08-other.md)\n", also)
+    assert [f.check for f in found] == ["waits-on"] and "Other" in found[0].detail, [str(f) for f in found]
 
 
 def test_an_empty_state_line_is_a_finding(tmp_path: Path) -> None:
@@ -3417,3 +3825,446 @@ def test_a_document_outside_the_governed_directories_is_not_held_to_a_base(tmp_p
     files = base_files()
     files["notes/loose-project.md"] = "# Loose\n"
     assert checks_of(tmp_path, files) == []
+
+
+# --------------------------------------------------------------------------- the row id: row-ref and row-kept
+ROW_ID = "2026-10-02-build-it"
+DESIGN = "Docs/design/d.md"
+
+
+def _board(*ids: str, prefix: str = "../plan/board/") -> str:
+    return "**Board:** " + ", ".join(f"[`{i}`]({prefix}{i}.md)" for i in ids)
+
+
+def _design(board: str | None, body: str = "") -> str:
+    line = f"{board}\n" if board is not None else ""
+    return f"# A design\n\n**Status:** Accepted.\n{line}\nDate: 2026-10-11.\n\n{body}## Terms introduced\n\nNone.\n"
+
+
+def with_design(files: dict[str, str], board: str | None, rel: str = DESIGN, body: str = "") -> dict[str, str]:
+    files[rel] = _design(board, body)
+    files["Docs/README.md"] += f"[d]({posixpath.relpath(rel, 'Docs')})\n"
+    return files
+
+
+# ---- the shared readers
+def test_a_file_header_is_its_lines_before_the_first_level_two_heading_outside_fences() -> None:
+    text = "# T\n\n**Status:** Living.\n```\n**Board:** fenced\n```\n**Board:** x\n\n## Body\n\n**Board:** body\n"
+    assert [line for _, line in cd.header_lines(text)] == ["# T", "", "**Status:** Living.", "**Board:** x", ""]
+
+
+def test_an_entry_header_is_its_by_line_to_the_first_blank_line() -> None:
+    text = (
+        "# Session\n\n**Summary:** s\n\n### One\n**By:** @ada · **Agent:** none\n**Said by:** @ada\n**Board:** a\n\n"
+        "Body.\n**Board:** body\n\n### Two\n\n**By:** @ada · **Agent:** none\n\n**Board:** after the blank\n"
+    )
+    headers = [[line for _, line in header] for header in cd.entry_headers(text)]
+    assert headers == [
+        ["**By:** @ada · **Agent:** none", "**Said by:** @ada", "**Board:** a"],
+        ["**By:** @ada · **Agent:** none"],
+    ]
+
+
+@pytest.mark.parametrize(
+    ("value", "links", "problems"),
+    [
+        ("[`a`](a.md)", [("`a`", "a.md")], []),
+        ("[`a`](a.md), [`b`](b.md)", [("`a`", "a.md"), ("`b`", "b.md")], []),
+        ("none (the first design, before the board)", [], []),
+        ("none", [], ["say which row, or none (reason)"]),
+        ("none ()", [], ["say which row, or none (reason)"]),
+        ("the build row", [], ["say which row, or none (reason)"]),
+    ],
+)
+def test_a_board_line_is_links_or_none_with_a_reason(value: str, links: list, problems: list) -> None:
+    assert cd.board_refs(value) == (links, problems)
+
+
+# ---- row-ref
+def test_a_design_naming_its_row_by_id_passes(tmp_path: Path) -> None:
+    assert checks_of(tmp_path, with_design(directory_board(), _board(ROW_ID))) == []
+
+
+def test_a_design_naming_two_rows_or_none_with_a_reason_passes(tmp_path: Path) -> None:
+    files = with_design(directory_board(), _board(ROW_ID, "2026-10-03-then-this"))
+    with_design(files, "**Board:** none (before the board)", "Docs/superpowers/plans/p.md")
+    assert checks_of(tmp_path, files) == []
+
+
+def test_a_design_spec_or_plan_with_no_board_line_is_a_finding(tmp_path: Path) -> None:
+    for rel in (DESIGN, "Docs/superpowers/specs/s.md", "Docs/superpowers/plans/p.md"):
+        found = broken_dir(tmp_path / posixpath.basename(rel), "row-ref", lambda f, r=rel: with_design(f, None, r))
+        assert [(f.location, f.detail) for f in found] == [
+            (rel, "no `**Board:**` line: name its row, or say none (reason)")
+        ]
+
+
+def _link_from_rows(files: dict[str, str], *ids: str, target: str = "../../design/d.md") -> dict[str, str]:
+    for row_id in ids:
+        files[f"{BOARD_DIR}/{row_id}.md"] += f"\nLinks: [the design]({target})\n"
+    return files
+
+
+def test_a_missing_board_line_names_the_rows_whose_files_link_the_document(tmp_path: Path) -> None:
+    """#150: choosing a row by hand was most of an update's cost; the rows that already link the document are named."""
+
+    def mutate(f: dict[str, str]) -> None:
+        with_design(f, None)
+        _link_from_rows(f, "2026-10-03-then-this", ROW_ID)
+        _link_from_rows(f, "2026-10-04-stuck", target="../../design/d.md#a-section")  # a fragment is the same file
+
+    found = broken_dir(tmp_path, "row-ref", mutate)
+    assert [f.detail for f in found] == [
+        "no `**Board:**` line: name its row, or say none (reason); rows whose files link it: "
+        "`2026-10-02-build-it`, `2026-10-03-then-this`, `2026-10-04-stuck`"
+    ]
+
+
+def test_the_old_board_line_names_the_linking_rows_too(tmp_path: Path) -> None:
+    def mutate(f: dict[str, str]) -> None:
+        with_design(f, "Board: [the board](../README.md).")
+        _link_from_rows(f, ROW_ID)
+
+    found = broken_dir(tmp_path, "row-ref", mutate)
+    assert [f.detail for f in found] == [
+        f"write the row as **Board:** with its id; rows whose files link it: `{ROW_ID}`"
+    ]
+
+
+def test_a_link_in_a_rows_code_block_or_to_another_file_is_not_a_hint(tmp_path: Path) -> None:
+    def mutate(f: dict[str, str]) -> None:
+        with_design(f, None)
+        f[f"{BOARD_DIR}/{ROW_ID}.md"] += "\n```\n[the design](../../design/d.md)\n```\n"
+        _link_from_rows(f, "2026-10-03-then-this", target="../../design/d.md.bak")
+        _link_from_rows(f, "2026-10-04-stuck", target="../../design/other/d.md")
+
+    found = broken_dir(tmp_path, "row-ref", mutate, also=("links",))
+    assert [f.detail for f in found] == ["no `**Board:**` line: name its row, or say none (reason)"]
+
+
+def test_an_index_in_those_directories_needs_no_board_line(tmp_path: Path) -> None:
+    files = directory_board()
+    files["Docs/design/README.md"] = _doc(body="The designs.\n")
+    files["Docs/README.md"] += "[designs](design/README.md)\n"
+    assert checks_of(tmp_path, files) == []
+
+
+def test_the_old_plain_board_line_is_a_finding_that_says_how_to_rewrite_it(tmp_path: Path) -> None:
+    found = broken_dir(tmp_path, "row-ref", lambda f: with_design(f, "Board: [the board](../README.md)."))
+    assert [f.detail for f in found] == ["write the row as **Board:** with its id"]
+
+
+def test_a_board_link_to_no_row_file_is_a_finding(tmp_path: Path) -> None:
+    found = broken_dir(tmp_path, "row-ref", lambda f: with_design(f, _board("2026-10-09-gone")), also=("links",))
+    assert [f.detail for f in found] == ["names no row: ../plan/board/2026-10-09-gone.md"]
+
+
+def test_a_board_link_to_a_file_that_is_not_a_row_is_a_finding(tmp_path: Path) -> None:
+    found = broken_dir(tmp_path, "row-ref", lambda f: with_design(f, "**Board:** [`one`](../standards/one.md)"))
+    assert [f.detail for f in found] == ["names no row: ../standards/one.md"]
+
+
+def test_a_board_link_whose_text_is_not_the_id_is_a_finding(tmp_path: Path) -> None:
+    for text in ("Build it", ROW_ID, "`2026-10-02-build`"):
+        line = f"**Board:** [{text}](../plan/board/{ROW_ID}.md)"
+        found = broken_dir(tmp_path / str(len(text)), "row-ref", lambda f, ln=line: with_design(f, ln))
+        assert [f.detail for f in found] == [f"link text is not the row's id: `{ROW_ID}`"]
+
+
+def test_none_without_a_reason_or_a_line_naming_nothing_is_a_finding(tmp_path: Path) -> None:
+    for value in ("none", "the build row"):
+        found = broken_dir(tmp_path / str(len(value)), "row-ref", lambda f, v=value: with_design(f, f"**Board:** {v}"))
+        assert [f.detail for f in found] == ["say which row, or none (reason)"]
+
+
+def test_two_board_lines_in_one_header_are_a_finding(tmp_path: Path) -> None:
+    found = broken_dir(tmp_path, "row-ref", lambda f: with_design(f, _board(ROW_ID) + "\n" + _board(ROW_ID)))
+    assert [f.detail for f in found] == ["one `**Board:**` line, several rows separated by commas"]
+
+
+def test_a_board_line_in_a_body_or_a_fence_is_not_read(tmp_path: Path) -> None:
+    body = "## Example\n\n**Board:** none\n\n```\n**Board:** [`x`](nowhere.md)\n```\n\n"
+    assert checks_of(tmp_path, with_design(directory_board(), _board(ROW_ID), body=body)) == []
+
+
+ADR = "Docs/decisions/ADR-001-first.md"
+
+
+def _adr(board: str) -> str:
+    return f"# Title\n\n**Status:** Accepted. A document.\n{board}\n\nText.\n"
+
+
+def test_an_adr_may_carry_a_board_line_and_it_is_checked(tmp_path: Path) -> None:
+    assert checks_of(tmp_path / "absent", directory_board()) == []  # the base corpus's ADR has no line: optional there
+    files = directory_board()
+    files[ADR] = _adr(_board(ROW_ID))
+    assert checks_of(tmp_path / "good", files) == []
+    found = broken_dir(tmp_path / "bad", "row-ref", lambda f: f.__setitem__(ADR, _adr("**Board:** none")))
+    assert [(f.location, f.detail) for f in found] == [(ADR, "say which row, or none (reason)")]
+
+
+SESSION = f"Docs/journal/{TODAY}-session-01.md"
+
+
+def _session(board: str) -> str:
+    return f"# Session 01\n\n### Work\n**By:** @ada · **Agent:** none\n{board}\n\nWork.\n"
+
+
+def test_a_journal_entry_may_carry_a_board_line_in_its_header(tmp_path: Path) -> None:
+    files = directory_board()
+    files[SESSION] = _session(_board(ROW_ID))
+    assert checks_of(tmp_path / "good", files) == []
+    found = broken_dir(tmp_path / "bad", "row-ref", lambda f: f.__setitem__(SESSION, _session("**Board:** none")))
+    assert [(f.location, f.detail) for f in found] == [(SESSION, "say which row, or none (reason)")]
+
+
+def test_a_hand_kept_board_has_no_ids_and_row_ref_stands_down(tmp_path: Path) -> None:
+    assert checks_of(tmp_path, with_design(base_files(), None)) == []
+
+
+# ---- the base, and row-kept
+class FakeGit:
+    """A runner for ``read_base``: ``answers`` maps the git arguments after ``git -C <root>`` to (exit, output)."""
+
+    def __init__(
+        self,
+        answers: dict[tuple[str, ...], tuple[int, str]],
+        *,
+        missing: bool = False,
+        raises: OSError | None = None,
+    ) -> None:
+        self.answers, self.missing, self.raises = answers, missing, raises
+
+    def __call__(self, argv: list[str]) -> tuple[int, str, str]:
+        if self.missing:
+            raise FileNotFoundError("git")
+        if self.raises is not None:
+            raise self.raises
+        assert argv[:2] == ["git", "-C"], argv
+        key = tuple(argv[3:])
+        if key not in self.answers and key == TOPLEVEL:  # an empty runner is a directory that is no repository
+            return 128, "", "fatal: not a git repository (or any of the parent directories): .git"
+        code, out = self.answers.get(key, (1, ""))  # anything else unanswered is absent, as a --quiet query is
+        return code, out, "" if code == 0 else f"fatal: {' '.join(key)}"
+
+
+TOPLEVEL = ("rev-parse", "--show-toplevel")
+
+
+def _work_tree(root: Path, extra: dict[str, tuple[int, str]] | None = None) -> dict[tuple[str, ...], tuple[int, str]]:
+    answers = {
+        TOPLEVEL: (0, f"{root.resolve().as_posix()}\n"),
+        ("rev-parse", "--verify", "--quiet", "HEAD"): (0, "a1\n"),
+    }
+    for key, value in (extra or {}).items():
+        answers[tuple(key.split("|"))] = value
+    return answers
+
+
+LS = f"{BOARD_DIR}/2026-10-02-build-it.md\n{BOARD_DIR}/README.md\n{BOARD_DIR}/2026-10-03-then-this.md\n"
+CI_LS = f"ls-tree|--name-only|origin/main|--|{BOARD_DIR}/"
+
+
+def _ci(workspace: Path) -> dict[str, str]:
+    """The environment of a pull request's job on CI whose checkout is ``workspace``."""
+    return {"GITHUB_BASE_REF": "main", "GITHUB_WORKSPACE": str(workspace)}
+
+
+def test_in_ci_the_base_is_origin_and_the_base_ref(tmp_path: Path) -> None:
+    base = cd.read_base(tmp_path, BOARD_DIR, _ci(tmp_path), FakeGit(_work_tree(tmp_path, {CI_LS: (0, LS)})))
+    assert base.rows == frozenset({"2026-10-02-build-it", "2026-10-03-then-this"})
+    assert "origin/main" in base.note
+
+
+def test_in_ci_a_base_git_cannot_read_stops_the_run_and_says_to_fetch_it(tmp_path: Path) -> None:
+    with pytest.raises(cd.BaseError, match="fetch-depth: 0"):
+        cd.read_base(tmp_path, BOARD_DIR, _ci(tmp_path), FakeGit(_work_tree(tmp_path)))
+
+
+def test_locally_the_base_is_the_merge_base_with_the_default_branch(tmp_path: Path) -> None:
+    answers = _work_tree(
+        tmp_path,
+        {
+            "symbolic-ref|--quiet|--short|refs/remotes/origin/HEAD": (0, "origin/main\n"),
+            "merge-base|HEAD|origin/main": (0, "abc123\n"),
+            f"ls-tree|--name-only|abc123|--|{BOARD_DIR}/": (0, LS),
+        },
+    )
+    base = cd.read_base(tmp_path, BOARD_DIR, {}, FakeGit(answers))
+    assert base.rows == frozenset({"2026-10-02-build-it", "2026-10-03-then-this"})
+
+
+def test_locally_with_no_origin_head_the_branch_main_is_the_default(tmp_path: Path) -> None:
+    answers = _work_tree(
+        tmp_path,
+        {
+            "rev-parse|--verify|--quiet|main": (0, "def456\n"),
+            "merge-base|HEAD|main": (0, "def456\n"),
+            f"ls-tree|--name-only|def456|--|{BOARD_DIR}/": (0, ""),
+        },
+    )
+    base = cd.read_base(tmp_path, BOARD_DIR, {"GITHUB_BASE_REF": ""}, FakeGit(answers))  # empty: not a pull request
+    assert base.rows == frozenset()  # a base from before the board's directory form has no rows: not an error
+
+
+@pytest.mark.parametrize("case", ["git missing", "not a work tree", "not the top", "no default branch"])
+def test_with_no_base_row_kept_is_skipped_and_says_why(tmp_path: Path, case: str) -> None:
+    git, why = {
+        "git missing": (FakeGit({}, missing=True), "git could not be run"),
+        "not a work tree": (FakeGit({}), "not a git work tree"),
+        "not the top": (FakeGit(_work_tree(tmp_path.parent)), "not the top of its work tree"),
+        "no default branch": (FakeGit(_work_tree(tmp_path)), "no default branch"),
+    }[case]
+    base = cd.read_base(tmp_path, BOARD_DIR, {}, git)
+    assert base.rows is None and why in base.note
+
+
+def _kept(tmp: Path, base_rows: frozenset[str] | None) -> list[cd.Finding]:
+    ctx = cd.load_context(write_repo(tmp, directory_board()))
+    return cd.check_row_kept(dataclasses.replace(ctx, base_rows=base_rows))
+
+
+def test_a_row_on_the_base_still_in_the_tree_or_a_new_row_passes(tmp_path: Path) -> None:
+    assert _kept(tmp_path, frozenset({"2026-10-02-build-it"})) == []
+    assert _kept(tmp_path / "none", None) == []
+
+
+def test_a_row_on_the_base_gone_from_the_tree_is_a_finding(tmp_path: Path) -> None:
+    found = _kept(tmp_path, frozenset({"2026-10-02-build-it", "2026-10-01-renamed-since"}))
+    assert [(f.check, f.location, f.detail) for f in found] == [
+        (
+            "row-kept",
+            f"{BOARD_DIR}/2026-10-01-renamed-since.md",
+            "row `2026-10-01-renamed-since` is on the base and gone: a row id never changes once on main",
+        )
+    ]
+
+
+def test_main_prints_the_skip_and_stops_on_a_base_it_cannot_read(tmp_path: Path, capsys) -> None:
+    write_repo(tmp_path, directory_board())
+    assert cd.main([str(tmp_path)], env={}, git=FakeGit({})) == 0
+    assert "row-kept: skipped: " in capsys.readouterr().out
+    assert cd.main([str(tmp_path)], env=_ci(tmp_path), git=FakeGit(_work_tree(tmp_path))) == 2
+    assert "fetch-depth: 0" in capsys.readouterr().err
+
+
+def test_main_finds_a_renamed_row_against_the_base(tmp_path: Path, capsys) -> None:
+    write_repo(tmp_path, directory_board())
+    git = FakeGit(_work_tree(tmp_path, {CI_LS: (0, f"{BOARD_DIR}/2026-10-01-the-old-name.md\n")}))
+    assert cd.main([str(tmp_path)], env=_ci(tmp_path), git=git) == 1
+    assert "[row-kept] Docs/plan/board/2026-10-01-the-old-name.md" in capsys.readouterr().out
+
+
+def test_row_artifacts_lists_every_kind_naming_a_row_and_nothing_from_a_body(tmp_path: Path) -> None:
+    files = with_design(directory_board(), _board(ROW_ID))
+    body = "## B\n\n" + _board("2026-10-03-then-this") + "\n\n"
+    with_design(files, _board(ROW_ID, prefix="../../plan/board/"), "Docs/superpowers/specs/s.md", body=body)
+    files[ADR] = _adr(_board(ROW_ID))
+    files[SESSION] = _session(_board(ROW_ID))
+    artifacts = cd.row_artifacts(cd.load_context(write_repo(tmp_path, files)))
+    assert artifacts == {ROW_ID: [ADR, DESIGN, SESSION, "Docs/superpowers/specs/s.md"]}
+
+
+def test_in_ci_a_repository_other_than_the_checkout_is_read_as_a_local_one(tmp_path: Path) -> None:
+    """A job that builds a repository inside the runner (the day-0 run) has GITHUB_BASE_REF set too, but no origin."""
+    made = tmp_path / "made"
+    made.mkdir()
+    answers = _work_tree(made, {"rev-parse|--verify|--quiet|main": (0, "a1\n"), "merge-base|HEAD|main": (0, "a1\n")})
+    answers[("ls-tree", "--name-only", "a1", "--", f"{BOARD_DIR}/")] = (0, "")
+    base = cd.read_base(made, BOARD_DIR, _ci(tmp_path), FakeGit(answers))
+    assert base.rows == frozenset() and "merge base with main" in base.note
+
+
+@pytest.mark.parametrize("case", ["git missing", "not a work tree", "git fails"])
+def test_in_ci_any_git_failure_stops_the_run_instead_of_skipping(tmp_path: Path, case: str) -> None:
+    git = {
+        "git missing": FakeGit({}, missing=True),
+        "not a work tree": FakeGit({}),
+        "git fails": FakeGit(_work_tree(tmp_path, {CI_LS: (128, "")})),
+    }[case]
+    with pytest.raises(cd.BaseError):
+        cd.read_base(tmp_path, BOARD_DIR, _ci(tmp_path), git)
+
+
+@pytest.mark.parametrize(
+    ("extra", "outcome"),
+    [
+        ({"rev-parse|--verify|--quiet|HEAD": (1, "")}, "no commit yet"),
+        ({"rev-parse|--verify|--quiet|main": (0, "a1\n"), "merge-base|HEAD|main": (1, "")}, "no common ancestor"),
+        ({"rev-parse|--verify|--quiet|main": (0, "a1\n"), "merge-base|HEAD|main": (128, "")}, "error"),
+        ({"symbolic-ref|--quiet|--short|refs/remotes/origin/HEAD": (128, "")}, "error"),
+        ({"rev-parse|--verify|--quiet|main": (0, "a1\n"), "merge-base|HEAD|main": (0, "b2\n")}, "error"),  # ls-tree
+    ],
+)
+def test_locally_an_absent_answer_skips_and_any_other_git_failure_is_an_error(
+    tmp_path: Path, extra: dict[str, tuple[int, str]], outcome: str
+) -> None:
+    git = FakeGit(_work_tree(tmp_path, extra))
+    if outcome == "error":
+        with pytest.raises(cd.BaseError):
+            cd.read_base(tmp_path, BOARD_DIR, {}, git)
+    else:
+        base = cd.read_base(tmp_path, BOARD_DIR, {}, git)
+        assert base.rows is None and outcome in base.note
+
+
+def test_a_one_page_board_with_no_readable_base_is_skipped_even_in_ci(tmp_path: Path, capsys) -> None:
+    """A shallow checkout of a board that was always one page: no `fetch-depth: 0`, and no exit 2."""
+    write_repo(tmp_path, base_files())
+    assert cd.main([str(tmp_path)], env=_ci(tmp_path), git=FakeGit(_work_tree(tmp_path))) == 0
+    assert "row-kept: skipped: the board is one page" in capsys.readouterr().out
+
+
+def test_a_one_page_board_whose_base_has_rows_is_a_row_kept_finding(tmp_path: Path, capsys) -> None:
+    """Deleting every row file must not turn the check off: the base still has them."""
+    write_repo(tmp_path, base_files())
+    git = FakeGit(_work_tree(tmp_path, {CI_LS: (0, f"{BOARD_DIR}/2026-10-01-the-old-name.md\n")}))
+    assert cd.main([str(tmp_path)], env=_ci(tmp_path), git=git) == 1
+    assert "[row-kept] Docs/plan/board/2026-10-01-the-old-name.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("error", [TimeoutError("git did not answer"), PermissionError("denied")])
+def test_locally_a_git_that_fails_to_run_other_than_missing_is_an_error(tmp_path: Path, error: OSError) -> None:
+    with pytest.raises(cd.BaseError):
+        cd.read_base(tmp_path, BOARD_DIR, {}, FakeGit({}, raises=error))
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_with_real_git_a_row_renamed_on_a_branch_is_found(tmp_path: Path, capsys) -> None:
+    write_repo(tmp_path, directory_board())
+
+    def git(*args: str) -> None:
+        cmd = ["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@example.org", *args]
+        subprocess.run(cmd, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    git("add", "-A")
+    git("commit", "-q", "-m", "rows")
+    git("checkout", "-q", "-b", "work")
+    assert cd.main([str(tmp_path)], env={}) == 0
+    assert "row-kept: skipped" not in capsys.readouterr().out
+    git("mv", f"{BOARD_DIR}/2026-10-03-then-this.md", f"{BOARD_DIR}/2026-10-03-then-that.md")
+    git("commit", "-q", "-m", "rename")
+    assert cd.main([str(tmp_path)], env={}) == 1
+    assert f"[row-kept] {BOARD_DIR}/2026-10-03-then-this.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("value", "links", "problems"),
+    [
+        ("[`a`](<a b.md>)", [("`a`", "a b.md")], []),
+        ('[`a`](a.md "the row")', [("`a`", "a.md")], []),
+        ("none (a (nested) reason)", [], []),
+    ],
+)
+def test_a_board_line_reads_angle_destinations_titles_and_nested_reasons(
+    value: str, links: list, problems: list
+) -> None:
+    assert cd.board_refs(value) == (links, problems)
+
+
+def test_a_setext_heading_ends_a_file_header_and_any_heading_ends_an_entry_header() -> None:
+    text = "# T\n\n**Status:** Living.\n\nBody\n----\n\n**Board:** body\n"
+    assert [line for _, line in cd.header_lines(text)] == ["# T", "", "**Status:** Living.", ""]
+    entry = "# S\n\n### One\n**By:** @ada · **Agent:** none\n## Day two\n**Board:** body\n"
+    assert [[line for _, line in h] for h in cd.entry_headers(entry)] == [["**By:** @ada · **Agent:** none"]]

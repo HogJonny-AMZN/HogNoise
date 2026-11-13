@@ -539,3 +539,14 @@ def test_the_written_page_is_readable_by_everyone_not_private_to_the_temporary_f
     assert rfg.main(["--write", "--root", str(tmp_path)]) == 0
     mode = (tmp_path / "Docs/knowledge/ai-first-framework-graph.md").stat().st_mode
     assert mode & 0o044 == 0o044
+
+
+def test_a_v_run_logs_with_the_tools_prefix(tmp_path: Path) -> None:
+    """Every tool logs through log_setup: the time, the level and the module, at INFO with -v (logging in tiers)."""
+    from test_log_setup import PROBE_LINE, tool_log_line
+
+    line, level = tool_log_line(
+        "render_framework_graph", [a.replace("{empty}", str(tmp_path)) for a in ["-v", "--check", "--root", "{empty}"]]
+    )
+    assert PROBE_LINE.fullmatch(line), line
+    assert level == 20

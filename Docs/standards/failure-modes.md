@@ -39,6 +39,21 @@ Entries are append-only. Never rewrite one; add a new entry that supersedes it a
 | A guide, migration or design says it works, or that something cannot fail, and you have run only the default case | 30 |
 | A second path produces what another already does | 31 |
 | A status word sits beside a link | 32 |
+| You are adding a board row whose change would be made in another repository | 33 |
+| Work lands, or a handoff says what is planned or queued | 34 |
+| A session agreed a lesson, or a person said "remember this" | 35 |
+| A reply or a journal line is about to name a commit | 36 |
+| You changed what a tool checks, in the functions its entry point calls | 37 |
+| You are about to write a date into a record, or correct one | 38 |
+| A fix makes a check stand down in some case | 39 |
+| A shell line to inspect state or diagnose a failure | 40 |
+| A long proof is running and there is other work to do | 41 |
+| Code splits or matches text it did not write | 42 |
+| A check walks folders or asks whether a path is a file or a folder | 43 |
+| A walk decides not to enter, or not to report, a path | 44 |
+| A test asserts a date the code writes as the UTC day | 45 |
+| A number or a "cannot" is going into a pull request description or a reply | 46 |
+| About to switch, stash or reset in a checkout another session may hold, or another repository's | 47 |
 
 ## The ledger
 
@@ -387,9 +402,189 @@ owning document (a merge that did not change its header) is judgment, not a chec
 **Mechanised by:** `status-copy` holds the copy against the document's own status line, in three forms: after a link, before
 one, and a table cell beside the row's one governed link.
 
+### 33 · A row for another repository's work
+
+**Trigger:** Adding a board row whose change would be made in another repository: its layout, its retrofit, a standard only
+it and its siblings use.
+**Do:** Put it on that repository's board (or, where the person keeps per-repository notes, there), and keep a row here only
+for the change this repository makes, with the other repository named as evidence.
+**Because:** A template's board carried a sibling repository's `src/` layout, two siblings' retrofits and a stack module
+for a language no repository made from the template uses, because ideas landed on the board of the session they were said
+in. None had a home in the repository that would do the work, and the board read as the template's plan for its siblings.
+
+### 34 · Work lands and the rows it touched do not move
+
+**Trigger:** A pull request lands work, or a handoff says what is planned or queued.
+**Do:** Before it merges, search the board's *Next* and Icebox rows and the handoffs for the same item, by name and by
+pull request number, and update every row the work touched, not only the row you came to fix. Write a wait on other
+work as a `Waits on` line.
+**Because:** A template's board kept two landed rows in *Next*, three Icebox rows saying "pulled forward" beside their
+*Now* copies, and five verdicts waiting on work that had landed, and an adopting repository fixed one row of four.
+Nothing linked a wait to what it waited for, so nothing noticed when that work landed.
+**Mechanised by:** `board-state` (a section that contradicts its state) and `waits-on` (a wait on a done row, or on
+nothing the board has), for the parts a check can see.
+
+### 35 · A lesson kept only in an agent's own memory
+
+**Trigger:** A session agrees a lesson: something went wrong and the cause is understood, a person says "remember this",
+or a person states a preference that should outlast the session.
+**Do:** Write it to the record that owns it, in the same pull request: the project ledger for how the process failed
+(a trigger, an action, the evidence), the handoff for a preference or a standing decision, a standard for a rule, the
+glossary for a word. An agent's own memory may hold a pointer to it, never the only copy. At the close of a session
+where something went wrong, propose the lessons unasked: what went wrong, what was learned, what stops it recurring.
+**Because:** An agent's memory is per folder, per machine and per harness, outside git: another person, another machine
+or another tool never sees it. A template's owner had to remind the agent, session after session, that a lesson was the
+project's and had to be written down, and to ask what a session had got wrong.
+
+### 36 · A commit named before it was read from git
+
+**Trigger:** Writing a reply on a review thread, a pull request comment or a journal line that names a commit.
+**Do:** Make the commit first, then read its hash from git (`git log --oneline -1`) and paste that. Never type a hash
+from memory, and never write the reply in the same command that makes the commit. Read the reply back before posting.
+**Because:** Two review replies in one day named commits that did not exist; each was written before the hash was read
+back, and each was corrected by editing the comment afterwards. Framework 1 says the evidence comes first; existing is
+not enough, the hash has to come from git.
+
+### 37 · A tool's entry point left on the old behaviour while its parts were tested
+
+**Trigger:** Changing what a tool checks or produces, in the functions its entry point calls.
+**Do:** Test the entry point (`main`, the command line) on the new case too, not only the functions: a test of the parts
+passes while the entry point still calls the old one.
+**Because:** A layer check gained a scan of the workspace's members, tested on fixtures, while its `main` kept scanning
+the old root folder. The gate stayed green; only the tool's own run on the template, a task later, said "nothing to
+check".
+
+### 38 · A convention asserted from the clock instead of read from the standard
+
+**Trigger:** Writing a date into a record (a file's name, a quote's date, a journal file, a release note), or
+"correcting" one that looks wrong.
+**Do:** Find where the convention is written (the standard, the ADR) and follow it; a record's date is the UTC day
+unless the project's standard says otherwise (read it from a UTC clock, `date -u` for example). Before calling a record wrong, quote the rule it
+breaks. A machine's local clock is not a convention.
+**Because:** An agent working in the evening, a day behind UTC, took the local date for the rule, renamed a record and
+every reference to it, and wrote a ledger entry asserting the wrong convention. The standard said UTC; the rename was
+reverted a pull request later. A tool that stamps a record's day had the same fault in code.
+
+### 39 · A skip added by a fix, never asked when it fires
+
+**Trigger:** A fix, or any change, that makes a check stand down in some case: a new skip, an early return, an "only
+when", a narrowed condition.
+**Do:** Before the commit, ask of the new skip "when does this fire, and can a change under review make it fire?" If the
+change being checked can reach the skip's condition (deleting the thing the check guards, emptying a folder, breaking a
+lookup), the skip is a bypass: decide it from something the change cannot alter (the base, the environment), and add a
+test that makes the change and expects the finding. Close to framework 29.
+**Because:** A fix for a check that broke on a one-page board skipped the check whenever the board was one page.
+Deleting every row makes a board one page, so the fix turned the check off for exactly the change it existed to catch,
+in CI too.
+
+### 40 · A command that changes git state, in a line of read-only commands
+
+**Trigger:** Writing a shell line to inspect state (status, diffs, logs, searches) or to diagnose a failure.
+**Do:** Keep a command that changes the repository (`git stash`, `checkout`, `reset`, `restore`, `clean`, `add`) out of a
+line of read-only commands: run it alone, on purpose. If one ran by mistake, check `git stash list` and `git status`
+before the next step.
+**Because:** A diagnostic line carried a stray `git stash`, which put away the uncommitted work. It cost nothing only
+because the next edit happened to touch the stashed file and failed to find its text.
+
+### 41 · A proof run while its inputs were being edited
+
+**Trigger:** A long proof is running (a made repository's day 0, a full gate, a CI-length suite) and there is other work
+to do meanwhile.
+**Do:** Edit nothing the proof reads until it finishes: do work that touches neither, such as records, or a scratch
+folder. Run one heavy proof at a time. A failure from a run that overlapped an edit is not evidence either way: run it
+again, alone, before reading anything into it.
+**Because:** A template's documents were edited while its day-0 proof ran; the proof saw them change and failed a step
+that checks nothing changes. Two other steps failed in the same run for an unrelated reason, and the two were told apart
+only by running the proof again, alone.
+
+### 42 · A parser of text someone else controls, tested only on well-formed input
+
+**Trigger:** Code reads text it did not write (a commit message, a pull request body, a file from another repository, a
+tool's output that carries such text) and splits, quotes or matches it on some character or pattern.
+**Do:** Before calling it done, write the hostile cases as tests: input that holds the separator, the quote, the leading
+`-`, the newline, whatever the parser treats as special, and one malformed record. Prefer a reading the content cannot
+reach (one record per call, a NUL, `--end-of-options`) over a separator the content can hold. Try to break it; do not
+assert it cannot be broken (framework 30). `testing.md`, *Error paths*, lists the cases.
+**Because:** A commit-message check split a pull request's log on two control characters; a message holding them forged
+a record and the check passed it, and a range argument holding an option reached git, which wrote a file. Every test
+had used ordinary messages. The error-path checklist already named a malformed record; it was not applied where the code
+was written.
+
+### 43 · A check that reads the filesystem, tested only on what it could read
+
+**Trigger:** A check walks folders or asks whether a path is a file or a folder, and its tests build only ordinary,
+readable trees.
+**Do:** Give every read an error path and a test of it: a folder it cannot read, a symlink loop, a dangling link. Tell
+"missing" (no such path) from "cannot read" (any other error) with a call that reports its error, such as `stat`, not
+with a yes-or-no question such as "is this a folder?", which answers no for a loop and says nothing (and, in some
+runtimes, raises a permission error instead). A walk reports a folder it cannot list and a link it does not follow.
+What could not be read is reported as unread, by a finding that says so or by a refusal to run; never a pass, and never
+a crash whose exit code reads as an ordinary finding.
+**Because:** A new layer rule passed its tests, then crashed on a folder denied by an ACL, exiting with a finding's code;
+fixed, it then passed a folder symlinked to itself without a word. The same shape was in four more reads of the same
+tools. `testing.md`'s *Error paths* already named "a directory it cannot list, a path through a cycle"; the checklist
+existed and was not applied where the code was written (framework 18).
+
+### 44 · A walk that passes over a path nothing else reads, or reports one something else does
+
+**Trigger:** A walk decides not to enter a path (a link, a skipped name, an installed package) or not to report one, or
+a helper answers a yes-or-no question about a path ("is this a link?").
+**Do:** Pass over a path silently only when its content is read by another path of the same walk: a link whose target
+the walk reaches. A target the walk skips, or one outside what it walks, is unseen and is reported. Do not report what
+was seen another way, or what is not the repository's (an installed package, an environment): a finding a clean
+repository cannot avoid is noise that teaches people to ignore the check. A skip list applies to a link of a skipped
+name as to the folder. Every helper that classifies a path has the error path of entry 43, the new one included: a
+refusal is "cannot read", never "no".
+**Because:** The sweep that applied entry 43 to four tools first reported every linked folder and searched installed
+packages, so an ordinary virtual environment failed the check; the deliberate review caught it. The narrowed rule then
+passed a link into a skipped folder, a linked environment had its link text checked, and the sweep's own new "is this
+a link?" helper crashed on a refusal on some runtimes: an automated review caught all three. Entry 43 said what must
+not pass; it did not say what may.
+
+### 45 · A test of a UTC date that builds its expected value from the local clock
+
+**Trigger:** A test asserts a date the code writes as the UTC day (a record, a file name, a lock), or code takes a day
+from the clock.
+**Do:** Build the expected value in UTC as well. Better, patch the module's clock to an instant whose local and UTC
+days differ, and assert the UTC one: a test that compares with `date.today()` agrees with the code whenever the two
+days agree, which on a CI runner kept in UTC is always. Ruff's `DTZ` rules flag `date.today()` and a `datetime.now()`
+without a zone; a call through a module alias (`module._dt.date.today()`) passes them, so search for it too. Extends
+entry 38.
+**Because:** A fix moved a tool's record to the UTC day, and its test kept comparing with the local date. CI stayed
+green; the gate then failed on a machine west of UTC every evening, on a branch that had not touched the tool. A
+script beside it dated its records by the local clock, and no test noticed, because every test injected the day. The
+seeded `pyproject.toml` turns the `DTZ` rules on.
+
+### 46 · A fact in a pull request description written from memory
+
+**Trigger:** Writing a number (lines, tests, cases, files, stages) or a "cannot", "never" or "no test can" into a pull
+request description, a review reply or a summary.
+**Do:** Take each number from a command run on the commit the text names, and paste it. Try a "cannot" before writing
+it. Read every number and every "cannot" again after each fix commit, because a fix changes them. Narrows entry 1 to
+the text a reviewer reads first.
+**Because:** In two pull requests in a row, a description carried a line count that was a guess (corrected only after
+it was measured), and then "the clock cannot be injected, so this has no test". An automated review refuted the second
+by pointing at a test in the same repository that injects it.
+
+### 47 · A checkout switched while another session held work in it
+
+**Trigger:** About to switch branches, stash, reset or regenerate in a checkout this session did not start in, above
+all another repository's (a fix to the template found from a project), or in one that other sessions also use.
+**Do:** Look first: the sessions running on the machine, and `git status` in that checkout. Work in a new worktree off
+its default branch (`git worktree add .worktrees/<slug> -b <branch> origin/<default>`), never in the checkout itself. A
+modified file nobody in this session wrote means stop and ask whose it is, never stash it. `git stash` is shared by
+every worktree of a repository, so a bare stash and pop can carry another session's work. Extends entries 6 and 40.
+**Because:** A project's session fixed a fault in the template by switching the template's own checkout to a fix
+branch while the template's session was writing uncommitted ledger entries there. A bare stash and pop swept them up,
+the full test run blamed the fix for their three failures in progress, and that work briefly sat on the fix branch.
+Nothing was lost: the checkout went back with exactly their changes, the fix was rebuilt in a worktree, and the other
+session was told.
+
 ## How to add an entry
 
 When the process fails again, append the entry in the same pull request as the fix, to the project ledger (or propose it to
 the template if any repository would repeat it): a trigger you would notice, the action it should cause, and the evidence.
 Mechanise the class when a check can and name the check on a `**Mechanised by:**` line after the *Because*. Never rewrite an old entry; add a new one that
-supersedes it.
+supersedes it. Two lines may be appended to an old entry, and nothing else: a `**Mechanised by:**` line when a check
+comes to hold it, and, in a project ledger, a `**Promoted:**` line naming the framework entry the template made of it
+(the project entry stays as the evidence).

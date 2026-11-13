@@ -42,12 +42,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import framework_config as fc
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_log_format"
-__version__ = "0.3.0"
-__updated__ = "2026-10-12"
+__version__ = "0.3.1"
+__updated__ = "2026-11-07"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: Directories never scanned, at any depth, whatever the configuration says: other checkouts and installed packages.
@@ -186,6 +187,13 @@ def check_source(source: str, path: str = "<source>") -> list[Finding]:
     return sorted(out, key=lambda f: (f.line, f.reason))
 
 
+def _skipped(relative: Path, skip: frozenset[str]) -> bool:
+    """Whether the walk never reaches ``relative`` (a path under the root): a skipped folder on the way, or a top-level
+    one."""
+    parts = relative.parts
+    return any(part in skip for part in parts) or bool(parts and parts[0] in TOP_LEVEL_SKIPPED)
+
+
 def python_files(root: Path, skip: frozenset[str], errors: list[Finding]) -> list[Path]:
     """Every ``*.py`` under ``root`` outside the skipped directories (pruned while walking); a directory that cannot be
     listed is appended to ``errors`` as a finding."""
@@ -199,9 +207,37 @@ def python_files(root: Path, skip: frozenset[str], errors: list[Finding]) -> lis
         errors.append(Finding(where.as_posix(), 1, f"cannot be listed, so its log calls are unchecked: {error}"))
 
     found: list[Path] = []
+    real_root = root.resolve()
     for current, dirs, files in os.walk(root, onerror=record):
         top = Path(current) == root
         dirs[:] = sorted(d for d in dirs if d not in skip and not (top and d in TOP_LEVEL_SKIPPED))
+        # The walk never enters a linked folder (a junction included), and lists a looping link among the files. A
+        # loop is source unseen; so is a linked folder whose target is outside the root, which nothing else walks
+        # (issue #78), or inside it where the walk skips. A link to a folder the walk reads (a venv's lib64 -> lib) is
+        # seen where it points, and a dangling link holds nothing.
+        linked: set[str] = set()
+        for name in [*dirs, *(f for f in files if not f.endswith(EXTENSIONS))]:
+            path = Path(current) / name
+            where = path.relative_to(root).as_posix()
+            try:
+                if not fc.is_link(path):
+                    continue
+                linked.add(name)
+                if fc.path_kind(path) != "dir":
+                    continue
+                target = path.resolve(strict=True)
+            except OSError as e:
+                linked.add(name)  # its kind or its target cannot be read: not entered
+                errors.append(Finding(where, 1, f"cannot be read, so its log calls are unchecked: {e}"))
+                continue
+            if not target.is_relative_to(real_root):
+                reason = "links to a folder outside the root, which is not followed: its log calls are unchecked"
+            elif _skipped(target.relative_to(real_root), skip):
+                reason = "links to a folder the walk skips, which is not followed: its log calls are unchecked"
+            else:
+                continue
+            errors.append(Finding(where, 1, reason))
+        dirs[:] = [d for d in dirs if d not in linked]
         found += [Path(current) / name for name in sorted(files) if name.endswith(EXTENSIONS)]
     return found
 
@@ -248,8 +284,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) > 1 or any(a.startswith("-") for a in args):
         print("usage: check_log_format.py [-v] [root]", file=sys.stderr)
         return 2
-    if verbose:
-        _logging.basicConfig(level=_logging.INFO, format="%(message)s", stream=sys.stderr)
+    log_setup.configure(verbose)
     root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
     if not root.is_dir():
         print(f"log-format check: cannot run: {root} is not a directory", file=sys.stderr)

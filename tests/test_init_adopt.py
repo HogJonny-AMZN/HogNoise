@@ -520,6 +520,14 @@ def test_take_must_name_a_differing_file_even_in_a_dry_run(source: Path, target:
 
 
 # ---- --apply: what it does
+def test_adopt_with_a_login_in_its_answers_seeds_no_roster(source: Path, target: Path, tmp_path: Path) -> None:
+    answers = tmp_path / "answers-login.json"
+    answers.write_text(json.dumps({**ANSWERS, "owner": {**ANSWERS["owner"], "login": "ada"}}), encoding="utf-8")
+    code, _, _ = _adopt(source, target, answers, "--apply")
+    assert code == 0
+    assert "[[people]]" not in (target / "framework.toml").read_text(encoding="utf-8")
+
+
 def test_apply_adds_what_is_missing_and_never_touches_what_the_project_owns(
     source: Path, target: Path, answers: Path
 ) -> None:
@@ -794,27 +802,76 @@ def test_init_new_over_an_adopted_repository_with_a_module_off_changes_nothing(
     assert {k: v for k, v in _snapshot(target).items() if not k.startswith("logs/")} == before
 
 
-def test_turning_specimens_off_writes_layers_from_the_targets_src_so_the_boundary_check_passes(
+def test_a_root_src_is_reported_as_layout_debt_naming_the_guide(
+    source: Path, target: Path, answers: Path, capsys
+) -> None:
+    _write(target, {"src/zeta/__init__.py": "", "src/alpha/__init__.py": ""})
+    code, out, _ = _adopt(source, target, answers, capsys=capsys)
+    assert code == 0
+    debt = [line for line in out.splitlines() if line.startswith("layout debt")]
+    assert len(debt) == 1 and "src/ has 3 packages (alpha, product, zeta)" in debt[0]
+    assert "legacy-src" in out and '"0.7.0: the repository layout"' in out
+    assert out.index("layout debt") < out.index("dry run: nothing written")
+
+
+def test_the_json_report_carries_the_layout_debt(source: Path, target: Path, answers: Path, capsys) -> None:
+    code, out, _ = _adopt(source, target, answers, "--json", capsys=capsys)
+    assert code == 0 and json.loads(out)["layout_debt"] == ["product"]
+
+
+VIRTUAL_ROOT = "[tool.uv.workspace]\nmembers = []\n"  # a 0.7.0 root: it builds nothing, so legacy-root has no say
+
+
+def test_turning_specimens_off_writes_no_layers_from_a_root_src(
     source: Path, target: Path, answers: Path, capsys
 ) -> None:
     _write(target, {"src/zeta/__init__.py": "", "src/alpha/__init__.py": "", "src/zeta/x.py": "import alpha\n"})
+    _write(target, {"pyproject.toml": VIRTUAL_ROOT})  # so legacy-src alone is in question, not the stand-in seed
     code, out, _ = _adopt(source, target, answers, "--apply", "--off", "specimens", capsys=capsys)
     assert code == 0
+    assert fc.load_framework(target / "framework.toml").layers is None
+    assert "src/ is layout debt, so no [layers] was written from it" in out
+    found = [str(f) for f in bd.scan_workspace(target, None)]
+    assert found and all(f.startswith("[legacy-src] src/") for f in found), found  # the gate says what to move
+
+
+def test_turning_specimens_off_writes_layers_from_the_targets_members(
+    source: Path, target: Path, answers: Path, capsys
+) -> None:
+    shutil.rmtree(target / "src")
+    _write(
+        target,
+        {
+            "pyproject.toml": '[tool.uv.workspace]\nmembers = ["apps/*", "packages/python/*"]\n',
+            "apps/tool/pyproject.toml": (
+                '[project]\nname = "tool"\nauthors = [{ name = "Ada", email = "ada@example.org" }]\n'
+                'dependencies = ["lib"]\n'
+            ),
+            "apps/tool/src/tool/__init__.py": "import lib\n",
+            "packages/python/lib/pyproject.toml": (
+                '[project]\nname = "lib"\nauthors = [{ name = "Ada", email = "ada@example.org" }]\n'
+            ),
+            "packages/python/lib/src/lib/__init__.py": "",
+        },
+    )
+    code, out, _ = _adopt(source, target, answers, "--apply", "--off", "specimens", "--take-all", capsys=capsys)
+    assert code == 0, out
     layers = fc.load_framework(target / "framework.toml").layers
-    assert layers is not None and layers.order == ("alpha", "product", "zeta")
-    assert "alphabetical order, a placeholder" in out
-    assert bd.scan(target / "src", layers, target) == []
+    assert layers is not None and layers.order == ("lib", "tool")
+    assert "from the packages of the workspace's members (lib, tool) in alphabetical order, a placeholder" in out
+    assert bd.scan_workspace(target, layers) == []
 
 
 def test_turning_specimens_off_with_no_src_writes_no_layers_table(
     source: Path, target: Path, answers: Path, capsys
 ) -> None:
     shutil.rmtree(target / "src")
+    _write(target, {"pyproject.toml": VIRTUAL_ROOT})  # the stand-in seed builds a project; the real seed is virtual
     code, out, _ = _adopt(source, target, answers, "--apply", "--off", "specimens", capsys=capsys)
     assert code == 0
     assert fc.load_framework(target / "framework.toml").layers is None
     assert "no [layers] table was written" in out
-    assert bd.scan(target / "src", None, target) == []
+    assert bd.scan_workspace(target, None) == []
 
 
 def test_with_specimens_on_the_seeded_layers_are_kept(source: Path, target: Path, answers: Path) -> None:

@@ -79,6 +79,7 @@ from pathlib import Path, PurePosixPath
 
 import framework_config as fc
 import init as ini
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
@@ -538,9 +539,7 @@ def main(argv: list[str] | None = None, *, gh: GhRunner = run_gh, today: datetim
     parser.add_argument("--root", type=Path, default=ROOT, help="the repository (default: this one)")
     parser.add_argument("-v", "--verbose", action="store_true", help="log what was checked to standard error")
     args = parser.parse_args(argv)
-    _logging.basicConfig(
-        level=_logging.INFO if args.verbose else _logging.WARNING, format="%(message)s", stream=sys.stderr
-    )
+    log_setup.configure(args.verbose)
     root = args.root.resolve()
     if not root.is_dir():
         print(f"sync check: cannot run: {root} is not a directory")

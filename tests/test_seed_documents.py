@@ -22,6 +22,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
+import check  # noqa: E402
 import check_docs as cd  # noqa: E402
 import framework_config as fc  # noqa: E402
 import init as ini  # noqa: E402
@@ -306,3 +307,103 @@ def test_the_standard_is_reached_from_the_map_through_a_managed_file_alone(made:
         "\n".join(line for line in readme.splitlines() if "standards/journal.md" not in line) + "\n", encoding="utf-8"
     )
     assert [str(f) for f in cd.run(cd.load_context(copy)) if "orphan" in str(f)] == []
+
+
+# ---- the process-map module: off by default and leaving nothing behind; on, everything, and its checks pass
+PROCESS_MAP_FILES = (
+    "tools/render_process_map.py",
+    "tests/test_render_process_map.py",
+    "Docs/knowledge/production.md",
+    "Docs/knowledge/process-map.json",
+    "Docs/knowledge/process-map.html",
+    ".agents/skills/process-map/SKILL.md",
+    ".claude/skills/process-map/SKILL.md",
+)
+
+
+@pytest.fixture(scope="module")
+def made_with_process_map(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    base = tmp_path_factory.mktemp("made-pm")
+    answers = base / "answers.json"
+    answers.write_text(json.dumps(ANSWERS), encoding="utf-8")
+    target = base / "proj"
+    target.mkdir()
+    text = (ROOT / "framework.toml").read_text(encoding="utf-8")
+    assert text.count('process-map = "off"') == 1
+    (target / "framework.toml").write_text(text.replace('process-map = "off"', 'process-map = "on"'), encoding="utf-8")
+    argv = ["new", "--answers", str(answers), "--target", str(target), "--no-sync", "--no-checks"]
+    assert ini.main(argv, source=ROOT, today=TODAY) == 0
+    return target
+
+
+def test_the_process_map_module_is_off_by_default_and_seeds_none_of_its_files(made: Path) -> None:
+    assert fc.load_framework(made / "framework.toml").modules["process-map"] == "off"
+    assert [rel for rel in PROCESS_MAP_FILES if (made / rel).exists()] == []
+    assert not (made / ".agents/skills/process-map").exists() and not (made / ".claude/skills/process-map").exists()
+    lock = (made / "framework.lock").read_text(encoding="utf-8")
+    assert "process-map" not in lock and "render_process_map" not in lock
+
+
+def test_the_process_map_module_on_seeds_all_its_files_and_locks_the_managed_ones(made_with_process_map: Path) -> None:
+    target = made_with_process_map
+    assert [rel for rel in PROCESS_MAP_FILES if not (target / rel).is_file()] == []
+    lock = (target / "framework.lock").read_text(encoding="utf-8")
+    for rel in (
+        "tools/render_process_map.py",
+        "tests/test_render_process_map.py",
+        ".agents/skills/process-map/SKILL.md",
+    ):
+        assert rel in lock, rel
+    for rel in ("Docs/knowledge/production.md", "Docs/knowledge/process-map.json", "Docs/knowledge/process-map.html"):
+        assert rel not in lock, f"{rel} is the project's, so the lock must not hold it"
+    assert (target / "Docs/knowledge/production.md").read_text(encoding="utf-8").startswith("# Example Project: ")
+
+
+def test_with_the_module_on_the_stage_runs_and_the_page_is_current(made_with_process_map: Path, capsys) -> None:
+    import render_process_map as rpm  # only here: the module may be off where this file runs
+
+    target = made_with_process_map
+    assert "process-map" in [s.name for s in check.stages(target)]
+    assert rpm.main(["--check", "--root", str(target)]) == 0
+    capsys.readouterr()
+
+
+def test_with_the_module_on_the_made_repositorys_parity_test_names_the_step_until_it_is_added(
+    made_with_process_map: Path, tmp_path: Path
+) -> None:
+    """The update guide's *Turning a module on*, step 6: the made repository's own parity test names the step the
+    module's stage needs, and passes once the step is added in the check runner's order."""
+    import importlib.util
+
+    target = tmp_path / "proj"
+    shutil.copytree(made_with_process_map, target, ignore=shutil.ignore_patterns(".venv", "logs"))
+    spec = importlib.util.spec_from_file_location("made_test_tooling", target / "tests" / "test_tooling.py")
+    assert spec is not None and spec.loader is not None
+    saved = list(sys.path)
+    try:
+        tooling = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tooling)  # its ROOT is the made repository, so it reads that repository's workflow
+        assert tooling.ROOT == target
+        with pytest.raises(AssertionError) as missing:
+            tooling.test_the_workflow_runs_every_stage_of_the_check_runner_in_its_order()
+        assert "uv run python tools/render_process_map.py --check" in str(missing.value)
+        workflow = target / ".github/workflows/ci.yml"
+        graph = "        run: uv run python tools/render_framework_graph.py --check\n"
+        text = workflow.read_text(encoding="utf-8")
+        assert text.count(graph) == 1
+        step = "\n      - name: Process map\n        run: uv run python tools/render_process_map.py --check\n"
+        workflow.write_text(text.replace(graph, graph + step), encoding="utf-8")
+        tooling.test_the_workflow_runs_every_stage_of_the_check_runner_in_its_order()
+        tooling.test_the_workflow_runs_no_gate_command_the_check_runner_does_not()
+    finally:
+        sys.path[:] = saved
+
+
+def test_with_the_module_on_the_docs_check_is_clean_and_reaches_the_production_document_through_the_skill(
+    made_with_process_map: Path,
+) -> None:
+    assert [str(f) for f in cd.run(cd.load_context(made_with_process_map))] == []
+    skill = (made_with_process_map / ".agents/skills/process-map/SKILL.md").read_text(encoding="utf-8")
+    assert "(../../../Docs/knowledge/production.md)" in skill
+    readme = (made_with_process_map / "Docs/README.md").read_text(encoding="utf-8")
+    assert "production.md" not in readme, "the map is seeded for every repository, the module only for some"

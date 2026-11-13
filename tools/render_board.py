@@ -12,8 +12,11 @@ A board in directory form keeps one file per row under ``board_dir`` (``Docs/pla
 page is the configured board path (``Docs/plan/BOARD.md``): a section per board heading in the fixed order Gates, Now,
 Next, Blocked, Icebox, each a table of the section's rows (open rows first, newest first by the file's day and then its
 slug; done rows after them, struck through; ``None.`` when there are none), then ``## By owner``, each login's open rows
-of every section but the Icebox. It is **derived and not committed** (git-ignored, and the docs check skips exactly that
-path once row files exist), so a pull request that adds a row never edits the page and the page cannot drift.
+of every section but the Icebox, then ``## Artifacts``: under each row that one names, the designs, specs, plans,
+ADRs and journal files whose ``**Board:**`` header line names its id (``check_docs.row_artifacts``, the same
+reading the ``row-ref`` check validates). It is **derived and not committed** (git-ignored, and the docs check skips
+exactly that path once row files exist), so a pull request that adds a row never edits the page and the page cannot
+drift.
 
 Every inline markdown link in a rendered field is rebased from the row file's directory to the page's, so a link that
 resolves from a row resolves from the page; a reference-style link in a field does not resolve on the page (its
@@ -39,13 +42,15 @@ import tempfile
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 import check_docs as cd
 import framework_config as fc
+import log_setup
 
 _MODULE_NAME = "tools.render_board"
-__version__ = "0.1.0"
-__updated__ = "2026-10-29"
+__version__ = "0.2.1"
+__updated__ = "2026-11-07"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,7 +102,9 @@ def read_rows(base: Path, docs: fc.DocsConfig) -> list[Rendered]:
     directory = base / docs.board_dir
     try:
         names = sorted(entry.name for entry in directory.iterdir())
-    except OSError as e:
+    except FileNotFoundError:  # no board directory: the usual hand-kept board, as an empty one is (issue #96)
+        names = []
+    except OSError as e:  # there, and unreadable or not a directory: an error, never "hand-kept" (ledger P-16)
         raise BoardError(f"cannot list the board directory {directory}: {type(e).__name__}: {e}") from e
     rows: list[Rendered] = []
     for name in names:
@@ -147,9 +154,15 @@ def rebase_links(text: str, from_dir: str, to_dir: str) -> str:
     return _LINK_RE.sub(rewrite, text)
 
 
+def _href(rel: str, page_dir: str) -> str:
+    """A link destination from the page to ``rel``, percent-encoded: a space would break the link, and a ``#`` or ``?``
+    would become a fragment or a query. The docs check decodes it again."""
+    return quote(posixpath.relpath(rel, page_dir), safe="/")
+
+
 def _title_link(rendered: Rendered, page_dir: str) -> str:
     row = rendered.row
-    target = posixpath.relpath(row.rel, page_dir)
+    target = _href(row.rel, page_dir)
     return f"[{_cell(row.title) or row.slug}]({target})"
 
 
@@ -164,8 +177,9 @@ def _section_rows(rows: list[Rendered], section: str) -> list[Rendered]:
     return open_rows + done_rows
 
 
-def render(rows: list[Rendered], docs: fc.DocsConfig) -> str:
-    """The page text for ``rows``: the sections in order, then the view by owner, then the unreadable rows."""
+def render(rows: list[Rendered], docs: fc.DocsConfig, artifacts: dict[str, list[str]] | None = None) -> str:
+    """The page text for ``rows``: the sections in order, the view by owner, each row's artifacts (``artifacts``:
+    row id to the files naming it), then the unreadable rows."""
     board_dir, page_dir = docs.board_dir, posixpath.dirname(docs.board)
 
     def rebase(text: str) -> str:
@@ -222,14 +236,32 @@ def render(rows: list[Rendered], docs: fc.DocsConfig) -> str:
         for section, r in ordered:
             lines.append(f"- {cd.BOARD_HEADINGS[section][3:]}: {_title_link(r, page_dir)}: {rebase(r.row.state)}")
         lines.append("")
+    lines += _artifact_lines(rows, artifacts or {}, page_dir)
     unreadable = [r for r in rows if r.problems]
     if unreadable:
         lines += ["## Unreadable rows", ""]
         for r in sorted(unreadable, key=lambda r: r.row.rel):
-            target = posixpath.relpath(r.row.rel, page_dir)
+            target = _href(r.row.rel, page_dir)
             lines.append(f"- [{posixpath.basename(r.row.rel)}]({target}): {'; '.join(_cell(p) for p in r.problems)}")
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _artifact_lines(rows: list[Rendered], artifacts: dict[str, list[str]], page_dir: str) -> list[str]:
+    """``## Artifacts``: each row that a file names, newest first, with a link to each file; ``None.`` when none."""
+    lines = ["## Artifacts", ""]
+    named = [
+        (r, artifacts[row_id])
+        for r in sorted(rows, key=lambda r: r.sort_key, reverse=True)
+        if not r.problems and (row_id := posixpath.basename(r.row.rel)[: -len(".md")]) in artifacts
+    ]
+    if not named:
+        return [*lines, "None.", ""]
+    for r, paths in named:
+        lines += [f"### {_title_link(r, page_dir)}", ""]
+        lines += [f"- [`{rel}`]({_href(rel, page_dir)})" for rel in paths]
+        lines.append("")
+    return lines
 
 
 def _is_rendered(page: Path) -> bool:
@@ -257,6 +289,20 @@ def write_page(page: Path, text: str) -> None:
         raise BoardError(f"cannot write {page}: {type(e).__name__}: {e}") from e
 
 
+def _artifacts(base: Path) -> dict[str, list[str]]:
+    """Each row id and the files naming it, read from the whole corpus as the docs check reads it."""
+    try:
+        ctx = cd.load_context(base)
+    except fc.ConfigError as e:
+        raise BoardError(f"cannot read the documents under {base}: {e}") from e
+    if ctx.unreadable:  # a document left out would drop its row's artifacts from a page that looks complete
+        rel, why = sorted(ctx.unreadable.items())[0]
+        raise BoardError(f"cannot read {rel}: {why} ({len(ctx.unreadable)} unreadable; the docs check names each)")
+    found = cd.row_artifacts(ctx)
+    _LOGGER.info(f"read {len(ctx.files)} documents: {len(found)} row(s) named by a Board line")
+    return found
+
+
 def _emit(text: str) -> None:
     """Write ``text`` to standard output as UTF-8 bytes with the newlines it has, so ``--print`` is byte for byte what
     ``--write`` puts in the file, whatever the console's codec or newline translation."""
@@ -282,8 +328,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
             reconfigure(errors="backslashreplace")
-    if args.verbose:
-        _logging.basicConfig(level=_logging.INFO, format="%(message)s", stream=sys.stderr)
+    log_setup.configure(args.verbose)
     base = args.root if args.root is not None else (root if root is not None else ROOT)
     if not base.is_dir():
         print(f"board: cannot run: {base} is not a directory", file=sys.stderr)
@@ -291,7 +336,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     try:
         docs = _configuration(base)
         rows = read_rows(base, docs)
-        text = render(rows, docs)
+        text = render(rows, docs, _artifacts(base))
         unreadable = [r for r in rows if r.problems]
         findings = sys.stderr if args.show else sys.stdout  # --print's standard output is the page and nothing else
         for r in unreadable:

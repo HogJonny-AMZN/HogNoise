@@ -54,4 +54,9 @@ a user.
 ## What is deliberately not here
 
 No second workflow that repeats the stages under another name, and no step that runs a command `tools/check.py` does not:
-if a check is worth running in CI it is worth running locally, so it is a stage.
+if a check is worth running in CI it is worth running locally, so it is a stage. **The one exception is the `commits`
+job**, on a pull request: `tools/check_commit_msg.py --range` checks every commit the pull request brings, and who opened
+it. That exists only on the forge: locally there is no pull request, so a stage could only guess its base, and the
+`commit-msg` hook already checks each commit as it is made. Any other check is a stage. The job runs the pull request's
+own `tools/check_commit_msg.py`, `project.json` and roster, so a pull request that edits any of them is checked by its
+edited copy: that change is in its diff, and the merge is where it is reviewed, as for a new roster row.
