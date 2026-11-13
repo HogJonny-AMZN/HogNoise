@@ -261,7 +261,7 @@ import hashlib
 import json
 import logging as _logging
 from collections.abc import Callable, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 
 import numpy as np
@@ -412,12 +412,46 @@ def test_a_warp_file_holds_count_times_dims_values(tmp_path):
     case = a_case("hog/t/w/p2/warp", "hog/w.f32", point_set="p2", output="warp")
     root = make_vectors(tmp_path, [case], {"hog/w.f32": np.arange(8, dtype=np.float32)})
     assert conformance.load(root).case("hog/t/w/p2/warp").values.shape == (4, 2)
+
+
+def _name_outside(root: Path, rel: str, outside: Path) -> None:
+    """Point the one case at ``rel`` and give it the digest of a real file outside the folder."""
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    manifest["cases"][0]["file"] = rel
+    manifest["files"][rel] = hashlib.sha256(outside.read_bytes()).hexdigest()
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+@pytest.mark.parametrize("rel", ["../outside.f32", "/tmp/outside.f32", "C:/outside.f32", "hog\\..\\..\\outside.f32"])
+def test_a_manifest_path_that_leaves_the_folder_is_refused_before_it_is_read(tmp_path, rel):
+    """testing.md, Error paths: a path that leaves the root is refused before use. Its digest matching proves
+    nothing, since the manifest supplies both."""
+    outside = tmp_path / "outside.f32"
+    outside.write_bytes(np.zeros(4, "<f4").tobytes())
+    root = make_vectors(tmp_path / "v", [a_case("hog/t/f/p3", "hog/f.f32")], {"hog/f.f32": np.zeros(4, np.float32)})
+    _name_outside(root, rel, outside)
+    with pytest.raises(conformance.ConformanceError, match="inside the folder"):
+        conformance.load(root)
+
+
+def test_a_symlink_out_of_the_folder_is_refused(tmp_path):
+    outside = tmp_path / "outside.f32"
+    outside.write_bytes(np.zeros(4, "<f4").tobytes())
+    root = make_vectors(tmp_path / "v", [a_case("hog/t/f/p3", "hog/f.f32")], {"hog/f.f32": np.zeros(4, np.float32)})
+    try:
+        (root / "hog" / "link.f32").symlink_to(outside)
+    except OSError:
+        pytest.skip("this system cannot make a symlink here")
+    _name_outside(root, "hog/link.f32", outside)
+    with pytest.raises(conformance.ConformanceError, match="resolves outside"):
+        conformance.load(root)
 ```
 
 - [ ] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
-Expected: 4 failed, `AttributeError: module 'hog_noise.conformance' has no attribute 'load'`.
+Expected: the 9 new tests fail with `AttributeError: module 'hog_noise.conformance' has no attribute 'load'` (the
+symlink test skips instead on a system that cannot make one).
 
 - [ ] **Step 3: implement**, after `normalised_difference`:
 
@@ -466,12 +500,27 @@ class Vectors:
 _COMPARE_KINDS = ("points", "shape", "advisory")
 
 
+def _inside(root: Path, rel: str) -> Path:
+    """
+    The file a manifest path names, refused before use if it leaves the folder (Docs/standards/testing.md, *Error
+    paths*): absolute, a drive, ``..``, a backslash, or a symlink that resolves outside. The digest cannot vouch for
+    it, since the manifest supplies both.
+    """
+    posix, windows = PurePosixPath(rel), PureWindowsPath(rel)
+    if not rel or "\\" in rel or posix.is_absolute() or windows.drive or windows.root or ".." in posix.parts:
+        raise ConformanceError(f"{rel!r}: a manifest path is relative, uses '/', and stays inside the folder")
+    path = root / rel
+    if not path.resolve().is_relative_to(root.resolve()):
+        raise ConformanceError(f"{rel}: resolves outside {root.resolve()}")
+    return path
+
+
 def load(vectors: str | Path) -> Vectors:
     """
     Read a vectors folder and verify every file it names against the manifest's digests and sizes.
 
-    :raises ConformanceError: A file with no digest, a digest or size that does not match, an unknown format, output or
-        comparison kind, a case on an unknown point set, or a duplicate case id.
+    :raises ConformanceError: A path that leaves the folder, a file with no digest, a digest or size that does not
+        match, an unknown format, output or comparison kind, a case on an unknown point set, or a duplicate case id.
     """
     root = Path(vectors)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -482,7 +531,7 @@ def load(vectors: str | Path) -> Vectors:
     def read(rel: str, count: int) -> NDArray[np.float32]:
         if rel not in digests:
             raise ConformanceError(f"{rel} is named in the manifest but has no digest in files")
-        data = (root / rel).read_bytes()
+        data = _inside(root, rel).read_bytes()
         if hashlib.sha256(data).hexdigest() != digests[rel]:
             raise ConformanceError(f"{rel}: its sha256 does not match the manifest")
         if len(data) != count * 4:
@@ -530,9 +579,9 @@ def load(vectors: str | Path) -> Vectors:
 - [ ] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
-Expected: 8 passed.
+Expected: 13 passed (12 and 1 skipped where the system cannot make a symlink).
 
-- [ ] **Step 5: commit**: "conformance: load, every file checked against its digest and size".
+- [ ] **Step 5: commit**: "conformance: load, every file checked against its digest and size, inside the folder".
 
 ---
 
@@ -841,7 +890,7 @@ def _shape(case: Case, ours: NDArray[np.float32]) -> CaseResult:
 - [ ] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
-Expected: 17 passed.
+Expected: 22 passed (or 21 and 1 skipped, as above).
 
 - [ ] **Step 5: run the gate's fast stages**: `uv run python tools/check.py --fast`, unpiped. Expected: all 8 stages
   pass (the log-format stage reads the f-strings).
@@ -941,7 +990,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
-Expected: 19 passed.
+Expected: 24 passed (or 23 and 1 skipped, as above).
 
 - [ ] **Step 5: commit**: "conformance: the renderings and the command line".
 
