@@ -84,6 +84,17 @@ without its correlation floor and with `rejected` exempting, and the direct `sam
 Each was fixed by reading the cited line. Not mechanised: whether a sentence describes code is not something a check can
 see.
 
+### P-7 · Checking a merge against a stale `origin/main` (supersedes P-5's check)
+
+**Trigger:** you are about to run P-5's ancestry check after a person says a pull request merged.
+**Do:** `git fetch origin` first, and run the check only if the fetch succeeded:
+`git fetch origin && git merge-base --is-ancestor <commit> origin/main`. The rest of P-5 stands.
+**Because:** P-5 named `git merge-base --is-ancestor <commit> origin/main` without a fetch. `origin/main` is a local ref that
+neither a merge on GitHub nor `gh pr view` updates, so straight after a merge the check can call a merged commit missing
+and send it into a new pull request for nothing. Copilot found it on
+[PR #13](https://github.com/HogJonny-AMZN/HogNoise/pull/13) two minutes after that pull request merged; the check run for
+#13 itself had fetched first, so no harm was done.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
