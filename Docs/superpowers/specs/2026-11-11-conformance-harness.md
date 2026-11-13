@@ -38,8 +38,9 @@ Read from the code at `cb4e051`, not assumed:
   `simplex_billow` appears twice: by point as classic Simplex, and by shape as OpenSimplex2.
 - **`NoiseParams` has no `to_dict` or `from_dict`.** The design assumed them; this adds them.
 - **The vector paths are named in** the tests, `tools/gen_noise_vectors.py`, `tools/noise_gallery.py`, `README.md`,
-  `PROVENANCE.md`, `Docs/glossary.md`, `Docs/noise/GALLERY.md` and `Docs/standards/testing-project.md`. The ADRs, the
-  planning document and the ledger name them too; those are records and keep the old path.
+  `PROVENANCE.md`, `llms.txt`, `NOTICE`, `Docs/glossary.md`, `Docs/noise/GALLERY.md` and
+  `Docs/standards/testing-project.md` (`git grep -n "tests/vectors"`, every file type). The ADRs, the designs, the specs,
+  the journal, the planning document and the ledger name them too; those are records and keep the old path.
 - **CI** runs the suite on 3.11 with numpy 1.26, 3.13 with the latest numpy, 3.13 with numpy alone (no numba, no binding),
   and 3.13 on Windows.
 
@@ -212,7 +213,12 @@ python -m hog_noise.conformance vectors --rendering numpy --bound 3e-6 --coordin
   RigidMulti is not Ridged. The advisory rule is today's, unchanged and not reimplemented: the harness and the test call
   `compare.ComparisonStats.needs_review` (looser than `tight`, or correlation below 0.99) on a feature's `scatter_3d` and
   `scatter_2d` cases, and when either needs review and `compare.Verdicts.is_accepted(feature)` is false (no verdict, or
-  `rejected`), the test draws the sheet from the `grid_3d` case and xfails. Every advisory case still feeds `portability.md`.
+  `rejected`), the test draws the sheet from the `grid_3d` case and xfails.
+- **`portability.md` keeps exactly today's rows**, from the same comparisons that write them now
+  (`tests/test_hog_noise/test_kernels.py` lines 122, 151-152, 294, 440 and 513-514): numba against numpy per feature,
+  FastNoiseLite `scatter_3d` and `scatter_2d`, white noise, classic Simplex and the gradient perturb. The cases that are
+  new as comparisons (FastNoiseLite `grid_3d`, the FastNoiseSIMD arrays no test reads, every hog case) report through
+  `Report` only, so acceptance 6 holds.
 - **The direct `sample_grid` comparison stays** (the design's decision 5): the two `genasgrid` fixtures are still compared
   with `sample_grid((-64, -64, 1), (128, 128, 1), scales)` at today's limits, reading the reference values from the loaded
   case instead of the `.npz`. The harness's check on the stored points runs as well; it does not replace this, because
@@ -243,6 +249,8 @@ template's own tools and tests, not a project's. Every file is owned by the proj
 | `README.md` | change: the vector path | core | project-owned |
 | `Docs/glossary.md`, `Docs/README.md` | change: the vector path; the harness rows to built | core | project-owned |
 | `PROVENANCE.md`, `Docs/noise/GALLERY.md`, `Docs/standards/testing-project.md` | change: the vector path | none | project-owned |
+| `llms.txt` | change: its link to `portability.md` | none | project-owned |
+| `NOTICE` | change: the paths in section 3, where the comparison vectors came from; the attribution text itself unchanged | none | project-owned |
 | `Docs/plan/board/2026-11-01-conformance-harness-and-portable-vectors.md`, `Docs/handoffs/CURRENT.md` | change: state | core | project-owned |
 | `Docs/journal/2026-11/<the build's session>.md` | add | journal | project-owned |
 
