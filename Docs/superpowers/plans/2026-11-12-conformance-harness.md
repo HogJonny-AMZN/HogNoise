@@ -1704,7 +1704,7 @@ rerunning Step 2. A check that has not failed once is not yet evidence (the gold
 
 **Files:** modify `tests/test_hog_noise/test_conformance.py` and `tests/test_hog_noise/test_params_dict.py`.
 
-- [ ] **Step 1: write the tests**
+- [x] **Step 1: write the tests**
 
 ```python
 REAL = Path(__file__).resolve().parents[2] / "vectors"
@@ -1795,10 +1795,10 @@ def test_every_case_in_the_vectors_round_trips():
         assert NoiseParams.from_dict(case.params.to_dict()) == case.params, case.id
 ```
 
-- [ ] **Step 2: run them**: `uv run pytest tests/test_hog_noise/test_conformance.py tests/test_hog_noise/test_params_dict.py -q`.
+- [x] **Step 2: run them**: `uv run pytest tests/test_hog_noise/test_conformance.py tests/test_hog_noise/test_params_dict.py -q`.
   Expected: all pass. Each "fails" test passes because the harness said no; that is the instrument shown to work.
 
-- [ ] **Step 3: commit**: "conformance: the acceptance checks on the committed vectors".
+- [x] **Step 3: commit**: "conformance: the acceptance checks on the committed vectors".
 
 ---
 

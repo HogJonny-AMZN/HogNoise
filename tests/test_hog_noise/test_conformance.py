@@ -270,3 +270,79 @@ def test_the_command_line_exits_one_on_a_failure(tmp_path):
         text=True,
     )
     assert run.returncode == 1 and "| hog/t/f/p3 | points | fail |" in run.stdout, run.stderr
+
+
+# -------------------------------------------------------------------------
+# on the committed vectors: acceptance 3, 4 and 5
+REAL = Path(__file__).resolve().parents[2] / "vectors"
+
+
+@pytest.fixture(scope="module")
+def real():
+    return conformance.load(REAL)
+
+
+def test_a_seed_off_by_one_fails_hog(real):
+    sample, _ = conformance.renderings("numpy")
+
+    def off(params, xs, ys, zs):
+        return sample(params.replace(seed=params.seed + 1), xs, ys, zs)
+
+    report = conformance.check(off, real, select="hog/fns/whitenoise_none/*")
+    assert len(report.results) == 2 and not report.ok
+
+
+def test_one_value_nudged_by_1e_5_fails_the_white_noise_original(real):
+    sample, _ = conformance.renderings("numpy")
+
+    def nudged(params, xs, ys, zs):
+        out = sample(params, xs, ys, zs).copy()
+        out[17] += np.float32(1e-5)
+        return out
+
+    report = conformance.check(nudged, real, reference="original", select="original/fns/whitenoise_none/scatter_3d")
+    assert len(report.results) == 1 and not report.ok
+
+
+def test_one_ulp_fails_hog_at_bound_zero(real):
+    sample, _ = conformance.renderings("numpy")
+
+    def ulp(params, xs, ys, zs):
+        out = sample(params, xs, ys, zs).copy()
+        out[0] = np.nextafter(out[0], np.float32(np.inf))
+        return out
+
+    report = conformance.check(ulp, real, select="hog/fnl/perlin_fbm/scatter_3d")
+    assert len(report.results) == 1 and report.results[0].max_normalised == float("inf")
+
+
+def test_a_partial_port_reports_unsupported_not_failed(real):
+    """Acceptance 4: a port of 2D OpenSimplex2 only."""
+    from hog_noise import NoiseType
+
+    sample, _ = conformance.renderings("numpy")
+
+    def os2_2d(params, xs, ys, zs):
+        if zs is not None or params.noise_type is not NoiseType.OPEN_SIMPLEX2:
+            raise NotImplementedError("2D OpenSimplex2 only")
+        return sample(params, xs, ys, zs)
+
+    report = conformance.check(os2_2d, real, reference="both")
+    assert report.ok and not report.complete and report.count("unsupported") > 0 and report.count("pass") > 0
+    table = report.table()  # unsupported advisory rows have no statistics; the table still renders
+    assert "| advisory | unsupported |" in table
+
+
+def test_a_reader_with_no_numpy_gets_the_same_numbers(real):
+    """Acceptance 5: json, hashlib and array only."""
+    import array
+
+    manifest = json.loads((REAL / "manifest.json").read_text(encoding="utf-8"))
+    case = next(c for c in manifest["cases"] if c["id"] == "original/fns/whitenoise_none/scatter_3d")
+    raw = (REAL / case["file"]).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == manifest["files"][case["file"]]
+    values = array.array("f")
+    values.frombytes(raw)
+    if sys.byteorder == "big":
+        values.byteswap()
+    assert values.tolist() == real.case(case["id"]).values.tolist()
