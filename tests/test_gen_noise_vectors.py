@@ -65,3 +65,25 @@ def test_an_unmapped_record_is_an_error_not_a_skip(tmp_path):
     record = {"noise_type": "noise_of_the_spheres", "fractal_type": "none", "seed": 1, "frequency": 0.01}
     with pytest.raises(ValueError):
         gen.write_originals(tmp_path, [("fns", "x", record, {"scatter_3d": np.zeros(4096, np.float32)})], coords())
+
+
+def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tmp_path):
+    record = {"noise_type": "simplex", "fractal_type": "billow", "seed": 12345, "frequency": 0.01, "octaves": 4}
+    arrays = {"scatter_3d": np.zeros(4096, np.float32)}
+    twin = dict(record, noise_type="perlin")
+    captured = [
+        ("fns", "simplex_billow", record, arrays),
+        ("fns", "perlin_billow", twin, arrays),
+        ("fns", "perlin_billow2", twin, arrays),
+    ]
+    gen.write_originals(tmp_path, captured, coords())
+    gen.generate_hog(tmp_path)
+    v = conformance.load(tmp_path)
+    hog = [c.id for c in v.cases if c.set == "hog"]
+    assert hog == [
+        "hog/fns/perlin_billow/scatter_3d",  # perlin_billow2 has the same parameters: no second case
+        "hog/fns/simplex_billow/scatter_3d",
+        "hog/fns/simplex_billow/scatter_3d#shape",
+    ]
+    sample, warp = conformance.renderings("numpy")
+    assert conformance.check(sample, v, warp=warp).ok

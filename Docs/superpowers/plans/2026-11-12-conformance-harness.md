@@ -1315,7 +1315,7 @@ Expected: 5 passed.
 
 **Files:** modify `tools/gen_noise_vectors.py` and `tests/test_gen_noise_vectors.py`.
 
-- [ ] **Step 1: write the failing test**
+- [x] **Step 1: write the failing test**
 
 ```python
 def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tmp_path):
@@ -1343,12 +1343,12 @@ def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tm
     assert conformance.check(sample, v, warp=warp).ok
 ```
 
-- [ ] **Step 2: run it and see it fail**
+- [x] **Step 2: run it and see it fail**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q -k hog`
 Expected: FAIL, `no attribute 'generate_hog'`.
 
-- [ ] **Step 3: implement**:
+- [x] **Step 3: implement**:
 
 ```python
 def generate_hog(root: Path = OUT) -> list[str]:
@@ -1410,12 +1410,12 @@ def _write(
   Update the module docstring: it writes `vectors/` (raw float32 and the manifest), `--set hog` needs only numpy, and
   `--set original` needs the bindings and oracle it always did.
 
-- [ ] **Step 4: run the tests and see them pass**
+- [x] **Step 4: run the tests and see them pass**
 
 Run: `uv run pytest tests/test_gen_noise_vectors.py -q`
 Expected: 6 passed.
 
-- [ ] **Step 5: commit**: "gen_noise_vectors: the hog set; captures write through the writer".
+- [x] **Step 5: commit**: "gen_noise_vectors: the hog set; captures write through the writer".
 
 ---
 

@@ -1,39 +1,36 @@
 """
-HogNoise: generate the noise oracle vectors from the original bindings.
+HogNoise: generate the reference vectors, raw float32 and one manifest under ``vectors/``.
 Package: tools/gen_noise_vectors
 
-Writes ``tests/vectors/noise/<source>/<feature>.npz`` files, one per feature and parameter set,
-each holding the coordinates, the binding's values for them, and the parameters as JSON. These are
-the oracles the kernel port is compared against (Docs/PYTHON_UPGRADE_AND_FASTNOISE.md, 4.3 and 4.4).
+The format and the rules are the conformance harness spec's (Docs/superpowers/specs/2026-11-11-conformance-harness.md):
+every coordinate and value file is raw little-endian float32, and ``vectors/manifest.json`` names each case, its
+parameters in HogNoise's names, its point set and how it is compared. `compare_for` and `params_for` are the rules that
+make a captured array a case; `write_originals` and `generate_hog` write through the one writer.
 
-Two sources:
+Two sets:
 
-- ``fnl``: `pyfastnoiselite`, the FastNoiseLite reference. Regenerable on any supported Python.
-- ``fnl`` also holds the domain-warp vectors (``warp_*.npz``), produced by the C++ oracle harness in
-  ``tools/noise_oracle`` because the binding does not expose ``DomainWarp``; the harness is built on
-  first use and reproduces the binding's ``gen_from_coords`` bit for bit.
-- ``fns``: `pyfastnoisesimd`, the FastNoiseSIMD library this project shipped with. Only importable
-  where its cp39 wheel or a source build exists, which is why these vectors are captured now and
-  committed: they are the only oracle for the Phase C features (classic Simplex, Billow, WhiteNoise,
-  Natural distance, NoiseLookup, Distance2Cave, gradient perturb, ``genAsGrid``).
+- ``--set hog`` (the default): for every distinct (parameters, point set, output) among the original cases, the numpy
+  rendering's output, compared bit for bit. Any environment with numpy; rerun it when a kernel change moves a value.
+- ``--set original``: captures from the original libraries, as they always were. ``fnl`` is `pyfastnoiselite`, the
+  FastNoiseLite reference, plus the domain-warp vectors from the C++ oracle harness in ``tools/noise_oracle`` (the
+  binding does not expose ``DomainWarp``; the harness is built on first use and reproduces the binding's
+  ``gen_from_coords`` bit for bit). ``fns`` is `pyfastnoisesimd`, FastNoiseSIMD: its wheels stop at Python 3.9 and this
+  tool now needs the package's own floor (3.11), so a capture needs a source build, which ADR-007 records working on
+  3.12 and 3.13 with bit-identical output. Then the hog set is regenerated.
 
-Run from the repo root on the Python 3.9 venv to capture both::
+    python tools/gen_noise_vectors.py                          # the hog set
+    python tools/gen_noise_vectors.py --set original --source fnl
 
-    python tools/gen_noise_vectors.py            # both sources, skips a missing binding with a note
-    python tools/gen_noise_vectors.py --source fnl
-
-Coordinates are fixed by seed so a regeneration produces value-identical files when the binding is
-unchanged (not byte-identical: the zip entries carry a timestamp, so revert the untouched files after a
-regeneration and commit only the new ones; checked 2026-09-28, 54 files, zero value differences). Scattered samples:
-4096 points, x and z in [-4096, 4096], y in [-256, 256]. Grid: 128 x 128
-over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. Coordinates are written once to
-``coords.npz``; each feature file holds only values, so the set stays under 10 MB.
+Coordinates are fixed by seed. Scattered samples: 4096 points, x and z in [-4096, 4096], y in [-256, 256]. Grid:
+128 x 128 over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. The two ``genasgrid`` grids are
+``sample_grid((-64, -64, 1), (128, 128, 1), scales)``'s coordinates, written out so no reader rebuilds a grid.
 """
 
 import argparse
 import hashlib
 import json
 import logging as _logging
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -58,7 +55,6 @@ __updated__ = "2026-09-13"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
-VECTORS = ROOT / "tests" / "vectors" / "noise"
 OUT = ROOT / "vectors"
 N_SCATTER = 4096
 GRID = 128
@@ -77,17 +73,16 @@ def coordinates() -> dict[str, np.ndarray]:
     return {"xs": xs, "ys": ys, "zs": zs, "grid_x": gx.ravel(), "grid_z": gz.ravel()}
 
 
+#: Captures collected by `_write`; `main` writes them all through `write_originals`.
+_CAPTURED: list[tuple[str, str, dict, dict[str, np.ndarray]]] = []
+
+
 def _write(
     source: str, feature: str, params: dict[str, object], values: dict[str, np.ndarray], coords: dict[str, np.ndarray]
 ) -> Path:
-    out = VECTORS / source / f"{feature}.npz"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        out,
-        params=np.array(json.dumps(params, sort_keys=True)),
-        **{k: np.asarray(v, dtype=np.float32) for k, v in values.items()},
-    )
-    return out
+    """Collect one capture; `main` writes them all through `write_originals`."""
+    _CAPTURED.append((source, feature, dict(params), {k: np.asarray(v, np.float32) for k, v in values.items()}))
+    return OUT / "original" / source / feature
 
 
 # -------------------------------------------------------------------------
@@ -301,6 +296,45 @@ def write_originals(root: Path, captured: list[tuple[str, str, dict, dict[str, n
         for case in (c for c in new_cases if c["source"]["library"] == library and c["source"]["feature"] == feature):
             write_f32(root, case["file"], arrays[case["source"]["array"]])
     return write_manifest(root, POINT_SETS, cases + new_cases)
+
+
+def generate_hog(root: Path = OUT) -> list[str]:
+    """
+    The hog set: for every distinct (parameters, point set, output) among the original cases, the numpy rendering's
+    output, compared at Bound(0). Rewritten whole; the first original case (by id) of each key names it.
+    """
+    vectors = conformance.load(root)  # verifies the originals first
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    originals = sorted((c for c in manifest["cases"] if c["set"] == "original"), key=lambda c: c["id"])
+    shutil.rmtree(root / "hog", ignore_errors=True)
+    sample, warp = conformance.renderings("numpy")
+    seen: set[tuple[str, str, str]] = set()
+    hog: list[dict[str, object]] = []
+    for c in originals:
+        key = (json.dumps(c["params"], sort_keys=True), c["point_set"], c["output"])
+        if key in seen:
+            continue
+        seen.add(key)
+        library, feature = c["source"]["library"], c["source"]["feature"]
+        variant = c["id"].partition("#")[2] or None
+        ps = vectors.point_sets[c["point_set"]]
+        fn = warp if c["output"] == "warp" else sample
+        values = fn(NoiseParams.from_dict(c["params"]), ps.axes[0], ps.axes[1], ps.axes[2] if ps.dims == 3 else None)
+        file = case_file("hog", library, feature, c["point_set"], c["output"], variant)
+        write_f32(root, file, values)
+        hog.append(
+            dict(
+                c,
+                id=case_id("hog", library, feature, c["point_set"], c["output"], variant),
+                set="hog",
+                file=file,
+                compare=_points(0.0),
+                source=dict(c["source"], from_case=c["id"]),
+            )
+        )
+    write_manifest(root, manifest["point_sets"], originals + hog)
+    _LOGGER.info(f"hog: {len(hog)} cases from {len(originals)} original cases under {root / 'hog'}")
+    return [str(c["id"]) for c in hog]
 
 
 # -------------------------------------------------------------------------
@@ -733,24 +767,27 @@ def generate_fns(coords: dict[str, np.ndarray]) -> list[Path]:
 # -------------------------------------------------------------------------
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--source", choices=("fnl", "fns", "both"), default="both")
+    parser.add_argument("--set", choices=("hog", "original"), default="hog", dest="which")
+    parser.add_argument("--source", choices=("fnl", "fns", "both"), default="both", help="for --set original")
     args = parser.parse_args(argv)
     _logging.basicConfig(level=_logging.INFO, format="%(levelname)s %(message)s")
-    coords = coordinates()
-    VECTORS.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(VECTORS / "coords.npz", **coords)
-    total = 0
-    for source, fn in (("fnl", generate_fnl), ("fns", generate_fns)):
-        if args.source not in (source, "both"):
-            continue
-        try:
-            written = fn(coords)
-        except ImportError as e:
-            _LOGGER.warning(f"{source}: binding not importable here, skipped: {e}")
-            continue
-        total += len(written)
-        _LOGGER.info(f"{source}: {len(written)} vector files under {VECTORS / source}")
-    print(f"{total} vector files written")
+    if args.which == "original":
+        coords = coordinates()
+        for source, fn in (("fnl", generate_fnl), ("fns", generate_fns)):
+            if args.source not in (source, "both"):
+                continue
+            try:
+                fn(coords)
+            except ImportError as e:
+                _LOGGER.warning(f"{source}: binding not importable here, skipped: {e}")
+                continue
+        if not _CAPTURED:
+            print("no capture ran; nothing written")
+            return 1
+        write_originals(OUT, _CAPTURED, coords)
+        _LOGGER.info(f"original: {len(_CAPTURED)} captures written under {OUT / 'original'}")
+    hog = generate_hog(OUT)
+    print(f"{len(hog)} hog cases written under {OUT / 'hog'}")
     return 0
 
 
