@@ -1900,11 +1900,11 @@ suite's wall time before (on `main`) and after, for the pull request.
 
 ### Task 11: remove the `.npz` files and the conversion
 
-- [ ] **Step 1:** `git rm -r tests/vectors/noise/fnl tests/vectors/noise/fns tests/vectors/noise/coords.npz
+- [x] **Step 1:** `git rm -r tests/vectors/noise/fnl tests/vectors/noise/fns tests/vectors/noise/coords.npz
   tools/convert_npz_vectors.py tests/test_hog_noise/test_conversion.py`. Confirm `tests/vectors/` is now empty and
   gone: `git ls-files tests/vectors` prints nothing.
-- [ ] **Step 2:** `uv run pytest tests/test_hog_noise -q`. Expected: as Task 10, minus the three conversion tests.
-- [ ] **Step 3: commit**: "Remove the .npz vectors and the one-time conversion".
+- [x] **Step 2:** `uv run pytest tests/test_hog_noise -q`. Expected: as Task 10, minus the three conversion tests.
+- [x] **Step 3: commit**: "Remove the .npz vectors and the one-time conversion".
 
 ---
 
