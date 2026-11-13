@@ -16,11 +16,11 @@ import ast
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
+from hog_noise_repo import MEMBER_ROOT
 
-SRC = Path(__file__).resolve().parents[2] / "src" / "hog_noise"
+SRC = MEMBER_ROOT / "src" / "hog_noise"
 
 #: Third-party top-level names the package may import. numba, pyfastnoiselite and PIL are optional extras,
 #: each imported behind a guard; numpy is the only hard dependency.

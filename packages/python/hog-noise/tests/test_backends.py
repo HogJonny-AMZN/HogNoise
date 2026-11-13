@@ -4,9 +4,9 @@ Tests for hog_noise.backends: selection order, the env override, override-only r
 
 import re
 import sys
-from pathlib import Path
 
 import pytest
+from hog_noise_repo import MEMBER_ROOT
 
 from hog_noise import backends
 from hog_noise.backends import Backend, BackendUnavailable, env_var_for, is_dcc_host
@@ -124,7 +124,7 @@ def test_is_dcc_host_is_none_under_pytest():
 # -------------------------------------------------------------------------
 # Sunset: every registered backend that names a Python floor in its sunset string is checked
 # against pyproject.toml's requires-python. The failure message is the removal checklist (D9).
-_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+_PYPROJECT = MEMBER_ROOT / "pyproject.toml"
 
 
 def _requires_python_floor():

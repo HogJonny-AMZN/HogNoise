@@ -12,10 +12,10 @@ import os
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 import numpy as np
 import pytest
+from hog_noise_repo import VECTORS as VECTORS_ROOT
 
 from hog_noise import (
     HAVE_NUMBA,
@@ -38,7 +38,7 @@ from hog_noise import (
     vectorized,
 )
 
-VECTORS = Path(__file__).resolve().parents[2] / "vectors"
+VECTORS = VECTORS_ROOT
 REPORTS = VECTORS / "reports"
 ACCEPTED = VECTORS / "accepted.json"
 PORTABILITY = VECTORS / "portability.md"

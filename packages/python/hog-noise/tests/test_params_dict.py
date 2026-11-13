@@ -4,9 +4,9 @@ Package: tests/test_hog_noise/test_params_dict
 """
 
 import json
-from pathlib import Path
 
 import pytest
+from hog_noise_repo import VECTORS as VECTORS_ROOT
 
 from hog_noise import CellularReturn, FractalType, NoiseParams, NoiseType, PerturbType, conformance
 
@@ -42,7 +42,7 @@ def test_from_dict_rejects_an_unknown_key_and_an_unknown_member_name():
 
 def test_every_case_in_the_vectors_round_trips():
     """Acceptance 7, on the committed manifest."""
-    vectors = conformance.load(Path(__file__).resolve().parents[2] / "vectors")
+    vectors = conformance.load(VECTORS_ROOT)
     assert len(vectors.cases) > 600
     for case in vectors.cases:
         assert NoiseParams.from_dict(case.params.to_dict()) == case.params, case.id
