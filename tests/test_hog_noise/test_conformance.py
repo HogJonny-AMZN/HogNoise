@@ -485,3 +485,31 @@ def test_sets_takes_a_bare_name_as_one_set(tmp_path):
     root = make_vectors(tmp_path, cases, {"hog/f.f32": np.zeros(4, np.float32), "o/f.f32": np.ones(4, np.float32)})
     assert [c.id for c in conformance.load(root, sets="hog").cases] == ["hog/t/f/p3"]
     assert [c.id for c in conformance.load(root, sets="orig").cases] == [], "a name, not a substring"
+
+
+# -------------------------------------------------------------------------
+# Copilot on #17: the last malformed shapes
+@pytest.mark.parametrize(
+    "break_it, says",
+    [
+        (lambda m: m["point_sets"]["p2"].update(dims=1, axes=["points/x.f32"]), "2 or 3"),
+        (lambda m: m["point_sets"]["p3"].update(dims=4, axes=["points/x.f32"] * 4), "2 or 3"),
+        (lambda m: m["cases"][0]["compare"]["bound"].update(scale=-1.0), "scale"),
+        (lambda m: m["cases"][0]["compare"].update(within={"scale": 1e-4, "fraction": 1.5}), "fraction"),
+        (lambda m: m["cases"][0].update(source=None), "source"),
+        (lambda m: m["cases"][0].update(source=[]), "source"),
+    ],
+)
+def test_the_last_malformed_shapes_fail_at_load(tmp_path, break_it, says):
+    root = _one_case_folder(tmp_path)
+    manifest = _manifest(root)
+    break_it(manifest)
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match=says):
+        conformance.load(root)
+
+
+def test_a_manifest_that_is_not_utf8_is_a_conformance_error(tmp_path):
+    (tmp_path / "manifest.json").write_bytes(b'{"format": 1, "x": "\xff\xfe"}')
+    with pytest.raises(conformance.ConformanceError, match="UTF-8"):
+        conformance.load(tmp_path)

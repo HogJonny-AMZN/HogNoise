@@ -159,6 +159,8 @@ def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> V
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     except OSError as e:
         raise ConformanceError(f"{root / 'manifest.json'}: cannot be read ({e})") from e
+    except UnicodeDecodeError as e:
+        raise ConformanceError(f"{root / 'manifest.json'}: not UTF-8 ({e})") from e
     except json.JSONDecodeError as e:
         raise ConformanceError(f"{root / 'manifest.json'}: not JSON ({e})") from e
     found = manifest.get("format") if isinstance(manifest, dict) else None
@@ -189,6 +191,8 @@ def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> V
         if not isinstance(ps, dict) or not isinstance(ps.get("axes"), list):
             raise ConformanceError(f"point set {name}: not an object with an 'axes' list")
         dims, count = _positive_int(name, ps.get("dims"), "dims"), _positive_int(name, ps.get("count"), "count")
+        if dims not in (2, 3):
+            raise ConformanceError(f"point set {name}: dims is {dims}; a point set is 2 or 3 dimensional")
         if len(ps["axes"]) != dims:
             raise ConformanceError(f"point set {name}: {len(ps['axes'])} axes for {dims} dims")
         axes = tuple(read(a, count) for a in ps["axes"])
@@ -220,10 +224,12 @@ def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> V
     return Vectors(root, point_sets, tuple(sorted(cases, key=lambda case: case.id)))
 
 
-def _number(value: object, what: str) -> float:
-    """A JSON number from a comparison rule; a bool or a string is refused."""
-    if isinstance(value, bool) or not isinstance(value, int | float):
+def _number(value: object, what: str, lo: float | None = None, hi: float | None = None) -> float:
+    """A JSON number from a comparison rule, within [lo, hi] when given; a bool, a string or NaN is refused."""
+    if isinstance(value, bool) or not isinstance(value, int | float) or value != value:
         raise ConformanceError(f"{what} is {value!r}, not a number")
+    if (lo is not None and value < lo) or (hi is not None and value > hi):
+        raise ConformanceError(f"{what} is {value!r}, outside [{lo}, {hi}]")
     return float(value)
 
 
@@ -236,7 +242,7 @@ def _check_rule(rule: object) -> None:
         bound = rule.get("bound")
         if not isinstance(bound, dict):
             raise ConformanceError(f"a points rule needs a 'bound' object, not {bound!r}")
-        _number(bound.get("scale"), "bound.scale")
+        _number(bound.get("scale"), "bound.scale", lo=0.0)
         if not isinstance(bound.get("coordinate_scaled", False), bool):
             raise ConformanceError(f"bound.coordinate_scaled is {bound['coordinate_scaled']!r}, not true or false")
         if "min_correlation" in rule:
@@ -245,8 +251,8 @@ def _check_rule(rule: object) -> None:
             within = rule["within"]
             if not isinstance(within, dict):
                 raise ConformanceError(f"within is {within!r}, not an object with scale and fraction")
-            _number(within.get("scale"), "within.scale")
-            _number(within.get("fraction"), "within.fraction")
+            _number(within.get("scale"), "within.scale", lo=0.0)
+            _number(within.get("fraction"), "within.fraction", 0.0, 1.0)
     elif rule["kind"] == "shape":
         for key in ("range", "std_ratio"):
             if key in rule:
@@ -266,6 +272,8 @@ def _case(c: Mapping[str, object], point_sets: Mapping[str, PointSet], read: Cal
             raise ConformanceError(f"its {key!r} is {c.get(key)!r}, not a string")
     if not isinstance(c.get("params"), dict):
         raise ConformanceError(f"its 'params' is {c.get('params')!r}, not an object")
+    if not isinstance(c.get("source", {}), dict):
+        raise ConformanceError(f"its 'source' is {c['source']!r}, not an object")
     if c["point_set"] not in point_sets:
         raise ConformanceError(f"unknown point set {c['point_set']!r}")
     if c["output"] not in ("noise", "warp"):

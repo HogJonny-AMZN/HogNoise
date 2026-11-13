@@ -263,21 +263,34 @@ def write_f32(root: Path, rel: str, values: np.ndarray) -> None:
     path.write_bytes(np.ascontiguousarray(np.asarray(values, dtype="<f4")).tobytes())
 
 
-def write_manifest(root: Path, point_sets: dict[str, dict[str, object]], cases: list[dict[str, object]]) -> Path:
-    """Write the manifest sorted, with every digest recomputed from the files on disk."""
+def _manifest(root: Path, point_sets: dict[str, dict[str, object]], cases: list[dict[str, object]]) -> dict:
+    """The manifest, sorted, with every digest recomputed from the files on disk."""
     named = [a for ps in point_sets.values() for a in ps["axes"]] + [c["file"] for c in cases]
     files = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in sorted(set(named))}
-    manifest = {
+    return {
         "format": conformance.FORMAT,
         "point_sets": dict(sorted(point_sets.items())),
         "cases": sorted(cases, key=lambda c: c["id"]),
         "files": files,
     }
+
+
+def _publish_manifest(root: Path, manifest: dict) -> Path:
+    """Write the manifest whole or not at all: the one commit point of every write."""
     path = root / "manifest.json"
     pending = root / "manifest.json.new"
     pending.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
-    os.replace(pending, path)  # whole or not at all
-    _LOGGER.info(f"manifest: {len(cases)} cases, {len(point_sets)} point sets, {len(files)} files digested -> {path}")
+    os.replace(pending, path)
+    return path
+
+
+def write_manifest(root: Path, point_sets: dict[str, dict[str, object]], cases: list[dict[str, object]]) -> Path:
+    """Write the manifest sorted, with every digest recomputed from the files on disk."""
+    manifest = _manifest(root, point_sets, cases)
+    path = _publish_manifest(root, manifest)
+    _LOGGER.info(
+        f"manifest: {len(cases)} cases, {len(point_sets)} point sets, {len(manifest['files'])} files -> {path}"
+    )
     return path
 
 
@@ -309,9 +322,10 @@ def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.nd
     :raises ValueError: A record that does not map (before anything is written), or coordinates that differ from
         the point files an original case kept here was sampled on: those captures would no longer match their points.
     """
-    existing = []
+    existing, digests = [], {}
     if (root / "manifest.json").exists():
-        existing = json.loads((root / "manifest.json").read_text(encoding="utf-8"))["cases"]
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        existing, digests = manifest["cases"], manifest["files"]
     redone = {(library, feature) for library, feature, _, _ in captured}
     cases = [
         c for c in existing if c["set"] != "original" or (c["source"]["library"], c["source"]["feature"]) not in redone
@@ -322,7 +336,8 @@ def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.nd
     points = _point_arrays(coords)
     kept_axes = {a for c in cases if c["set"] == "original" for a in POINT_SETS[c["point_set"]]["axes"]}
     for rel in sorted(kept_axes):
-        if (root / rel).exists() and (root / rel).read_bytes() != _f32_bytes(points[rel]):
+        # Against the manifest's digest, not the file: a missing or edited file cannot vouch for the old coordinates
+        if hashlib.sha256(_f32_bytes(points[rel])).hexdigest() != digests.get(rel):
             raise ValueError(f"{rel}: these coordinates differ from the ones kept original cases were sampled on")
     for rel, values in points.items():
         write_f32(root, rel, values)
@@ -338,9 +353,11 @@ def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.nd
 
 def _swap_in(root: Path, stage: Path, point_sets: dict[str, dict[str, object]], cases: list[dict[str, object]]) -> None:
     """
-    Replace ``root/hog`` with ``stage/hog`` and write the manifest, or leave both as they were. Every step is a rename,
-    which raises where a delete could fail silently (a handle held open on Windows) and never nests one folder in
-    another; on any failure the old hog set is put back before the error goes on.
+    Replace ``root/hog`` with ``stage/hog`` and publish the manifest, or leave both as they were. Every step is a
+    rename, which raises where a delete could fail silently (a handle held open on Windows) and never nests one folder
+    in another. The commit point is the manifest's replace: before it, any failure puts the old hog set back; after it,
+    nothing is rolled back. If putting it back fails as well, the old set stays in ``stage/old-hog`` and the error says
+    so; the caller keeps that folder.
     """
     live, new, old = root / "hog", stage / "hog", stage / "old-hog"
     had_old = live.exists()
@@ -349,13 +366,18 @@ def _swap_in(root: Path, stage: Path, point_sets: dict[str, dict[str, object]], 
     try:
         if new.exists():
             new.rename(live)
-        write_manifest(root, point_sets, cases)
-    except BaseException:
-        if live.exists():
-            live.rename(stage / "failed-hog")
-        if had_old:
-            old.rename(live)
-        raise
+        manifest = _manifest(root, point_sets, cases)
+        _publish_manifest(root, manifest)  # the commit
+    except BaseException as failure:
+        try:
+            if live.exists():
+                live.rename(stage / "failed-hog")
+            if had_old:
+                old.rename(live)
+        except BaseException as rollback:
+            raise RuntimeError(f"hog/ could not be put back; the previous hog set is in {old}") from rollback
+        raise failure
+    _LOGGER.info(f"manifest: {len(cases)} cases, {len(manifest['files'])} files -> {root / 'manifest.json'}")
 
 
 def generate_hog(root: Path = OUT) -> list[str]:
@@ -372,6 +394,7 @@ def generate_hog(root: Path = OUT) -> list[str]:
     originals = sorted((c for c in manifest["cases"] if c["set"] == "original"), key=lambda c: c["id"])
     sample, warp = conformance.renderings("numpy")
     stage = Path(tempfile.mkdtemp(prefix=f"{root.name}.hog-", dir=root.parent))
+    published = False
     try:
         seen: set[tuple[str, str, str]] = set()
         hog: list[dict[str, object]] = []
@@ -400,8 +423,14 @@ def generate_hog(root: Path = OUT) -> list[str]:
                 )
             )
         _swap_in(root, stage, manifest["point_sets"], originals + hog)
+        published = True
     finally:
-        shutil.rmtree(stage, ignore_errors=True)  # the staging folder only: the live hog/ is only ever renamed
+        # The old set sits in stage/old-hog until a rollback moves it back: if it is still there and nothing was
+        # published, the rollback failed and this folder is the only copy
+        if not published and (stage / "old-hog").exists():
+            _LOGGER.error(f"hog/ was not put back: the previous hog set is kept in {stage / 'old-hog'}")
+        else:
+            shutil.rmtree(stage, ignore_errors=True)  # the staging folder only: the live hog/ is only ever renamed
     _LOGGER.info(f"hog: {len(hog)} cases from {len(originals)} original cases under {root / 'hog'}")
     return [str(c["id"]) for c in hog]
 

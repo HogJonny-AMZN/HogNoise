@@ -148,7 +148,7 @@ def test_a_swap_that_fails_raises_and_leaves_the_folder_loadable(tmp_path, monke
     not load. Each step of the swap now raises, and the old hog set is put back."""
     _two_features(tmp_path)
     before = (tmp_path / "manifest.json").read_bytes()
-    real_rename, real_manifest = Path.rename, gen.write_manifest
+    real_rename, real_publish = Path.rename, gen._publish_manifest
     renames = []
 
     def failing_rename(self, target):
@@ -169,11 +169,68 @@ def test_a_swap_that_fails_raises_and_leaves_the_folder_loadable(tmp_path, monke
     monkeypatch.setattr(gen.conformance, "renderings", lambda name: (shifted, warp))
     monkeypatch.setattr(Path, "rename", failing_rename)
     if step == "write the manifest":
-        monkeypatch.setattr(gen, "write_manifest", failing_manifest)
+        monkeypatch.setattr(gen, "_publish_manifest", failing_manifest)
     with pytest.raises(OSError):
         gen.generate_hog(tmp_path)
     monkeypatch.undo()
     assert (tmp_path / "manifest.json").read_bytes() == before
     assert len(conformance.load(tmp_path).cases) == 4, "the old hog set is back and the folder loads"
     assert not list(tmp_path.parent.glob(f"{tmp_path.name}.hog-*")), "nothing left beside the folder"
-    assert real_manifest is gen.write_manifest
+    assert real_publish is gen._publish_manifest
+
+
+def test_once_the_manifest_is_published_a_later_error_does_not_roll_back(tmp_path, monkeypatch):
+    """Copilot on #17: the commit is the manifest's replace; an error after it (a log handler) must not restore the
+    old hog files under the new manifest."""
+    _two_features(tmp_path)
+    sample, warp = conformance.renderings("numpy")
+
+    def shifted(params, xs, ys, zs):
+        return sample(params, xs, ys, zs) + np.float32(1.0)
+
+    def raising_info(msg, *args, **kwargs):
+        if msg.startswith("manifest:"):
+            raise RuntimeError("a log handler fell over")
+
+    monkeypatch.setattr(gen.conformance, "renderings", lambda name: (shifted, warp))
+    monkeypatch.setattr(gen._LOGGER, "info", raising_info)
+    with pytest.raises(RuntimeError):
+        gen.generate_hog(tmp_path)
+    monkeypatch.undo()
+    conformance.load(tmp_path)  # the new manifest and the new files agree
+
+
+def test_a_failed_rollback_keeps_the_backup_and_says_where(tmp_path, monkeypatch, caplog):
+    """Copilot on #17: if putting the old set back fails too, the staging folder holding it is kept, not deleted."""
+    _two_features(tmp_path)
+    real_rename = Path.rename
+    calls = []
+
+    def flaky(self, target):
+        calls.append(self.name)
+        if len(calls) >= 3:  # the old set is aside and the new one in; every rollback rename fails
+            raise PermissionError(f"held open: {self}")
+        return real_rename(self, target)
+
+    def failing_publish(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "rename", flaky)
+    monkeypatch.setattr(gen, "_publish_manifest", failing_publish)
+    with pytest.raises(RuntimeError, match="previous hog set is in"):
+        gen.generate_hog(tmp_path)
+    monkeypatch.undo()
+    kept = list(tmp_path.parent.glob(f"{tmp_path.name}.hog-*"))
+    assert len(kept) == 1 and (kept[0] / "old-hog").is_dir(), "the backup survives"
+    assert str(kept[0]) in caplog.text
+
+
+def test_a_missing_coordinate_file_is_checked_against_the_manifest_not_skipped(tmp_path):
+    """Copilot on #17: with the point file gone, the old check skipped verification and wrote the new coordinates."""
+    captured = _two_features(tmp_path)
+    (tmp_path / "points" / "scatter_x.f32").unlink()
+    moved = coords()
+    moved["xs"] = moved["xs"] + np.float32(1.0)
+    with pytest.raises(ValueError, match="scatter_x.f32"):
+        gen.write_originals(tmp_path, captured[:1], moved)
+    gen.write_originals(tmp_path, captured[:1], coords())  # the manifest's own coordinates: restored, fine
