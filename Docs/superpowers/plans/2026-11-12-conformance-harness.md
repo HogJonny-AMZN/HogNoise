@@ -1807,10 +1807,10 @@ def test_every_case_in_the_vectors_round_trips():
 **Files:** modify `tests/test_hog_noise/test_kernels.py`; move `tests/vectors/noise/accepted.json`,
 `portability.md` and `reports/` to `vectors/` with `git mv`.
 
-- [ ] **Step 1: move the record files**: `git mv tests/vectors/noise/accepted.json vectors/accepted.json`, the same
+- [x] **Step 1: move the record files**: `git mv tests/vectors/noise/accepted.json vectors/accepted.json`, the same
   for `portability.md` and `reports`.
 
-- [ ] **Step 2: replace the head of `test_kernels.py`** (lines 42 to 104 at `0e0957d`): the paths, the fixture, and
+- [x] **Step 2: replace the head of `test_kernels.py`** (lines 42 to 104 at `0e0957d`): the paths, the fixture, and
   the two helpers. `PHASE_A`, `PHASE_B`, `PORTED` and `_portability_rows` stay as they are.
 
 ```python
@@ -1842,7 +1842,7 @@ def _original(vectors, library: str, feature: str, point_set: str, *, warp: bool
   Delete `_params_from` and `_load_vector`, and add `conformance` to the `from hog_noise import (...)` list. Every
   test that used `coords` keeps it; a test that used `_load_vector` takes `vectors` too.
 
-- [ ] **Step 3: rewrite the readers of the old files**, keeping every assertion that is not a reference comparison
+- [x] **Step 3: rewrite the readers of the old files**, keeping every assertion that is not a reference comparison
   and every portability row exactly as today (spec, *The tools and the suite*):
 
   - `test_numba_and_numpy_agree_exactly(feature, vectors, coords)`: `params = _original(vectors, "fnl", feature,
@@ -1868,7 +1868,7 @@ def _original(vectors, library: str, feature: str, point_set: str, *, warp: bool
     (`"1.0_1.0_1.0"`, `"1.0_0.5_2.0"`); the `sample_grid` call and `err.max() < 2e-3 and np.mean(err < 1e-4) > 0.98`
     stay exactly as they are (spec: the direct grid test stays).
 
-- [ ] **Step 4: add the harness run**, after the per-feature tests (acceptance 2):
+- [x] **Step 4: add the harness run**, after the per-feature tests (acceptance 2):
 
 ```python
 RENDERINGS = ["numpy"] + (["numba"] if HAVE_NUMBA else [])
@@ -1883,18 +1883,18 @@ def test_the_renderings_pass_every_gating_case_and_the_hog_set(rendering, vector
     assert report.ok and report.complete, report.table()
 ```
 
-- [ ] **Step 5: run the suite, unpiped**
+- [x] **Step 5: run the suite, unpiped**
 
 Run: `uv run pytest tests/test_hog_noise -q`
 Expected: no failures; the advisory xfails as before (one or none, `simplex_pingpong` is accepted). Note the
 suite's wall time before (on `main`) and after, for the pull request.
 
-- [ ] **Step 6: acceptance 6, the record holds.** In an environment with numba and `pyfastnoiselite` (the dev extra),
+- [x] **Step 6: acceptance 6, the record holds.** In an environment with numba and `pyfastnoiselite` (the dev extra),
   `test_write_portability_table` rewrites `vectors/portability.md`. Run `git diff -U0 vectors/portability.md`.
   Expected: one changed line, `Generated <today>.`; nothing else. Restore it with `git checkout -- vectors/portability.md`
   (P-2: the committed record is not rewritten by a run).
 
-- [ ] **Step 7: commit**: "Suite: read vectors/ through conformance.load; the reference comparisons are check calls".
+- [x] **Step 7: commit**: "Suite: read vectors/ through conformance.load; the reference comparisons are check calls".
 
 ---
 
