@@ -1,7 +1,7 @@
 # The conformance harness: implementation plan
 
-**Status:** Proposed. Written 2026-11-12 from [the spec](../specs/2026-11-11-conformance-harness.md), Accepted the same
-day; for the owner to accept before the build starts.
+**Status:** Accepted 2026-11-12 (the owner: "accepted"). Written 2026-11-12 from
+[the spec](../specs/2026-11-11-conformance-harness.md), Accepted the same day. The build ticks each step as it lands.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to carry this out task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -89,7 +89,7 @@ As the spec's *Files* section lists them, with the module as one file and these 
 
 **Files:** modify `src/hog_noise/params.py`; create `tests/test_hog_noise/test_params_dict.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 """
@@ -133,12 +133,12 @@ def test_from_dict_rejects_an_unknown_key_and_an_unknown_member_name():
         NoiseParams.from_dict({"noise_type": 2})  # a number is not a member name
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_params_dict.py -q`
 Expected: 3 failed, `AttributeError: 'NoiseParams' object has no attribute 'to_dict'` (and `from_dict`).
 
-- [ ] **Step 3: implement**, in `params.py`: change `from enum import IntEnum` to `from enum import Enum, IntEnum`,
+- [x] **Step 3: implement**, in `params.py`: change `from enum import IntEnum` to `from enum import Enum, IntEnum`,
   add `from collections.abc import Mapping`, and add to `NoiseParams` after `replace`:
 
 ```python
@@ -184,12 +184,12 @@ def from_dict(cls, data: Mapping[str, object]) -> "NoiseParams":
 
   `isinstance(value, Enum)` is tested before `int` on purpose: these enums are `IntEnum`, so they are also `int`.
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_params_dict.py -q`
 Expected: 3 passed.
 
-- [ ] **Step 5: commit** `src/hog_noise/params.py` and the test: "NoiseParams.to_dict and from_dict, the manifest's form".
+- [x] **Step 5: commit** `src/hog_noise/params.py` and the test: "NoiseParams.to_dict and from_dict, the manifest's form".
 
 ---
 
