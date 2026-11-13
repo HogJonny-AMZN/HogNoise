@@ -33,6 +33,7 @@ import logging as _logging
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -51,7 +52,7 @@ from hog_noise.samplers import grid_points
 
 _MODULE_NAME = "tools.gen_noise_vectors"
 __version__ = "0.1.0"
-__updated__ = "2026-09-13"
+__updated__ = "2026-11-13"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -73,33 +74,19 @@ def coordinates() -> dict[str, np.ndarray]:
     return {"xs": xs, "ys": ys, "zs": zs, "grid_x": gx.ravel(), "grid_z": gz.ravel()}
 
 
-#: Captures collected by `_write`; `main` writes them all through `write_originals`.
-_CAPTURED: list[tuple[str, str, dict, dict[str, np.ndarray]]] = []
+#: One capture: (library, feature, the library's own parameter record, its arrays by name).
+Capture = tuple[str, str, dict, dict[str, np.ndarray]]
 
 
 def _write(
     source: str, feature: str, params: dict[str, object], values: dict[str, np.ndarray], coords: dict[str, np.ndarray]
-) -> Path:
-    """Collect one capture; `main` writes them all through `write_originals`."""
-    _CAPTURED.append((source, feature, dict(params), {k: np.asarray(v, np.float32) for k, v in values.items()}))
-    return OUT / "original" / source / feature
+) -> Capture:
+    """One capture, returned to the caller; `main` writes them all through `write_originals`."""
+    return (source, feature, dict(params), {k: np.asarray(v, np.float32) for k, v in values.items()})
 
 
 # -------------------------------------------------------------------------
 # the vectors folder: raw little-endian float32 and one manifest (spec: 2026-11-11-conformance-harness)
-POINT_SETS: dict[str, dict[str, object]] = {
-    "scatter_3d": {
-        "dims": 3,
-        "count": N_SCATTER,
-        "axes": ["points/scatter_x.f32", "points/scatter_y.f32", "points/scatter_z.f32"],
-    },
-    "scatter_2d": {"dims": 2, "count": N_SCATTER, "axes": ["points/scatter_x.f32", "points/scatter_z.f32"]},
-    "grid_y0": {
-        "dims": 3,
-        "count": GRID * GRID,
-        "axes": ["points/grid_x.f32", "points/grid_y.f32", "points/grid_z.f32"],
-    },
-}
 GENASGRID_SCALES = ((1.0, 1.0, 1.0), (1.0, 0.5, 2.0))
 GENASGRID_START, GENASGRID_SHAPE = (-64, -64, 1), (128, 128, 1)
 
@@ -108,13 +95,38 @@ def _genasgrid_name(scales) -> str:
     return "genasgrid_" + "_".join(repr(float(s)) for s in scales)
 
 
-for _scales in GENASGRID_SCALES:
-    POINT_SETS[_genasgrid_name(_scales)] = {
-        "dims": 3,
-        "count": 128 * 128,
-        "axes": [f"points/{_genasgrid_name(_scales)}_{axis}.f32" for axis in "xyz"],
-        "from": {"start": list(GENASGRID_START), "shape": list(GENASGRID_SHAPE), "scales": list(_scales), "order": "C"},
+def _point_sets() -> dict[str, dict[str, object]]:
+    """Every point set the vectors use, built once: the scatters, the y = 0 grid and the two genAsGrid grids."""
+    point_sets: dict[str, dict[str, object]] = {
+        "scatter_3d": {
+            "dims": 3,
+            "count": N_SCATTER,
+            "axes": ["points/scatter_x.f32", "points/scatter_y.f32", "points/scatter_z.f32"],
+        },
+        "scatter_2d": {"dims": 2, "count": N_SCATTER, "axes": ["points/scatter_x.f32", "points/scatter_z.f32"]},
+        "grid_y0": {
+            "dims": 3,
+            "count": GRID * GRID,
+            "axes": ["points/grid_x.f32", "points/grid_y.f32", "points/grid_z.f32"],
+        },
     }
+    for scales in GENASGRID_SCALES:
+        name = _genasgrid_name(scales)
+        point_sets[name] = {
+            "dims": 3,
+            "count": 128 * 128,
+            "axes": [f"points/{name}_{axis}.f32" for axis in "xyz"],
+            "from": {
+                "start": list(GENASGRID_START),
+                "shape": list(GENASGRID_SHAPE),
+                "scales": list(scales),
+                "order": "C",
+            },
+        }
+    return point_sets
+
+
+POINT_SETS = _point_sets()
 
 #: Which point set and output each captured array is on.
 ARRAYS = {
@@ -262,25 +274,37 @@ def write_manifest(root: Path, point_sets: dict[str, dict[str, object]], cases: 
     }
     path = root / "manifest.json"
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    _LOGGER.info(f"manifest: {len(cases)} cases, {len(point_sets)} point sets, {len(files)} files digested -> {path}")
     return path
 
 
-def write_points(root: Path, coords: dict[str, np.ndarray]) -> None:
-    write_f32(root, "points/scatter_x.f32", coords["xs"])
-    write_f32(root, "points/scatter_y.f32", coords["ys"])
-    write_f32(root, "points/scatter_z.f32", coords["zs"])
-    write_f32(root, "points/grid_x.f32", coords["grid_x"])
-    write_f32(root, "points/grid_y.f32", np.zeros_like(coords["grid_x"]))
-    write_f32(root, "points/grid_z.f32", coords["grid_z"])
+def _point_arrays(coords: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Every point file's contents, by its path in the folder."""
+    arrays = {
+        "points/scatter_x.f32": coords["xs"],
+        "points/scatter_y.f32": coords["ys"],
+        "points/scatter_z.f32": coords["zs"],
+        "points/grid_x.f32": coords["grid_x"],
+        "points/grid_y.f32": np.zeros_like(coords["grid_x"]),
+        "points/grid_z.f32": coords["grid_z"],
+    }
     for scales in GENASGRID_SCALES:
         for axis, values in zip("xyz", grid_points(GENASGRID_START, GENASGRID_SHAPE, scales), strict=True):
-            write_f32(root, f"points/{_genasgrid_name(scales)}_{axis}.f32", values)
+            arrays[f"points/{_genasgrid_name(scales)}_{axis}.f32"] = values
+    return arrays
 
 
-def write_originals(root: Path, captured: list[tuple[str, str, dict, dict[str, np.ndarray]]], coords) -> Path:
+def _f32_bytes(values: np.ndarray) -> bytes:
+    return np.ascontiguousarray(np.asarray(values, dtype="<f4")).tobytes()
+
+
+def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.ndarray]) -> Path:
     """
     Write captured arrays as original cases. Cases of features captured again are replaced; every other case in an
     existing manifest is kept. Run ``--set hog`` afterwards.
+
+    :raises ValueError: A record that does not map (before anything is written), or coordinates that differ from
+        the point files an original case kept here was sampled on: those captures would no longer match their points.
     """
     existing = []
     if (root / "manifest.json").exists():
@@ -292,10 +316,20 @@ def write_originals(root: Path, captured: list[tuple[str, str, dict, dict[str, n
     new_cases = []
     for library, feature, record, arrays in captured:
         new_cases.extend(original_cases(library, feature, record, sorted(arrays)))  # maps every record first
-    write_points(root, coords)
+    points = _point_arrays(coords)
+    kept_axes = {a for c in cases if c["set"] == "original" for a in POINT_SETS[c["point_set"]]["axes"]}
+    for rel in sorted(kept_axes):
+        if (root / rel).exists() and (root / rel).read_bytes() != _f32_bytes(points[rel]):
+            raise ValueError(f"{rel}: these coordinates differ from the ones kept original cases were sampled on")
+    for rel, values in points.items():
+        write_f32(root, rel, values)
     for library, feature, _record, arrays in captured:
         for case in (c for c in new_cases if c["source"]["library"] == library and c["source"]["feature"] == feature):
             write_f32(root, case["file"], arrays[case["source"]["array"]])
+    _LOGGER.info(
+        f"original: {len(captured)} captures as {len(new_cases)} cases under {root / 'original'}, "
+        f"{len(cases)} cases kept, {len(points)} point files"
+    )
     return write_manifest(root, POINT_SETS, cases + new_cases)
 
 
@@ -303,36 +337,48 @@ def generate_hog(root: Path = OUT) -> list[str]:
     """
     The hog set: for every distinct (parameters, point set, output) among the original cases, the numpy rendering's
     output, compared at Bound(0). Rewritten whole; the first original case (by id) of each key names it.
+
+    It reads only the original cases, and writes the new files into a staging folder beside ``root`` that replaces
+    ``hog/`` only once every case has been rendered, so a failure part way leaves the folder as it was and a rerun
+    works whatever state the hog files are in.
     """
-    vectors = conformance.load(root)  # verifies the originals first
+    vectors = conformance.load(root, sets=("original",))  # verifies the originals and the points
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     originals = sorted((c for c in manifest["cases"] if c["set"] == "original"), key=lambda c: c["id"])
-    shutil.rmtree(root / "hog", ignore_errors=True)
     sample, warp = conformance.renderings("numpy")
-    seen: set[tuple[str, str, str]] = set()
-    hog: list[dict[str, object]] = []
-    for c in originals:
-        key = (json.dumps(c["params"], sort_keys=True), c["point_set"], c["output"])
-        if key in seen:
-            continue
-        seen.add(key)
-        library, feature = c["source"]["library"], c["source"]["feature"]
-        variant = c["id"].partition("#")[2] or None
-        ps = vectors.point_sets[c["point_set"]]
-        fn = warp if c["output"] == "warp" else sample
-        values = fn(NoiseParams.from_dict(c["params"]), ps.axes[0], ps.axes[1], ps.axes[2] if ps.dims == 3 else None)
-        file = case_file("hog", library, feature, c["point_set"], c["output"], variant)
-        write_f32(root, file, values)
-        hog.append(
-            dict(
-                c,
-                id=case_id("hog", library, feature, c["point_set"], c["output"], variant),
-                set="hog",
-                file=file,
-                compare=_points(0.0),
-                source=dict(c["source"], from_case=c["id"]),
+    stage = Path(tempfile.mkdtemp(prefix=f"{root.name}.hog-", dir=root.parent))
+    try:
+        seen: set[tuple[str, str, str]] = set()
+        hog: list[dict[str, object]] = []
+        for c in originals:
+            key = (json.dumps(c["params"], sort_keys=True), c["point_set"], c["output"])
+            if key in seen:
+                continue
+            seen.add(key)
+            library, feature = c["source"]["library"], c["source"]["feature"]
+            variant = c["id"].partition("#")[2] or None
+            ps = vectors.point_sets[c["point_set"]]
+            fn = warp if c["output"] == "warp" else sample
+            values = fn(
+                NoiseParams.from_dict(c["params"]), ps.axes[0], ps.axes[1], ps.axes[2] if ps.dims == 3 else None
             )
-        )
+            file = case_file("hog", library, feature, c["point_set"], c["output"], variant)
+            write_f32(stage, file, values)
+            hog.append(
+                dict(
+                    c,
+                    id=case_id("hog", library, feature, c["point_set"], c["output"], variant),
+                    set="hog",
+                    file=file,
+                    compare=_points(0.0),
+                    source=dict(c["source"], from_case=c["id"]),
+                )
+            )
+        shutil.rmtree(root / "hog", ignore_errors=True)
+        if (stage / "hog").exists():
+            shutil.move(str(stage / "hog"), str(root / "hog"))
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
     write_manifest(root, manifest["point_sets"], originals + hog)
     _LOGGER.info(f"hog: {len(hog)} cases from {len(originals)} original cases under {root / 'hog'}")
     return [str(c["id"]) for c in hog]
@@ -371,7 +417,7 @@ FNL_CELL_RET = {
 }
 
 
-def generate_fnl(coords: dict[str, np.ndarray]) -> list[Path]:
+def generate_fnl(coords: dict[str, np.ndarray]) -> list[Capture]:
     from pyfastnoiselite.pyfastnoiselite import (
         CellularDistanceFunction,
         CellularReturnType,
@@ -381,7 +427,7 @@ def generate_fnl(coords: dict[str, np.ndarray]) -> list[Path]:
         RotationType3D,
     )
 
-    written = []
+    captured = []
 
     def run(feature: str, params: dict[str, object], configure) -> None:
         noise = FastNoiseLite(seed=SEED)
@@ -394,7 +440,7 @@ def generate_fnl(coords: dict[str, np.ndarray]) -> list[Path]:
                 np.stack([coords["grid_x"], np.zeros_like(coords["grid_x"]), coords["grid_z"]])
             ),
         }
-        written.append(_write("fnl", feature, params, values, coords))
+        captured.append(_write("fnl", feature, params, values, coords))
 
     # Phase A and B: every noise type x fractal type, 4 octaves, default gain/lacunarity
     for noise_name, nt in FNL_NOISE.items():
@@ -491,12 +537,12 @@ def generate_fnl(coords: dict[str, np.ndarray]) -> list[Path]:
             run(f"cellular_{dist_name}_{ret_name}", params, cfg_c)
 
     try:
-        written.extend(generate_fnl_warp(coords))
+        captured.extend(generate_fnl_warp(coords))
     except (ImportError, OSError, subprocess.CalledProcessError) as e:
         # the warp vectors need the C++ oracle, which needs MSVC on Windows; the binding's own vectors
         # above do not, so a regeneration elsewhere keeps them and says what it skipped
         _LOGGER.warning(f"fnl: domain-warp vectors skipped, the oracle harness is unavailable here: {e}")
-    return written
+    return captured
 
 
 # -------------------------------------------------------------------------
@@ -550,7 +596,7 @@ def _oracle(
         return np.fromfile(outp, dtype=np.float32)
 
 
-def generate_fnl_warp(coords: dict[str, np.ndarray]) -> list[Path]:
+def generate_fnl_warp(coords: dict[str, np.ndarray]) -> list[Capture]:
     """
     Every warp type x warp fractal, amplitude 30 at frequency 0.01 over OpenSimplex2: the warped
     coordinates (``warp_2d`` N x 2, ``warp_3d`` N x 3, ``grid_warp_3d``) and the noise the reference
@@ -558,7 +604,7 @@ def generate_fnl_warp(coords: dict[str, np.ndarray]) -> list[Path]:
     comparison covers the end-to-end path and a second test covers the warp field itself.
     """
     exe = _oracle_exe()
-    written = []
+    captured = []
     scatter3 = np.stack([coords["xs"], coords["ys"], coords["zs"]], axis=1)
     scatter2 = np.stack([coords["xs"], coords["zs"]], axis=1)
     grid3 = np.stack([coords["grid_x"], np.zeros_like(coords["grid_x"]), coords["grid_z"]], axis=1)
@@ -589,16 +635,16 @@ def generate_fnl_warp(coords: dict[str, np.ndarray]) -> list[Path]:
                 "scatter_2d": _oracle(exe, "noise2", w2, params, warp_type, fractal),
                 "grid_3d": _oracle(exe, "noise3", g3, params, warp_type, fractal),
             }
-            written.append(_write("fnl", f"warp_{warp_name}_{fractal_name}", params, values, coords))
-    return written
+            captured.append(_write("fnl", f"warp_{warp_name}_{fractal_name}", params, values, coords))
+    return captured
 
 
 # -------------------------------------------------------------------------
 # FastNoiseSIMD
-def generate_fns(coords: dict[str, np.ndarray]) -> list[Path]:
+def generate_fns(coords: dict[str, np.ndarray]) -> list[Capture]:
     import pyfastnoisesimd as fns
 
-    written = []
+    captured = []
     n_grid = len(coords["grid_x"])
 
     def gen_coords(noise, xs, ys, zs):
@@ -616,7 +662,7 @@ def generate_fns(coords: dict[str, np.ndarray]) -> list[Path]:
             "scatter_3d": gen_coords(noise, coords["xs"], coords["ys"], coords["zs"]),
             "grid_3d": gen_coords(noise, coords["grid_x"], np.zeros(n_grid, np.float32), coords["grid_z"]),
         }
-        written.append(_write("fns", feature, params, values, coords))
+        captured.append(_write("fns", feature, params, values, coords))
 
     noise_types = {
         "simplex": "Simplex",
@@ -753,7 +799,7 @@ def generate_fns(coords: dict[str, np.ndarray]) -> list[Path]:
             "grid_shape": [GRID, GRID],
             "grid_start": [-GRID // 2, -GRID // 2],
         }
-        written.append(
+        captured.append(
             _write(
                 "fns",
                 f"genasgrid_simplex_fbm_scales_{scales[0]}_{scales[1]}_{scales[2]}",
@@ -762,7 +808,7 @@ def generate_fns(coords: dict[str, np.ndarray]) -> list[Path]:
                 coords,
             )
         )
-    return written
+    return captured
 
 
 # -------------------------------------------------------------------------
@@ -771,22 +817,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--set", choices=("hog", "original"), default="hog", dest="which")
     parser.add_argument("--source", choices=("fnl", "fns", "both"), default="both", help="for --set original")
     args = parser.parse_args(argv)
-    _logging.basicConfig(level=_logging.INFO, format="%(levelname)s %(message)s")
+    _logging.basicConfig(level=_logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     if args.which == "original":
         coords = coordinates()
+        captured: list[Capture] = []
         for source, fn in (("fnl", generate_fnl), ("fns", generate_fns)):
             if args.source not in (source, "both"):
                 continue
             try:
-                fn(coords)
+                captured.extend(fn(coords))
             except ImportError as e:
                 _LOGGER.warning(f"{source}: binding not importable here, skipped: {e}")
                 continue
-        if not _CAPTURED:
+        if not captured:
             print("no capture ran; nothing written")
             return 1
-        write_originals(OUT, _CAPTURED, coords)
-        _LOGGER.info(f"original: {len(_CAPTURED)} captures written under {OUT / 'original'}")
+        write_originals(OUT, captured, coords)
     hog = generate_hog(OUT)
     print(f"{len(hog)} hog cases written under {OUT / 'hog'}")
     return 0

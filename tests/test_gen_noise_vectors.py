@@ -87,3 +87,54 @@ def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tm
     ]
     sample, warp = conformance.renderings("numpy")
     assert conformance.check(sample, v, warp=warp).ok
+
+
+def _two_features(tmp_path):
+    record = {"noise_type": "perlin", "fractal_type": "fbm", "seed": 1, "frequency": 0.01, "octaves": 3}
+    arrays = {"scatter_3d": np.zeros(4096, np.float32)}
+    captured = [("fns", "perlin_fbm", record, arrays), ("fns", "value_fbm", dict(record, noise_type="value"), arrays)]
+    gen.write_originals(tmp_path, captured, coords())
+    gen.generate_hog(tmp_path)
+    return captured
+
+
+def test_a_regeneration_that_fails_part_way_leaves_the_folder_as_it_was(tmp_path, monkeypatch):
+    """Review on #16: the hog folder was deleted before anything new was written, so a crash left it unloadable."""
+    _two_features(tmp_path)
+    before = (tmp_path / "manifest.json").read_bytes()
+    sample, warp = conformance.renderings("numpy")
+    calls = []
+
+    def flaky(params, xs, ys, zs):
+        calls.append(params)
+        if len(calls) == 2:
+            raise RuntimeError("the kernel fell over")
+        return sample(params, xs, ys, zs)
+
+    monkeypatch.setattr(gen.conformance, "renderings", lambda name: (flaky, warp))
+    with pytest.raises(RuntimeError):
+        gen.generate_hog(tmp_path)
+    assert (tmp_path / "manifest.json").read_bytes() == before
+    assert len(conformance.load(tmp_path).cases) == 4, "the folder still loads, hog set and all"
+    assert not list(tmp_path.parent.glob(f"{tmp_path.name}.hog-*")), "no staging folder left behind"
+    monkeypatch.undo()
+    assert len(gen.generate_hog(tmp_path)) == 2
+
+
+def test_a_rerun_regenerates_even_when_the_hog_files_are_gone(tmp_path):
+    _two_features(tmp_path)
+    for f in (tmp_path / "hog").rglob("*.f32"):
+        f.unlink()
+    assert len(gen.generate_hog(tmp_path)) == 2
+    conformance.load(tmp_path)
+
+
+def test_new_captures_cannot_move_the_coordinates_kept_cases_were_sampled_on(tmp_path):
+    """Review on #16: the FastNoiseSIMD originals rely on the point files never changing under them."""
+    captured = _two_features(tmp_path)
+    moved = coords()
+    moved["xs"] = moved["xs"] + np.float32(1.0)
+    with pytest.raises(ValueError, match="scatter_x.f32"):
+        gen.write_originals(tmp_path, captured[:1], moved)
+    gen.write_originals(tmp_path, captured[:1], coords())  # the same coordinates: fine
+    gen.write_originals(tmp_path, captured, moved)  # every original captured again on the new ones: fine

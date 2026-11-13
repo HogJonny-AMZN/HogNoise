@@ -39,7 +39,7 @@ from hog_noise.families import FAMILIES, enum_name  # noqa: E402
 
 _MODULE_NAME = "tools.noise_gallery"
 __version__ = "0.1.0"
-__updated__ = "2026-10-03"
+__updated__ = "2026-11-13"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 OUT_DIR = ROOT / "Docs" / "noise" / "gallery"
