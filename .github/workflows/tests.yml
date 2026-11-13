@@ -28,6 +28,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[${{ matrix.extras }}]" "${{ matrix.numpy }}"
+          # The library is the workspace member; the root is a virtual workspace and installs nothing itself.
+          python -m pip install -e "packages/python/hog-noise[${{ matrix.extras }}]" "${{ matrix.numpy }}"
       - name: Test
         run: pytest

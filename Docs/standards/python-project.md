@@ -6,7 +6,7 @@
 
 `hog_noise` imports the standard library and numpy. numba (`fast`), `pyfastnoiselite` (`reference`) and Pillow (`sheets`) are
 optional extras, each imported behind a guard, so the package imports with numpy alone. It never imports a graphics stack
-or a sibling project. `tests/test_hog_noise/test_package_boundary.py` enforces it two ways: a static scan of every import,
+or a sibling project. `packages/python/hog-noise/tests/test_package_boundary.py` enforces it two ways: a static scan of every import,
 and a fresh interpreter that refuses the forbidden names. The `[layers]` table in `framework.toml` has one layer,
 `hog_noise`; it is not `pure`, because it imports numpy.
 

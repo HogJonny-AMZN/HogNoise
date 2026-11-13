@@ -1,8 +1,8 @@
 # Move the package to packages/, later
 
-**Section:** icebox
-**Owner:** none
-**State:** Iceboxed
+**Section:** now
+**Owner:** @HogJonny-AMZN
+**State:** Landed 2026-11-13 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), with ai-first-template 0.9.4: its 0.7.0 layout is the template's own, so the move is no override. The library is the workspace member `packages/python/hog-noise/`; the owner, 2026-11-13: "yes we need to adapt to the specified layout".
 **Cost:** 0.5 d (the folder move and the paths; the template's side first)
 **Verdict:** Good, later
 **Raised:** [journal](../../journal/2026-11/2026-11-01-HogJonny-AMZN-0446.md)
