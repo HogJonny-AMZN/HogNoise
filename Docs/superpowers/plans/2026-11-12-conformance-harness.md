@@ -1912,7 +1912,7 @@ suite's wall time before (on `main`) and after, for the pull request.
 
 **Files:** modify `tools/noise_gallery.py`; regenerate `Docs/noise/GALLERY.md` and the sheets.
 
-- [ ] **Step 1:** in `tools/noise_gallery.py`: `VECTORS = ROOT / "vectors"`; delete `_params_from_vector` and the
+- [x] **Step 1:** in `tools/noise_gallery.py`: `VECTORS = ROOT / "vectors"`; delete `_params_from_vector` and the
   `parse_*` imports it alone used; `COMPARISONS` becomes `(family, name)` pairs (the third element goes, the manifest's
   parameters already being HogNoise's); `comparison_rows` becomes:
 
@@ -1933,12 +1933,12 @@ def comparison_rows() -> list[tuple[str, compare.ComparisonStats, np.ndarray, np
 
   and the two page lines name `[portability.md](../../vectors/portability.md)` and `vectors/reports/`. Add
   `conformance` to the `from hog_noise import (...)` list.
-- [ ] **Step 2:** `uv run python tools/noise_gallery.py`, then `uv run python tools/noise_gallery.py --check`.
+- [x] **Step 2:** `uv run python tools/noise_gallery.py`, then `uv run python tools/noise_gallery.py --check`.
   Expected: `noise gallery: page current`. `git diff --stat Docs/noise` shows `GALLERY.md` (the two path lines, and
   nothing in the numbers: the parameters are the same) and no change to the PNGs. If a PNG or a number changed, stop:
   a mapping differs.
-- [ ] **Step 3:** `uv run pytest tests/test_noise_gallery.py -q`. Expected: passed.
-- [ ] **Step 4: commit**: "Gallery: read vectors/ through conformance.load".
+- [x] **Step 3:** `uv run pytest tests/test_noise_gallery.py -q`. Expected: passed.
+- [x] **Step 4: commit**: "Gallery: read vectors/ through conformance.load".
 
 ---
 
