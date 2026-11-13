@@ -1944,24 +1944,24 @@ def comparison_rows() -> list[tuple[str, compare.ComparisonStats, np.ndarray, np
 
 ### Task 13: the documents name the new path
 
-- [ ] **Step 1:** find every live reference: `git grep -n "tests/vectors"`. Outside the records (the ADRs, the designs,
+- [x] **Step 1:** find every live reference: `git grep -n "tests/vectors"`. Outside the records (the ADRs, the designs,
   the specs, the plans, the journal, the ledger and `Docs/PYTHON_UPGRADE_AND_FASTNOISE.md`, which keep the old path),
   change each to `vectors/`: `README.md` (the portability link), `PROVENANCE.md`, `llms.txt`, `NOTICE` (section 3's
   paths only: `vectors/original/fnl/` and `vectors/original/fns/`, the attribution text unchanged),
   `Docs/glossary.md` (*Oracle vectors*, *Portability table*), `Docs/standards/testing-project.md`, and the
   `test_kernels.py` docstring at its advisory test.
-- [ ] **Step 2:** `Docs/glossary.md`: the *Conformance harness*, *Reference set*, *Case*, *Bound* and *Point set* rows
+- [x] **Step 2:** `Docs/glossary.md`: the *Conformance harness*, *Reference set*, *Case*, *Bound* and *Point set* rows
   say built. `Docs/README.md`: the spec and the plan rows say built.
-- [ ] **Step 3: write `vectors/README.md`**, one page for a reader with no Python: what the folder is; the file
+- [x] **Step 3: write `vectors/README.md`**, one page for a reader with no Python: what the folder is; the file
   format (raw little-endian IEEE float32, no header; a warp file is N x dims, row-major); the manifest's fields and the
   three comparison kinds with their fields; the case id grammar; "verify each file's sha256 against `files` before
   reading it"; the per-point rule `abs(ours - reference) <= scale`, coordinate-scaled `<= scale * max(1,
   max(abs(x), abs(y)[, abs(z)]) * frequency)`; that `hog` is HogNoise's numpy rendering and `original` the libraries'
   captures; and the command `python -m hog_noise.conformance vectors --rendering numpy`. Every statement in it is
   checked against `conformance.py` as written (P-6).
-- [ ] **Step 4:** `git grep -n "tests/vectors"` again: only the records remain. `uv run python tools/check.py`
+- [x] **Step 4:** `git grep -n "tests/vectors"` again: only the records remain. `uv run python tools/check.py`
   (full, unpiped). Expected: every stage passes.
-- [ ] **Step 5: commit**: "Docs: the vectors live in vectors/".
+- [x] **Step 5: commit**: "Docs: the vectors live in vectors/".
 
 ---
 

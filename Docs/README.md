@@ -6,8 +6,9 @@
 | --- | --- |
 | [design/2026-11-01-north-star-roadmap.md](design/2026-11-01-north-star-roadmap.md) | the north star and the roadmap to it (Proposed) |
 | [design/2026-11-02-conformance-harness.md](design/2026-11-02-conformance-harness.md) | the conformance harness and the portable vectors (Accepted 2026-11-11) |
-| [superpowers/specs/2026-11-11-conformance-harness.md](superpowers/specs/2026-11-11-conformance-harness.md) | the conformance harness spec: the folder, the manifest, the cases, the module, the acceptance checks (Accepted 2026-11-12) |
-| [superpowers/plans/2026-11-12-conformance-harness.md](superpowers/plans/2026-11-12-conformance-harness.md) | the conformance harness plan: fifteen tasks, test first, from `NoiseParams.to_dict` to the pull request (Proposed) |
+| [superpowers/specs/2026-11-11-conformance-harness.md](superpowers/specs/2026-11-11-conformance-harness.md) | the conformance harness spec: the folder, the manifest, the cases, the module, the acceptance checks (Accepted 2026-11-12; built) |
+| [superpowers/plans/2026-11-12-conformance-harness.md](superpowers/plans/2026-11-12-conformance-harness.md) | the conformance harness plan: fifteen tasks, test first, from `NoiseParams.to_dict` to the pull request (Accepted 2026-11-12; built) |
+| [../vectors/README.md](../vectors/README.md) | the reference vectors' format, for a reader with no Python: files, manifest, case ids, comparisons, bounds |
 | [findability.md](findability.md) | who searches for HogNoise and why, and the surfaces (README, topics, metadata, llms.txt) that must say so |
 | [noise/GALLERY.md](noise/GALLERY.md) | every noise type rendered, generated from the enums |
 | [decisions/ADR-007-noise-kernels-port.md](decisions/ADR-007-noise-kernels-port.md) | why a port rather than a binding, with the measurements |

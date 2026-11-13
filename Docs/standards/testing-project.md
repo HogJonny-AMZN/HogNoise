@@ -4,17 +4,22 @@
 
 ## The vectors are the oracle
 
-`tests/vectors/noise/` holds outputs captured from the original libraries (`fnl/` from `pyfastnoiselite`, `fns/` from
-`pyfastnoisesimd`, the domain warp from the C++ harness in `tools/noise_oracle`). A difference past the advisory bar writes a
-comparison sheet under `tests/vectors/noise/reports/` and waits for a human verdict in `accepted.json`; it never fails the
-build. **Never loosen a tolerance or edit a vector to make a test pass.** Once a feature is locked, this package's output is
-the reference. [NOTICE](../../NOTICE) says where each set of vectors came from.
+[`vectors/`](../../vectors/README.md) holds two reference sets as raw float32 and one manifest: `original/`, captured from
+the original libraries (`fnl/` from `pyfastnoiselite`, `fns/` from `pyfastnoisesimd`, the domain warp from the C++ harness in
+`tools/noise_oracle`), and `hog/`, this package's numpy rendering, which every rendering must match bit for bit. The suite
+reads them through `hog_noise.conformance`. An advisory difference past `tight` (or with correlation below 0.99) writes a
+comparison sheet under `vectors/reports/` and waits for a human verdict in `accepted.json`; it never fails the build.
+**Never loosen a bound or edit a vector to make a test pass.** A kernel change that moves a value fails the hog set until
+`uv run python tools/gen_noise_vectors.py` (the hog set) is rerun, and that rerun is a decision the pull request records.
+[NOTICE](../../NOTICE) says where each original set came from.
 
 ## Generated files are never edited by hand
 
 - `Docs/noise/GALLERY.md` and its sheets come from `uv run python tools/noise_gallery.py`; `tests/test_noise_gallery.py`
   fails when the page falls behind the enums.
-- `tests/vectors/noise/portability.md` is rewritten by a full-environment test run (numba and `pyfastnoiselite` both
+- `vectors/manifest.json` and every `.f32` file come from `tools/gen_noise_vectors.py` (`--set hog` anywhere numpy is;
+  `--set original` where the bindings are), which recomputes every digest; `load` refuses a hand-edited file.
+- `vectors/portability.md` is rewritten by a full-environment test run (numba and `pyfastnoiselite` both
   installed). A partial run skips the writer on purpose, so a numpy-only run cannot replace the full table with a partial one.
 
 ## The environments that must pass

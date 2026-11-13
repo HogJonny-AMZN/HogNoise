@@ -12,7 +12,9 @@ Use it when someone wants seeded 2D or 3D noise over numpy arrays: terrain and h
 
 ## Evidence
 
-- [tests/vectors/noise/portability.md](tests/vectors/noise/portability.md): every comparison, with its largest difference
+- [vectors/portability.md](vectors/portability.md): every comparison, with its largest difference
+- [vectors/README.md](vectors/README.md): the reference vectors' format, and how any port checks itself against them
+  (`python -m hog_noise.conformance vectors --rendering numpy`)
 - [Docs/noise/GALLERY.md](Docs/noise/GALLERY.md): every noise type rendered
 - [Docs/findability.md](Docs/findability.md): who this is for and why they would want it
 - [Docs/decisions/ADR-007-noise-kernels-port.md](Docs/decisions/ADR-007-noise-kernels-port.md): why a port, and the measurements behind the choice
