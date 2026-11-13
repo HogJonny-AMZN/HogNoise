@@ -9,8 +9,9 @@ python -m hog_noise.conformance vectors --rendering numpy
 python -m hog_noise.conformance vectors --rendering numba --reference both --select "*/fns/*"
 ```
 
-It prints a table and exits 0 when no `points` or `shape` case failed. The module is `hog_noise.conformance`; the format
-it reads is this page.
+It prints a table and exits 0 when no case failed: no `points` or `shape` case past its rule, and no output of the wrong
+shape. It exits 1 on a failure and 2 when the rendering or the folder cannot be used. The module is
+`hog_noise.conformance`; the format it reads is this page.
 
 ## The files
 
@@ -48,8 +49,10 @@ by hand: `tools/gen_noise_vectors.py` writes the files and the manifest.
 - **`cases`**, sorted by id. `params` is every field of HogNoise's `NoiseParams` by name, enums as member names
   (`"OPEN_SIMPLEX2"`). `source.params` is the original library's own record, kept for the record and never read.
   `output` is `noise` or `warp`. Two cases may share a `file`.
-- **`files`** maps every `.f32` file to its sha256. Check it before reading a file: a reader that skips the check cannot
-  tell an edited coordinate from a failing port.
+- **`files`** maps every `.f32` file in the folder, and only those a point set or case uses, to its sha256. Check it
+  before reading a file: a reader that skips the check cannot tell an edited coordinate from a failing port.
+- **Numbers are read as written.** `dims` and `count` are positive integers; an integer parameter is an integer, never
+  `3.9` or `"3"`; a float parameter is a number; `true` and `false` are not numbers.
 - Every path is relative to this folder, uses `/`, and stays inside it. Refuse any other.
 
 **A case id** is `<set>/<library>/<feature>/<point set>`, with `/warp` for a warp output and `#<variant>` when two

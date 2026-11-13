@@ -1967,18 +1967,18 @@ def comparison_rows() -> list[tuple[str, compare.ComparisonStats, np.ndarray, np
 
 ### Task 14: the record, CI, and the pull request
 
-- [ ] **Step 1:** the board row's State says the harness is built (with the pull request link); the handoff's *In
+- [x] **Step 1:** the board row's State says the harness is built (with the pull request link); the handoff's *In
   flight* row moves the harness to done and the GPU port to next; a journal entry for the build (its session file,
   per `Docs/standards/journal.md`).
-- [ ] **Step 2:** push and open the pull request from the template (`.github/pull_request_template.md`), with: the
+- [x] **Step 2:** push and open the pull request from the template (`.github/pull_request_template.md`), with: the
   case counts (original, hog), the `grid_warp_3d` measurement and decision, the vector size (Task 8 Step 6), the suite
   time before and after, the `portability.md` diff result, and the *Decisions* table (the one-module layout; the case
   rules in the generator; anything decided while building).
-- [ ] **Step 3: read CI on every leg** (`gh pr checks <n> --watch`). The open risk the spec names is measured here: the
+- [x] **Step 3: read CI on every leg** (`gh pr checks <n> --watch`). The open risk the spec names is measured here: the
   hog set at Bound(0) on numpy 1.26, the latest numpy, numpy alone, and Windows. If a leg fails only on hog cases,
   do not loosen anything: report the leg, the cases and the largest difference to the owner (spec, *Open risks*: the
   bound for that leg is recorded as measured, never loosened silently), and wait.
-- [ ] **Step 4:** run the review (`local-review` skill) on the diff, since this is a significant increment, and put its
+- [x] **Step 4:** run the review (`local-review` skill) on the diff, since this is a significant increment, and put its
   table in the pull request's *Review* section. Then assess Copilot's review as `review-and-pr` says; before every push,
   `gh pr view <n> --json state` is `OPEN` (P-5).
 

@@ -95,6 +95,17 @@ and send it into a new pull request for nothing. Copilot found it on
 [PR #13](https://github.com/HogJonny-AMZN/HogNoise/pull/13) two minutes after that pull request merged; the check run for
 #13 itself had fetched first, so no harm was done.
 
+### P-8 · The deliberate review starts after the pull request opens
+
+**Trigger:** a significant increment is ready, and you are about to push and open its pull request.
+**Do:** run the deliberate review (`local-review`) first, act on its findings, and open the pull request with its table
+in *Review*, as `review-and-pr` orders it (step 3 before step 5). If a review is still running when the pull request is
+up, say so in the reply to the owner in one line that asks them to hold the merge, not only in an unticked box.
+**Because:** [PR #16](https://github.com/HogJonny-AMZN/HogNoise/pull/16) was opened with the independent review and Copilot's still to come; CI went green and the owner
+merged within the hour, so the review's findings (an unrecoverable regeneration, untyped manifest errors, silent
+parameter conversion) landed as a follow-up instead of before the merge. Not mechanised: nothing stops a merge on green
+CI, and the rule is the order of the steps.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
