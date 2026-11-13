@@ -1424,10 +1424,10 @@ Expected: 6 passed.
 **Files:** modify `.gitattributes`; create `tools/convert_npz_vectors.py`, `tests/test_hog_noise/test_conversion.py`,
 and `vectors/` (written by the tools).
 
-- [ ] **Step 1:** add `*.f32     binary` under the `*.npz binary` line of `.gitattributes`, before any `.f32` file
+- [x] **Step 1:** add `*.f32     binary` under the `*.npz binary` line of `.gitattributes`, before any `.f32` file
   exists, so none is ever committed with text conversion.
 
-- [ ] **Step 2: write the converter**, `tools/convert_npz_vectors.py`:
+- [x] **Step 2: write the converter**, `tools/convert_npz_vectors.py`:
 
 ```python
 """
@@ -1481,7 +1481,7 @@ if __name__ == "__main__":
   `gen_noise_vectors` imports). Expected: `INFO converted ...` and `INFO hog: N cases from M original
   cases`. Record N and M for the pull request.
 
-- [ ] **Step 3: measure `grid_warp_3d`** before deciding its comparison (spec, *The cases*):
+- [x] **Step 3: measure `grid_warp_3d`** before deciding its comparison (spec, *The cases*):
 
 ```python
 # scratch/measure_grid_warp.py: written to a file and run, never piped to python -
@@ -1498,7 +1498,7 @@ print(report.table())
   `gen_noise_vectors.py` (a literal: the constant sits above `_points`, so calling it there is a `NameError` at import) and rerun Step 2; otherwise leave it advisory. Write which, with the largest value, in the
   pull request.
 
-- [ ] **Step 4: write the conversion check**, `tests/test_hog_noise/test_conversion.py`. It is acceptance 1:
+- [x] **Step 4: write the conversion check**, `tests/test_hog_noise/test_conversion.py`. It is acceptance 1:
 
 ```python
 """
@@ -1684,17 +1684,17 @@ def test_the_gating_parameters_sample_exactly_as_todays_tests_build_them(vectors
   (`ruff format` will reflow it.) Every gating case and every FastNoiseLite case is checked, by output, not by
   parameter equality: a field that does not change the output (octaves under no fractal) cannot fail it.
 
-- [ ] **Step 5: run it, and the instrument once the other way**
+- [x] **Step 5: run it, and the instrument once the other way**
 
 Run: `uv run pytest tests/test_hog_noise/test_conversion.py -q`
 Expected: 3 passed. Then change one value in one `vectors/original/fns/*.f32` file by hand (and its digest, with
 `write_manifest`), run again, see `test_every_array_in_every_npz_has_a_case_with_equal_values` fail, and restore it by
 rerunning Step 2. A check that has not failed once is not yet evidence (the golden rule).
 
-- [ ] **Step 6: measure the size**: `du -sh vectors tests/vectors/noise` and `git count-objects -vH` after staging.
+- [x] **Step 6: measure the size**: `du -sh vectors tests/vectors/noise` and `git count-objects -vH` after staging.
   Record both in the pull request; the hog set roughly doubles the vectors, which the design accepted.
 
-- [ ] **Step 7: commit** `.gitattributes`, `tools/gen_noise_vectors.py` (if Step 3 changed it), the converter, the
+- [x] **Step 7: commit** `.gitattributes`, `tools/gen_noise_vectors.py` (if Step 3 changed it), the converter, the
   check and `vectors/` (manifest, points, original, hog; not yet accepted.json or portability.md): "Convert the .npz
   vectors to vectors/: raw float32 and the manifest, with the nothing-lost check".
 

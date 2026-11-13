@@ -20,7 +20,8 @@ Makefile  text eol=lf
 *.bat     text eol=crlf
 *.cmd     text eol=crlf
 
-# Binary: the oracle vectors, the gallery sheets, the oracle harness build.
+# Binary: the reference vectors (raw float32), the gallery sheets, the oracle harness build.
+*.f32     binary
 *.npz     binary
 *.png     binary
 *.exe     binary
