@@ -903,7 +903,7 @@ Expected: 22 passed (or 21 and 1 skipped, as above).
 
 **Files:** modify `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 import subprocess
@@ -932,12 +932,12 @@ def test_the_command_line_exits_one_on_a_failure(tmp_path):
     assert run.returncode == 1 and "| hog/t/f/p3 | points | fail |" in run.stdout, run.stderr
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q -k "rendering or command"`
 Expected: 2 failed (`no attribute 'renderings'`; the subprocess exits non-zero with no table).
 
-- [ ] **Step 3: implement**, at the end of the module:
+- [x] **Step 3: implement**, at the end of the module:
 
 ```python
 def renderings(name: str) -> tuple[Sample, Sample]:
@@ -987,12 +987,12 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 24 passed (or 23 and 1 skipped, as above).
 
-- [ ] **Step 5: commit**: "conformance: the renderings and the command line".
+- [x] **Step 5: commit**: "conformance: the renderings and the command line".
 
 ---
 

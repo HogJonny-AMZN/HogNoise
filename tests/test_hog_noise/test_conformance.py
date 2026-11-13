@@ -5,6 +5,8 @@ Package: tests/test_hog_noise/test_conformance
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -246,3 +248,25 @@ def test_select_and_reference_choose_the_cases(tmp_path):
         "original/t/f/p3"
     ]
     assert "| hog/t/f/p3 | points | pass |" in conformance.check(zero, root).table()
+
+
+def test_the_numpy_rendering_samples_2d_and_3d_and_warps(tmp_path):
+    from hog_noise import NoiseParams, NumpySampler
+
+    sample, warp = conformance.renderings("numpy")
+    p = NoiseParams(seed=3)
+    xs = np.array([1.0, 2.0], np.float32)
+    zs = np.array([5.0, 6.0], np.float32)
+    assert np.array_equal(sample(p, xs, zs, None), NumpySampler(p).sample_points_2d(xs, zs, np.empty(2, np.float32)))
+    assert warp(p, xs, zs, None).shape == (2, 2)
+
+
+def test_the_command_line_exits_one_on_a_failure(tmp_path):
+    ref = np.array([9.0, 9.0, 9.0, 9.0], np.float32)  # no noise reaches 9
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    run = subprocess.run(
+        [sys.executable, "-m", "hog_noise.conformance", str(root), "--rendering", "numpy"],
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 1 and "| hog/t/f/p3 | points | fail |" in run.stdout, run.stderr

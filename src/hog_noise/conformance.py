@@ -375,3 +375,50 @@ def _shape(case: Case, ours: NDArray[np.float32]) -> CaseResult:
     return CaseResult(
         case.id, "shape", "fail" if failures else "pass", float(np.abs(a - r).max()), None, "; ".join(failures)
     )
+
+
+def renderings(name: str) -> tuple[Sample, Sample]:
+    """
+    ``sample`` and ``warp`` callables for one of this package's renderings, by backend name (numpy, numba,
+    fastnoiselite). A rendering without a warp entry point raises `NotImplementedError` from ``warp``.
+    """
+    from hog_noise.samplers import make_sampler
+
+    def sample(params: NoiseParams, xs: NDArray, ys: NDArray, zs: NDArray | None) -> NDArray:
+        sampler = make_sampler(params, backend=name)[0]
+        out = np.empty(len(xs), np.float32)
+        return sampler.sample_points_2d(xs, ys, out) if zs is None else sampler.sample_points(xs, ys, zs, out)
+
+    def warp(params: NoiseParams, xs: NDArray, ys: NDArray, zs: NDArray | None) -> NDArray:
+        sampler = make_sampler(params, backend=name)[0]
+        if not hasattr(sampler, "warp_points"):
+            raise NotImplementedError(f"{name} has no warp entry point")
+        return sampler.warp_points_2d(xs, ys) if zs is None else sampler.warp_points(xs, ys, zs)
+
+    return sample, warp
+
+
+def main(argv: list[str] | None = None) -> int:
+    """``python -m hog_noise.conformance vectors --rendering numpy``: prints the table; exits 0 when it is ok."""
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="python -m hog_noise.conformance", description=__doc__.split("\n\n")[0])
+    parser.add_argument("vectors", type=Path, help="the vectors folder")
+    parser.add_argument("--rendering", default="numpy", help="numpy, numba or fastnoiselite")
+    parser.add_argument("--reference", choices=("hog", "original", "both"), default="hog")
+    parser.add_argument("--select", default=None, help="an fnmatch pattern over case ids")
+    parser.add_argument("--bound", type=float, default=None, help="replace every points case's bound")
+    parser.add_argument("--coordinate-scaled", action="store_true", help="scale --bound per point")
+    args = parser.parse_args(argv)
+    if args.coordinate_scaled and args.bound is None:
+        parser.error("--coordinate-scaled needs --bound")
+    _logging.basicConfig(level=_logging.INFO, format="%(levelname)s %(message)s")
+    sample, warp = renderings(args.rendering)
+    bound = Bound(args.bound, args.coordinate_scaled) if args.bound is not None else None
+    report = check(sample, args.vectors, reference=args.reference, bound=bound, warp=warp, select=args.select)
+    print(report.table())
+    return 0 if report.ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
