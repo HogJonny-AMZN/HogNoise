@@ -1,7 +1,9 @@
 # Spec: the conformance harness and the portable vectors
 
-**Status:** Proposed. Written 2026-11-11 from [the design](../../design/2026-11-02-conformance-harness.md), Accepted the
-same day; for the owner to accept before the plan is written.
+**Status:** Accepted 2026-11-12 (the owner: "accept"). Written 2026-11-11 from
+[the design](../../design/2026-11-02-conformance-harness.md), Accepted the same day. The plan:
+[2026-11-12-conformance-harness.md](../plans/2026-11-12-conformance-harness.md), which made one correction here: the
+module is one file (see *The module*).
 
 What gets built, exactly enough that the plan is a list of tasks and a reviewer can check the result against this page. The
 design says why; this says what. Where the two disagree, the design's decisions hold and this page is the bug.
@@ -151,6 +153,9 @@ or an unknown member name raises `ValueError` naming it. `from_dict(p.to_dict())
 ## The module
 
 `hog_noise.conformance`, standard library and numpy only (the package boundary holds), in the wheel; the vectors are not.
+It is one module, `src/hog_noise/conformance.py`, with the command line in its `if __name__ == "__main__":` block, like
+`compare.py`: `tests/test_hog_noise/test_package_boundary.py` scans `src/hog_noise/*.py`, not recursively, so a
+sub-package would escape the boundary check (found writing the plan).
 
 ```python
 @dataclass(frozen=True)
@@ -235,7 +240,7 @@ template's own tools and tests, not a project's. Every file is owned by the proj
 
 | File | Change | Module | Kind |
 | --- | --- | --- | --- |
-| `src/hog_noise/conformance/__init__.py`, `__main__.py` | add: `Bound`, `load`, `check`, `Report`; the command line | none | project-owned |
+| `src/hog_noise/conformance.py` | add: `Bound`, `load`, `check`, `Report`; the command line | none | project-owned |
 | `src/hog_noise/params.py` | change: `NoiseParams.to_dict`, `from_dict` | none | project-owned |
 | `src/hog_noise/compare.py` | unchanged; `classify`, `compare_values`, `ComparisonStats`, `Verdicts`, `render_sheet` and `write_portability` are called, not copied | none | project-owned |
 | `vectors/manifest.json`, `vectors/points/*.f32`, `vectors/original/**/*.f32`, `vectors/hog/**/*.f32`, `vectors/README.md` | add | none | project-owned |
@@ -245,6 +250,7 @@ template's own tools and tests, not a project's. Every file is owned by the proj
 | `tools/gen_noise_vectors.py`, `tools/noise_gallery.py` | change: write and read `vectors/` | none | project-owned |
 | `tests/test_hog_noise/test_kernels.py` | change: `check` calls; the advisory rule and the direct `sample_grid` test kept | none | project-owned |
 | `tests/test_hog_noise/test_conformance.py`, `test_params_dict.py` | add: acceptance 3 to 7 | none | project-owned |
+| `tests/test_gen_noise_vectors.py` | add: the writer and the case rules (added by the plan) | none | project-owned |
 | `.gitattributes` | change: `*.f32 binary` | core | project-owned |
 | `README.md` | change: the vector path | core | project-owned |
 | `Docs/glossary.md`, `Docs/README.md` | change: the vector path; the harness rows to built | core | project-owned |
