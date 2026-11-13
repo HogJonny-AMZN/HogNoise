@@ -711,7 +711,7 @@ class Report:
         ]
         for r in self.results:
             note = r.detail
-            if r.kind == "advisory":
+            if r.kind == "advisory" and r.correlation is not None:  # an unsupported or skipped one has no statistics
                 note = f"corr {r.correlation:.6f}" + (", needs review" if r.needs_review else "")
                 if r.verdict:
                     note += f", {r.verdict}"
@@ -1445,8 +1445,8 @@ print(report.table())
 ```
 
   Run `uv run python scratch/measure_grid_warp.py` (the scratch directory outside the repository). The advisory rows'
-  `Max abs` is the measurement. If every one is at or under 4e-3, set `GRID_WARP_COMPARE = _points(4e-3)` in
-  `gen_noise_vectors.py` and rerun Step 2; otherwise leave it advisory. Write which, with the largest value, in the
+  `Max abs` is the measurement. If every one is at or under 4e-3, set `GRID_WARP_COMPARE = {"kind": "points", "bound": {"scale": 4e-3, "coordinate_scaled": False}}` in
+  `gen_noise_vectors.py` (a literal: the constant sits above `_points`, so calling it there is a `NameError` at import) and rerun Step 2; otherwise leave it advisory. Write which, with the largest value, in the
   pull request.
 
 - [ ] **Step 4: write the conversion check**, `tests/test_hog_noise/test_conversion.py`. It is acceptance 1:
@@ -1508,6 +1508,8 @@ def test_every_coordinate_has_an_equal_point_file(vectors):
 def test_every_array_in_every_npz_has_a_case_with_equal_values(vectors):
     by_file = {}
     for case in vectors.cases:
+        if case.set != "original":  # hog ids sort first and carry the same source keys
+            continue
         by_file.setdefault((case.source["library"], case.source["feature"], case.source.get("array")), case)
     count = 0
     for library, feature, data in _npz():
@@ -1710,6 +1712,8 @@ def test_a_partial_port_reports_unsupported_not_failed(real):
 
     report = conformance.check(os2_2d, real, reference="both")
     assert report.ok and not report.complete and report.count("unsupported") > 0 and report.count("pass") > 0
+    table = report.table()  # unsupported advisory rows have no statistics; the table still renders
+    assert "| advisory | unsupported |" in table
 
 
 def test_a_reader_with_no_numpy_gets_the_same_numbers(real):
