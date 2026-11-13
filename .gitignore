@@ -13,3 +13,6 @@ dist/
 *.nbc
 tools/noise_oracle/*.exe
 tools/noise_oracle/*.obj
+# What an interrupted tools/gen_noise_vectors.py run can leave: its staging folder beside vectors/, a pending manifest
+vectors.hog-*/
+vectors/manifest.json.new

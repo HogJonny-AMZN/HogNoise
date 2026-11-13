@@ -30,6 +30,7 @@ import argparse
 import hashlib
 import json
 import logging as _logging
+import os
 import shutil
 import subprocess
 import sys
@@ -273,7 +274,9 @@ def write_manifest(root: Path, point_sets: dict[str, dict[str, object]], cases: 
         "files": files,
     }
     path = root / "manifest.json"
-    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    pending = root / "manifest.json.new"
+    pending.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    os.replace(pending, path)  # whole or not at all
     _LOGGER.info(f"manifest: {len(cases)} cases, {len(point_sets)} point sets, {len(files)} files digested -> {path}")
     return path
 
@@ -333,6 +336,28 @@ def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.nd
     return write_manifest(root, POINT_SETS, cases + new_cases)
 
 
+def _swap_in(root: Path, stage: Path, point_sets: dict[str, dict[str, object]], cases: list[dict[str, object]]) -> None:
+    """
+    Replace ``root/hog`` with ``stage/hog`` and write the manifest, or leave both as they were. Every step is a rename,
+    which raises where a delete could fail silently (a handle held open on Windows) and never nests one folder in
+    another; on any failure the old hog set is put back before the error goes on.
+    """
+    live, new, old = root / "hog", stage / "hog", stage / "old-hog"
+    had_old = live.exists()
+    if had_old:
+        live.rename(old)
+    try:
+        if new.exists():
+            new.rename(live)
+        write_manifest(root, point_sets, cases)
+    except BaseException:
+        if live.exists():
+            live.rename(stage / "failed-hog")
+        if had_old:
+            old.rename(live)
+        raise
+
+
 def generate_hog(root: Path = OUT) -> list[str]:
     """
     The hog set: for every distinct (parameters, point set, output) among the original cases, the numpy rendering's
@@ -374,12 +399,9 @@ def generate_hog(root: Path = OUT) -> list[str]:
                     source=dict(c["source"], from_case=c["id"]),
                 )
             )
-        shutil.rmtree(root / "hog", ignore_errors=True)
-        if (stage / "hog").exists():
-            shutil.move(str(stage / "hog"), str(root / "hog"))
+        _swap_in(root, stage, manifest["point_sets"], originals + hog)
     finally:
-        shutil.rmtree(stage, ignore_errors=True)
-    write_manifest(root, manifest["point_sets"], originals + hog)
+        shutil.rmtree(stage, ignore_errors=True)  # the staging folder only: the live hog/ is only ever renamed
     _LOGGER.info(f"hog: {len(hog)} cases from {len(originals)} original cases under {root / 'hog'}")
     return [str(c["id"]) for c in hog]
 

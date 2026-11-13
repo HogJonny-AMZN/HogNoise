@@ -3,6 +3,8 @@ HogNoise: the vector writer and the rules that make a captured array a case.
 Package: tests/test_gen_noise_vectors
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -138,3 +140,40 @@ def test_new_captures_cannot_move_the_coordinates_kept_cases_were_sampled_on(tmp
         gen.write_originals(tmp_path, captured[:1], moved)
     gen.write_originals(tmp_path, captured[:1], coords())  # the same coordinates: fine
     gen.write_originals(tmp_path, captured, moved)  # every original captured again on the new ones: fine
+
+
+@pytest.mark.parametrize("step", ["move the old aside", "move the new in", "write the manifest"])
+def test_a_swap_that_fails_raises_and_leaves_the_folder_loadable(tmp_path, monkeypatch, step):
+    """Review on #17: a delete that failed silently (a Windows handle) once reported success over a folder that would
+    not load. Each step of the swap now raises, and the old hog set is put back."""
+    _two_features(tmp_path)
+    before = (tmp_path / "manifest.json").read_bytes()
+    real_rename, real_manifest = Path.rename, gen.write_manifest
+    renames = []
+
+    def failing_rename(self, target):
+        renames.append(self.name)
+        if (step == "move the old aside" and len(renames) == 1) or (step == "move the new in" and len(renames) == 2):
+            raise PermissionError(f"held open: {self}")
+        return real_rename(self, target)
+
+    def failing_manifest(*args, **kwargs):
+        raise OSError("disk full")
+
+    # New values that differ from the committed ones, so a half-done swap (new files, old manifest) cannot load
+    sample, warp = conformance.renderings("numpy")
+
+    def shifted(params, xs, ys, zs):
+        return sample(params, xs, ys, zs) + np.float32(1.0)
+
+    monkeypatch.setattr(gen.conformance, "renderings", lambda name: (shifted, warp))
+    monkeypatch.setattr(Path, "rename", failing_rename)
+    if step == "write the manifest":
+        monkeypatch.setattr(gen, "write_manifest", failing_manifest)
+    with pytest.raises(OSError):
+        gen.generate_hog(tmp_path)
+    monkeypatch.undo()
+    assert (tmp_path / "manifest.json").read_bytes() == before
+    assert len(conformance.load(tmp_path).cases) == 4, "the old hog set is back and the folder loads"
+    assert not list(tmp_path.parent.glob(f"{tmp_path.name}.hog-*")), "nothing left beside the folder"
+    assert real_manifest is gen.write_manifest

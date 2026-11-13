@@ -374,11 +374,18 @@ def test_a_missing_manifest_or_one_that_is_not_json_is_a_conformance_error(tmp_p
     "break_it, says",
     [
         (lambda m: m.pop("files"), "files"),
-        (lambda m: m["point_sets"]["p3"].update(count="4"), "count"),
-        (lambda m: m["point_sets"]["p3"].update(dims=True), "dims"),
+        (lambda m: m["point_sets"]["p3"].update(count="4"), "count is '4'"),
+        # True == 1 would pass an int check and fail later on size; only the bool guard names it
+        (lambda m: m["point_sets"]["p3"].update(count=True), "count is True"),
         (lambda m: m["cases"][0]["compare"].pop("kind"), "hog/t/f/p3"),
         (lambda m: m["cases"][0].update(params={"octaves": 3.9}), "hog/t/f/p3"),
+        (lambda m: m["cases"][0].update(params=[]), "hog/t/f/p3"),
         (lambda m: m["cases"][0].pop("point_set"), "hog/t/f/p3"),
+        (lambda m: m["cases"][0].update(id=["x"]), "id"),
+        (lambda m: m["cases"][0]["compare"].pop("bound"), "bound"),
+        (lambda m: m["cases"][0]["compare"]["bound"].update(scale="x"), "scale"),
+        (lambda m: m["cases"][0].update(compare={"kind": "shape", "range": [1]}), "range"),
+        (lambda m: m["cases"][0].update(compare={"kind": "points", "bound": {"scale": 0.0}, "within": 1}), "within"),
     ],
 )
 def test_a_malformed_manifest_is_a_conformance_error_naming_the_part(tmp_path, break_it, says):
@@ -423,7 +430,8 @@ def test_load_can_read_one_set_without_the_others_files(tmp_path):
 
 
 def test_a_rejected_verdict_is_reported_and_still_needs_review(tmp_path):
-    """Spec acceptance 3: only `accepted` exempts; `rejected` is reported and still needs review."""
+    """Spec acceptance 3: only `accepted` exempts. The verdict is reported as written, and a `rejected` one is not
+    accepted, so the suite still draws the sheet and xfails. (`needs_review` comes from the statistics alone.)"""
     ref = np.linspace(-1, 1, 4).astype(np.float32)
     advisory = {"kind": "advisory"}
     root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=advisory)], {"o/f.f32": ref})
@@ -442,7 +450,10 @@ def test_a_wrong_shaped_output_fails_the_report_whatever_the_kind(tmp_path):
     assert report.results[0].status == "fail" and not report.ok
 
 
-@pytest.mark.parametrize("args, says", [(["--rendering", "no_such_rendering"], "no_such_rendering"), ([], "")])
+@pytest.mark.parametrize(
+    "args, says",
+    [(["--rendering", "no_such_rendering"], "unknown --rendering 'no_such_rendering'"), ([], "manifest.json")],
+)
 def test_the_command_line_reports_a_bad_rendering_or_folder_and_exits_two(tmp_path, args, says):
     folder = str(_one_case_folder(tmp_path)) if args else str(tmp_path / "missing")
     run = subprocess.run([sys.executable, "-m", "hog_noise.conformance", folder, *args], capture_output=True, text=True)
@@ -467,3 +478,10 @@ def test_a_rendering_builds_one_sampler_per_distinct_parameters(monkeypatch):
         sample(NoiseParams(seed=1), xs, xs, xs)
     sample(NoiseParams(seed=2), xs, xs, xs)
     assert len(built) == 2
+
+
+def test_sets_takes_a_bare_name_as_one_set(tmp_path):
+    cases = [a_case("hog/t/f/p3", "hog/f.f32"), a_case("original/t/f/p3", "o/f.f32")]
+    root = make_vectors(tmp_path, cases, {"hog/f.f32": np.zeros(4, np.float32), "o/f.f32": np.ones(4, np.float32)})
+    assert [c.id for c in conformance.load(root, sets="hog").cases] == ["hog/t/f/p3"]
+    assert [c.id for c in conformance.load(root, sets="orig").cases] == [], "a name, not a substring"

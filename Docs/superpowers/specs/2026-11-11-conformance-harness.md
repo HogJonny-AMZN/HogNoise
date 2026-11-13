@@ -149,6 +149,9 @@ hog case is `points` at `Bound(0)`. It is generated, never hand-edited.
 `NoiseParams.to_dict() -> dict[str, object]`: every field, enums as member names (`"OPEN_SIMPLEX2"`), numbers as Python
 `int` and `float`. `NoiseParams.from_dict(d)`: member names back to enums, missing fields take their defaults, an unknown key
 or an unknown member name raises `ValueError` naming it. `from_dict(p.to_dict()) == p` for every case's parameters.
+*Amended 2026-11-13 ([PR #17](https://github.com/HogJonny-AMZN/HogNoise/pull/17), the review of #16):* values are read as
+written, never converted: an integer field takes an `int`, a float field an `int` or `float`, a `bool` is neither, and
+anything else is a `ValueError` naming the field.
 
 ## The module
 
@@ -164,7 +167,7 @@ class Bound:
     coordinate_scaled: bool = False
 
 
-def load(vectors: str | Path) -> Vectors: ...
+def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> Vectors: ...
 
 
 def check(
@@ -192,10 +195,17 @@ def check(
   `accepted.json` verdict), the largest absolute difference and,
   for points, the largest difference divided by its own bound. A zero bound has no ratio to divide by, so a difference of
   exactly 0 reports 0 and any other difference reports infinity: `Bound(0)` reports 0 on a pass and `inf` on a fail, never
-  NaN. `report.ok` is true when no `points` or `shape` case
-  failed. `report.complete` is true when nothing was unsupported or skipped. `report.table()` is a markdown table.
+  NaN. `report.ok` is true when no case failed: no `points` or `shape` case past its rule, and no case of any kind whose
+  output had the wrong shape (*amended 2026-11-13, PR #17*: an advisory case's wrong-shaped output had passed). An
+  advisory case fails it only that way. `report.complete` is true when nothing was unsupported or skipped.
+  `report.table()` is a markdown table.
+- **`load(sets=...)`** (*added 2026-11-13, PR #17*) reads only the cases of the named reference sets and their files, so
+  regenerating the hog set needs only the originals to be sound. The folder-wide checks (every `.f32` file listed in
+  `files`, every digest naming a file in use) run when every set is loaded. A malformed manifest, case or rule is a
+  `ConformanceError` naming the part, at `load`, never a raw `KeyError` or a traceback later in `check`.
 
-The command line, which exits 0 when `report.ok` and 1 otherwise, and prints the table:
+The command line, which exits 0 when `report.ok`, 1 otherwise, and 2 when the rendering is unknown or not installed or
+the folder cannot be loaded (*amended 2026-11-13, PR #17*), and prints the table:
 
 ```bash
 python -m hog_noise.conformance vectors --rendering numpy

@@ -132,27 +132,29 @@ def _inside(root: Path, rel: str) -> Path:
     return path
 
 
-def _count(name: str, value: object, what: str) -> int:
+def _positive_int(name: str, value: object, what: str) -> int:
     """A positive integer from the manifest; a bool, a string or a float is refused, not converted."""
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ConformanceError(f"point set {name}: {what} is {value!r}, not a positive integer")
     return value
 
 
-def load(vectors: str | Path, *, sets: tuple[str, ...] | None = None) -> Vectors:
+def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> Vectors:
     """
     Read a vectors folder and verify every file it names against the manifest's digests and sizes.
 
     :param vectors: The folder.
-    :param sets: Load only the cases of these reference sets (``("original",)``), reading only their files; the default
-        is every set. The folder-wide checks (every ``.f32`` file has a digest, every digest names a used file) run only
-        when every set is loaded.
+    :param sets: Load only the cases of these reference sets (``"original"`` or ``("original",)``), reading only their
+        files; the default is every set. The folder-wide checks (every ``.f32`` file has a digest, every digest names
+        a used file) run only when every set is loaded.
     :raises ConformanceError: A missing or malformed manifest, a path that leaves the folder, a file that is missing,
         has no digest, or whose digest or size does not match, a ``.f32`` file the manifest does not list or a digest
         that names no file in use, an unknown format, output or comparison kind, a case on an unknown point set, a
         malformed parameter record, or a duplicate case id. Every message names the part that is wrong.
     """
     root = Path(vectors)
+    if isinstance(sets, str):
+        sets = (sets,)  # a bare name is one set, never matched as a substring
     try:
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     except OSError as e:
@@ -186,7 +188,7 @@ def load(vectors: str | Path, *, sets: tuple[str, ...] | None = None) -> Vectors
     for name, ps in manifest["point_sets"].items():
         if not isinstance(ps, dict) or not isinstance(ps.get("axes"), list):
             raise ConformanceError(f"point set {name}: not an object with an 'axes' list")
-        dims, count = _count(name, ps.get("dims"), "dims"), _count(name, ps.get("count"), "count")
+        dims, count = _positive_int(name, ps.get("dims"), "dims"), _positive_int(name, ps.get("count"), "count")
         if len(ps["axes"]) != dims:
             raise ConformanceError(f"point set {name}: {len(ps['axes'])} axes for {dims} dims")
         axes = tuple(read(a, count) for a in ps["axes"])
@@ -201,7 +203,7 @@ def load(vectors: str | Path, *, sets: tuple[str, ...] | None = None) -> Vectors
             cases.append(_case(c, point_sets, read))
         except ConformanceError as e:
             raise ConformanceError(f"{case_id}: {e}") from e
-        except (KeyError, TypeError, ValueError) as e:
+        except (AttributeError, KeyError, TypeError, ValueError) as e:
             raise ConformanceError(f"{case_id}: malformed ({type(e).__name__}: {e})") from e
     ids = [case.id for case in cases]
     if len(set(ids)) != len(ids):
@@ -218,13 +220,57 @@ def load(vectors: str | Path, *, sets: tuple[str, ...] | None = None) -> Vectors
     return Vectors(root, point_sets, tuple(sorted(cases, key=lambda case: case.id)))
 
 
-def _case(c: Mapping[str, object], point_sets: Mapping[str, PointSet], read) -> Case:
+def _number(value: object, what: str) -> float:
+    """A JSON number from a comparison rule; a bool or a string is refused."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ConformanceError(f"{what} is {value!r}, not a number")
+    return float(value)
+
+
+def _check_rule(rule: object) -> None:
+    """Every field a comparison kind reads, present and of the right type, so a bad rule fails at load, not in check."""
+    if not isinstance(rule, dict) or rule.get("kind") not in _COMPARE_KINDS:
+        kind = rule.get("kind") if isinstance(rule, dict) else rule
+        raise ConformanceError(f"unknown comparison {kind!r}")
+    if rule["kind"] == "points":
+        bound = rule.get("bound")
+        if not isinstance(bound, dict):
+            raise ConformanceError(f"a points rule needs a 'bound' object, not {bound!r}")
+        _number(bound.get("scale"), "bound.scale")
+        if not isinstance(bound.get("coordinate_scaled", False), bool):
+            raise ConformanceError(f"bound.coordinate_scaled is {bound['coordinate_scaled']!r}, not true or false")
+        if "min_correlation" in rule:
+            _number(rule["min_correlation"], "min_correlation")
+        if "within" in rule:
+            within = rule["within"]
+            if not isinstance(within, dict):
+                raise ConformanceError(f"within is {within!r}, not an object with scale and fraction")
+            _number(within.get("scale"), "within.scale")
+            _number(within.get("fraction"), "within.fraction")
+    elif rule["kind"] == "shape":
+        for key in ("range", "std_ratio"):
+            if key in rule:
+                pair = rule[key]
+                if not isinstance(pair, list) or len(pair) != 2:
+                    raise ConformanceError(f"{key} is {pair!r}, not [lo, hi]")
+                _number(pair[0], f"{key}[0]")
+                _number(pair[1], f"{key}[1]")
+        for key in ("mean_within", "std_within"):
+            if key in rule:
+                _number(rule[key], key)
+
+
+def _case(c: Mapping[str, object], point_sets: Mapping[str, PointSet], read: Callable[[str, int], NDArray]) -> Case:
+    for key in ("id", "set", "point_set", "output", "file"):
+        if not isinstance(c.get(key), str):
+            raise ConformanceError(f"its {key!r} is {c.get(key)!r}, not a string")
+    if not isinstance(c.get("params"), dict):
+        raise ConformanceError(f"its 'params' is {c.get('params')!r}, not an object")
     if c["point_set"] not in point_sets:
         raise ConformanceError(f"unknown point set {c['point_set']!r}")
     if c["output"] not in ("noise", "warp"):
         raise ConformanceError(f"unknown output {c['output']!r}")
-    if c["compare"]["kind"] not in _COMPARE_KINDS:
-        raise ConformanceError(f"unknown comparison {c['compare']['kind']!r}")
+    _check_rule(c.get("compare"))
     ps = point_sets[c["point_set"]]
     width = ps.dims if c["output"] == "warp" else 1
     values = read(c["file"], ps.count * width)
@@ -473,13 +519,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.coordinate_scaled and args.bound is None:
         parser.error("--coordinate-scaled needs --bound")
     _logging.basicConfig(level=_logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    from hog_noise.backends import BackendUnavailable
-    from hog_noise.samplers import make_sampler
+    from hog_noise.backends import BackendUnavailable, registered
+    from hog_noise.samplers import CAPABILITY, make_sampler
 
+    names = [backend.name for backend in registered(CAPABILITY)]
+    if args.rendering not in names:
+        parser.exit(2, f"{parser.prog}: error: unknown --rendering {args.rendering!r}; one of {names}\n")
     try:
-        make_sampler(NoiseParams(), backend=args.rendering)  # an unknown or missing rendering fails here, not mid-run
+        make_sampler(NoiseParams(), backend=args.rendering)  # a rendering not installed here fails now, not mid-run
         vectors = load(args.vectors)
-    except (BackendUnavailable, ConformanceError, KeyError, ValueError) as e:
+    except (BackendUnavailable, ConformanceError) as e:
         parser.exit(2, f"{parser.prog}: error: {e}\n")
     sample, warp = renderings(args.rendering)
     bound = Bound(args.bound, args.coordinate_scaled) if args.bound is not None else None
