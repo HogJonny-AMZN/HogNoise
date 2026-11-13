@@ -589,7 +589,7 @@ Expected: 13 passed (12 and 1 skipped where the system cannot make a symlink).
 
 **Files:** modify `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 def _values(case_values):
@@ -697,12 +697,12 @@ def test_select_and_reference_choose_the_cases(tmp_path):
     assert "| hog/t/f/p3 | points | pass |" in conformance.check(zero, root).table()
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 9 new tests fail, `AttributeError: module 'hog_noise.conformance' has no attribute 'check'`.
 
-- [ ] **Step 3: implement**, after `load`:
+- [x] **Step 3: implement**, after `load`:
 
 ```python
 #: ``sample(params, xs, ys, zs)``: N float32 values; ``zs`` is None on a 2D point set. ``warp`` returns N x dims.
@@ -887,15 +887,15 @@ def _shape(case: Case, ours: NDArray[np.float32]) -> CaseResult:
     )
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: 22 passed (or 21 and 1 skipped, as above).
 
-- [ ] **Step 5: run the gate's fast stages**: `uv run python tools/check.py --fast`, unpiped. Expected: all 8 stages
+- [x] **Step 5: run the gate's fast stages**: `uv run python tools/check.py --fast`, unpiped. Expected: all 8 stages
   pass (the log-format stage reads the f-strings).
 
-- [ ] **Step 6: commit**: "conformance: check and Report, by points, shape or advisory".
+- [x] **Step 6: commit**: "conformance: check and Report, by points, shape or advisory".
 
 ---
 

@@ -142,3 +142,107 @@ def test_a_symlink_out_of_the_folder_is_refused(tmp_path):
     _name_outside(root, "hog/link.f32", outside)
     with pytest.raises(conformance.ConformanceError, match="resolves outside"):
         conformance.load(root)
+
+
+def _values(case_values):
+    """A sample callable that returns fixed values whatever it is asked."""
+
+    def sample(params, xs, ys, zs):
+        return np.asarray(case_values, np.float32)
+
+    return sample
+
+
+def test_points_pass_and_fail_by_the_bound_and_report_the_ratio(tmp_path):
+    ref = np.array([0.1, 0.2, 0.3, 0.4], np.float32)
+    bound = {"kind": "points", "bound": {"scale": 1e-3, "coordinate_scaled": False}}
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=bound)], {"o/f.f32": ref})
+    ok = conformance.check(_values(ref + np.float32(5e-4)), root, reference="original")
+    assert ok.ok and ok.results[0].status == "pass" and ok.results[0].max_normalised == pytest.approx(0.5, rel=1e-3)
+    bad = conformance.check(_values(ref + np.float32(2e-3)), root, reference="original")
+    assert not bad.ok and bad.results[0].status == "fail"
+
+
+def test_bound_zero_reports_zero_on_a_pass_and_infinity_on_a_fail(tmp_path):
+    ref = np.array([0.1, 0.2, 0.3, 0.4], np.float32)
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    assert conformance.check(_values(ref), root).results[0].max_normalised == 0.0
+    nudged = ref.copy()
+    nudged[2] = np.nextafter(nudged[2], np.float32(1.0))  # one ulp
+    result = conformance.check(_values(nudged), root).results[0]
+    assert result.status == "fail" and result.max_normalised == float("inf")
+
+
+def test_a_coordinate_scaled_bound_is_per_point_not_per_band(tmp_path):
+    """The spike's flaw: a difference inside the bound at the band's far edge, outside its own point's."""
+    ref = np.zeros(4, np.float32)
+    ours = np.array([0.05, 0.0, 0.0, 0.0], np.float32)  # at x = 10, where f = 0.01 allows 0.01 * max(1, 0.1)
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    loose = conformance.check(_values(ours), root, bound=Bound(0.01, coordinate_scaled=True))
+    assert not loose.ok, "per point, 0.05 > 0.01 at x = 10, though the set's largest point would allow 0.2"
+
+
+def test_min_correlation_and_within_are_checked_too(tmp_path):
+    ref = np.array([0.1, 0.2, 0.3, 0.4], np.float32)
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "min_correlation": 0.99,
+        "within": {"scale": 1e-4, "fraction": 0.75},
+    }
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    assert conformance.check(_values(ref[::-1]), root, reference="original").results[0].status == "fail"  # corr -1
+    two_off = ref + np.array([0, 0, 1e-3, 1e-3], np.float32)
+    assert conformance.check(_values(two_off), root, reference="original").results[0].status == "fail"  # 50% within
+
+
+def test_shape_checks_range_mean_std_ratio_and_finite(tmp_path):
+    ref = np.array([-0.5, 0.0, 0.5, 0.25], np.float32)
+    rule = {"kind": "shape", "range": [-1.05, 1.05], "mean_within": 0.2, "std_within": 0.2, "finite": True}
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    assert conformance.check(_values(ref * 1.1), root, reference="original").ok
+    assert not conformance.check(_values(ref * 3), root, reference="original").ok  # out of range
+    assert not conformance.check(_values([0, np.nan, 0, 0]), root, reference="original").ok
+
+
+def test_advisory_never_fails_and_carries_the_review_rule(tmp_path):
+    ref = np.linspace(-1, 1, 4).astype(np.float32)
+    rule = {"kind": "advisory"}
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    report = conformance.check(_values(ref[::-1]), root, reference="original")  # anti-correlated
+    result = report.results[0]
+    assert report.ok and result.kind == "advisory" and result.needs_review and result.verdict is None
+    within_tight = conformance.check(_values(ref), root, reference="original").results[0]
+    assert within_tight.status == "exact" and not within_tight.needs_review
+
+
+def test_a_low_correlation_within_tight_still_needs_review(tmp_path):
+    """compare.ComparisonStats.needs_review: correlation below 0.99 is review, even inside `tight`."""
+    ref = np.array([1e-5, 0.0, 1e-5, 0.0], np.float32)
+    advisory = {"kind": "advisory"}
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=advisory)], {"o/f.f32": ref})
+    result = conformance.check(_values(ref[::-1]), root, reference="original").results[0]
+    assert result.status in ("float32", "tight") and result.needs_review
+
+
+def test_not_implemented_is_unsupported_and_a_missing_warp_is_skipped(tmp_path):
+    cases = [a_case("hog/t/f/p3", "h/f.f32"), a_case("hog/t/w/p2/warp", "h/w.f32", point_set="p2", output="warp")]
+    root = make_vectors(tmp_path, cases, {"h/f.f32": np.zeros(4, np.float32), "h/w.f32": np.zeros(8, np.float32)})
+
+    def partial(params, xs, ys, zs):
+        raise NotImplementedError("not in this port")
+
+    report = conformance.check(partial, root)
+    assert report.ok and not report.complete
+    assert sorted(r.status for r in report.results) == ["skipped", "unsupported"]
+
+
+def test_select_and_reference_choose_the_cases(tmp_path):
+    cases = [a_case("hog/t/f/p3", "h/f.f32"), a_case("original/t/f/p3", "o/f.f32")]
+    root = make_vectors(tmp_path, cases, {"h/f.f32": np.zeros(4, np.float32), "o/f.f32": np.zeros(4, np.float32)})
+    zero = _values(np.zeros(4, np.float32))
+    assert [r.id for r in conformance.check(zero, root, reference="both").results] == ["hog/t/f/p3", "original/t/f/p3"]
+    assert [r.id for r in conformance.check(zero, root, select="original/*", reference="both").results] == [
+        "original/t/f/p3"
+    ]
+    assert "| hog/t/f/p3 | points | pass |" in conformance.check(zero, root).table()
