@@ -513,3 +513,26 @@ def test_a_manifest_that_is_not_utf8_is_a_conformance_error(tmp_path):
     (tmp_path / "manifest.json").write_bytes(b'{"format": 1, "x": "\xff\xfe"}')
     with pytest.raises(conformance.ConformanceError, match="UTF-8"):
         conformance.load(tmp_path)
+
+
+def test_a_path_with_a_nul_is_refused_before_it_is_used(tmp_path):
+    """Copilot on #17: a JSON-escaped NUL reached path resolution as a raw ValueError."""
+    root = _one_case_folder(tmp_path)
+    manifest = _manifest(root)
+    bad = "points/x\u0000.f32"
+    manifest["point_sets"]["p3"]["axes"][0] = bad
+    manifest["files"][bad] = manifest["files"]["points/x.f32"]
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match="inside the folder"):
+        conformance.load(root)
+
+
+@pytest.mark.parametrize("value", [[], 1, "yes", None])
+def test_a_shape_rules_finite_must_be_true_or_false(tmp_path, value):
+    """Copilot on #17: `"finite": []` loaded and silently switched the finiteness check off."""
+    root = _one_case_folder(tmp_path)
+    manifest = _manifest(root)
+    manifest["cases"][0]["compare"] = {"kind": "shape", "finite": value}
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match="finite"):
+        conformance.load(root)

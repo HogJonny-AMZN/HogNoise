@@ -234,3 +234,18 @@ def test_a_missing_coordinate_file_is_checked_against_the_manifest_not_skipped(t
     with pytest.raises(ValueError, match="scatter_x.f32"):
         gen.write_originals(tmp_path, captured[:1], moved)
     gen.write_originals(tmp_path, captured[:1], coords())  # the manifest's own coordinates: restored, fine
+
+
+def test_a_recapture_with_fewer_arrays_removes_the_files_it_drops(tmp_path):
+    """Copilot on #17: the dropped grid_3d file stayed on disk and the folder's inventory check refused it."""
+    record = {"noise_type": "perlin", "fractal_type": "fbm", "seed": 1, "frequency": 0.01, "octaves": 3}
+    both = {"scatter_3d": np.zeros(4096, np.float32), "grid_3d": np.ones(16384, np.float32)}
+    gen.write_originals(tmp_path, [("fns", "perlin_fbm", record, both)], coords())
+    dropped = tmp_path / "original" / "fns" / "perlin_fbm.grid_y0.f32"
+    assert dropped.exists()
+    gen.write_originals(tmp_path, [("fns", "perlin_fbm", record, {"scatter_3d": both["scatter_3d"]})], coords())
+    assert not dropped.exists()
+    gen.generate_hog(tmp_path)
+    assert [c.id for c in conformance.load(tmp_path).cases if c.set == "original"] == [
+        "original/fns/perlin_fbm/scatter_3d"
+    ]

@@ -341,6 +341,12 @@ def write_originals(root: Path, captured: list[Capture], coords: dict[str, np.nd
             raise ValueError(f"{rel}: these coordinates differ from the ones kept original cases were sampled on")
     for rel, values in points.items():
         write_f32(root, rel, values)
+    # A recapture with fewer arrays drops cases: remove their files unless a remaining case still uses them
+    still_used = {c["file"] for c in cases + new_cases}
+    for c in existing:
+        if c["set"] == "original" and (c["source"]["library"], c["source"]["feature"]) in redone:
+            if c["file"] not in still_used and (root / c["file"]).exists():
+                (root / c["file"]).unlink()
     for library, feature, _record, arrays in captured:
         for case in (c for c in new_cases if c["source"]["library"] == library and c["source"]["feature"] == feature):
             write_f32(root, case["file"], arrays[case["source"]["array"]])

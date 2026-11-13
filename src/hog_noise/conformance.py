@@ -124,7 +124,15 @@ def _inside(root: Path, rel: str) -> Path:
     it, since the manifest supplies both.
     """
     posix, windows = PurePosixPath(rel), PureWindowsPath(rel)
-    if not rel or "\\" in rel or posix.is_absolute() or windows.drive or windows.root or ".." in posix.parts:
+    if (
+        not rel
+        or "\\" in rel
+        or "\x00" in rel
+        or posix.is_absolute()
+        or windows.drive
+        or windows.root
+        or ".." in posix.parts
+    ):
         raise ConformanceError(f"{rel!r}: a manifest path is relative, uses '/', and stays inside the folder")
     path = root / rel
     if not path.resolve().is_relative_to(root.resolve()):
@@ -254,6 +262,8 @@ def _check_rule(rule: object) -> None:
             _number(within.get("scale"), "within.scale", lo=0.0)
             _number(within.get("fraction"), "within.fraction", 0.0, 1.0)
     elif rule["kind"] == "shape":
+        if not isinstance(rule.get("finite", False), bool):
+            raise ConformanceError(f"finite is {rule['finite']!r}, not true or false")
         for key in ("range", "std_ratio"):
             if key in rule:
                 pair = rule[key]
