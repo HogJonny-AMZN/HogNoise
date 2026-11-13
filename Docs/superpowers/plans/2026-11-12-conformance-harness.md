@@ -197,7 +197,7 @@ Expected: 3 passed.
 
 **Files:** create `src/hog_noise/conformance.py` and `tests/test_hog_noise/test_conformance.py`.
 
-- [ ] **Step 1: write the failing tests**
+- [x] **Step 1: write the failing tests**
 
 ```python
 """
@@ -235,12 +235,12 @@ def test_the_normalised_difference_at_a_zero_bound_is_zero_or_infinity_never_nan
     assert conformance.normalised_difference(np.array([5e-4]), np.array([1e-3])).tolist() == [0.5]
 ```
 
-- [ ] **Step 2: run them and see them fail**
+- [x] **Step 2: run them and see them fail**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py -q`
 Expected: collection error, `ModuleNotFoundError: No module named 'hog_noise.conformance'`.
 
-- [ ] **Step 3: implement** the module's head:
+- [x] **Step 3: implement** the module's head:
 
 ```python
 """
@@ -318,12 +318,12 @@ def normalised_difference(diff: NDArray, allowed: NDArray) -> NDArray[np.float64
     return np.where(allowed > 0.0, diff / safe, np.where(diff == 0.0, 0.0, np.inf))
 ```
 
-- [ ] **Step 4: run them and see them pass**
+- [x] **Step 4: run them and see them pass**
 
 Run: `uv run pytest tests/test_hog_noise/test_conformance.py tests/test_hog_noise/test_package_boundary.py -q`
 Expected: all passed (the boundary scan now includes `conformance.py`).
 
-- [ ] **Step 5: commit**: "conformance: Bound and the per-point rule".
+- [x] **Step 5: commit**: "conformance: Bound and the per-point rule".
 
 ---
 
