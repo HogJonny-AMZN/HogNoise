@@ -57,6 +57,33 @@ Before publishing, read the check's own configuration as part of the sweep.
 only place in the tree either string appeared was the list meant to keep them out. They were removed before anything was
 pushed; the sweep of every commit had already shown neither string anywhere else.
 
+### P-5 · A fix pushed to a pull request that has already merged
+
+**Trigger:** you are about to push a review fix, or reply "fixed in <commit>" on a thread, some time after the pull
+request was last looked at; or a person says it merged.
+**Do:** before pushing, read its state (`gh pr view <n> --json state`); it must be `OPEN`. After a person says it merged,
+confirm the branch's last commit is in the default branch (`git merge-base --is-ancestor <commit> origin/main`) before
+calling the work landed. A commit that missed the merge goes in a new pull request from the default branch, and the merged
+one gets a comment pointing there.
+**Because:** [PR #12](https://github.com/HogJonny-AMZN/HogNoise/pull/12) merged at 03:34Z; the commit answering Copilot's
+second pass was pushed to its branch at 03:36Z, and four resolved threads said "fixed in 2895e40" about text that was not
+on `main`. It was caught only because the "deleted" branch still showed on the remote, and landed in
+[PR #13](https://github.com/HogJonny-AMZN/HogNoise/pull/13). Not mechanised: the state check is one command, run by hand.
+
+### P-6 · A spec describes today's code from memory
+
+**Trigger:** a spec, design or reply says what the code does today: a limit, a condition, which arrays are compared,
+what a dependency can or cannot do.
+**Do:** read the code or the record first, and name the function with its file and line; quote the condition rather
+than paraphrase it. Where the new work must keep a behaviour, say it calls the existing function instead of restating
+the rule.
+**Because:** Copilot's two passes on [PR #12](https://github.com/HogJonny-AMZN/HogNoise/pull/12) found four claims about
+existing behaviour that were written from memory and were wrong: FastNoiseSIMD's originals "cannot be regenerated" (ADR-007
+records a working source build), FastNoiseLite `grid_3d` "compared" (it is only drawn on a sheet), the advisory rule
+without its correlation floor and with `rejected` exempting, and the direct `sample_grid` test dropped against the design.
+Each was fixed by reading the cited line. Not mechanised: whether a sentence describes code is not something a check can
+see.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
