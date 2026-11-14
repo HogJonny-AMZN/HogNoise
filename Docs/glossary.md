@@ -23,6 +23,8 @@ refused as current.
 | **Case** | One parameter record over one point set, with its expected output (noise or warp), how it is compared (points, shape or advisory) and its bound: the unit the conformance harness checks. |
 | **Bound** | The largest difference one case accepts: a constant, or a multiple of the noise-space coordinate (`scale * max(1, max(abs(x), abs(y), abs(z)) * frequency)`, checked per point). A rendering's tolerance contract is stated as bounds. |
 | **Point set** | A named list of coordinates the vectors share, such as `scatter_3d` or a `genasgrid` grid; every case is sampled on one. |
+| **Tolerance file** | One rendering's bounds against the vectors, `vectors/tolerance/<rendering>.json`: one rule per feature, *continuous* (a coordinate-scaled bound) or *discrete* (a range bound, most points within a tight one, and a correlation, for a feature where a flipped cell jumps the output); written from a recorded measurement over a stated range and never loosened to make a run pass. Proposed for the GPU port ([spec](superpowers/specs/2026-11-14-gpu-port.md)), not built. |
+| **Hog-only case** | A hog case with no original behind it, generated to cover what the originals do not, such as a FastNoiseSIMD feature in 2D or a grid at a scale that is not a power of two. Proposed for the GPU port ([spec](superpowers/specs/2026-11-14-gpu-port.md)), not built. |
 
 ## Process
 

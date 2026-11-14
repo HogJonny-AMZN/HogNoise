@@ -4,8 +4,9 @@
 preference worth carrying forward.
 
 **Last updated:** 2026-11-14: ai-first-template 0.9.4 and its workspace layout have landed
-([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)); 0.10.1, which answers that update's findings, is in review;
-the GPU port's spec is next. Published 2026-11-01 at
+([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)), and 0.10.1, which answers that update's findings
+([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)); the GPU port's spec is Proposed, for the owner to accept.
+Published 2026-11-01 at
 [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.10.1
 (0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1) with no overrides
 ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2, locking the
@@ -33,8 +34,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 
 | Item | State | Waiting on |
 | --- | --- | --- |
-| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port, next: its spec, then checked by the harness (`python -m hog_noise.conformance`) | The owner's go on the spec |
-| **ai-first-template 0.10.1** (0.10.0 and 0.10.1 in one render) | Built: 19 managed files and the lock; no hand step had work to do here | The owner, to merge |
+| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port: [its spec](../superpowers/specs/2026-11-14-gpu-port.md) Proposed 2026-11-14 (a `wgpu` rung, one WGSL shader, a tolerance file per rendering, CI on software adapters), then the plan | The owner, to accept the spec and its six decisions |
 | The member's author email ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), merged) | The manifest names the address `project.json` already makes public, because the boundary check's `no-authors` requires an email | The owner, to keep or change it |
 | The north-star roadmap (gate G2) | Proposed | The owner, to lock its three remaining decisions |
 | PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL | The owner's go, then; needs the owner's PyPI credentials |
