@@ -57,18 +57,31 @@ A program of several increments has several records, and each owns one thing. Du
 ## Standing rules at every stage
 
 - **A mentioned feature is not a work order.** Search the board first (the row files under `Docs/plan/board/`, or the
-  rendered page), so two people do not start one idea. It goes on the board's Icebox with a cost (a number and its unit), a reason it
+  rendered page), so two people do not start one idea. It goes on the board's Icebox with a cost (a number and its unit, or `unsized: <reason>` when no one can size it yet), a reason it
   is not built now and a verdict, and the idea links to where it was said (the journal entry, design, spec or pull request;
   a pull request or issue as its full URL), unless a person on the roster says build it or it blocks work in flight. Ask "pull it forward now?" before building an Icebox row.
+  Pulling it forward moves its row file to *Now* (the board README, *Moving a row*); it never writes a second row. A
+  row whose decision waits on other work says so in a `Waits on` line that links that row.
+- **A row's id is its file name, and every artifact names it.** The id is the row file's name without `.md`
+  (`YYYY-MM-DD-<slug>`, the **UTC** day it was written, as a journal file's time is UTC); once the row is on the
+  default branch its file is never renamed or deleted, though its title may change (`row-kept`). Every design, spec
+  and plan names its row in a `**Board:**` header line, ``**Board:** [`<id>`](<the row file>)``, or
+  `**Board:** none (reason)`; an ADR, a journal entry and a pull request may (`row-ref`). The board page lists each
+  row's artifacts. When you mention a row, give its id beside its title.
+- **The board holds this repository's work.** An idea whose change is in another repository (its layout, its retrofit, a
+  standard only it and its siblings use) goes on that repository's board, wherever it was said. A row here may name another
+  repository as the evidence for a change to this one, and links to that repository's row when this one waits on it.
 - **Two-way doors are decided and recorded in the pull request's *Decisions* table; one-way doors are asked.** The autonomy
   protocol is in [definition-of-done.md](definition-of-done.md).
 - **Never stop a process you did not start.**
 - **Work lands through a pull request a person merges.** An agent never merges. Who merges and who decides is in
   [definition-of-done.md](definition-of-done.md#who-merges-and-who-decides).
 - **A new word gets its glossary row first**, and every design, spec and plan carries a *Terms introduced* section.
-- **A spec lists, for every file it adds or changes, its manifest module, its kind (managed, parametrised, project-owned) and
-  who owns it.** A file the spec does not list is not in scope. (A spec assumed one module for every file, ignored a derived
-  page the docs check walks, and assumed a project-owned file reaches clones.)
+- **A spec lists, for every framework file it adds or changes (one `framework-manifest.toml` classifies), its module,
+  its kind (managed, parametrised, project-owned) and who owns it.** In the template that is every payload file; in a
+  project, the managed and parametrised files and any seed it changes. A project's own files are in no manifest, so
+  the spec lists them by path alone. A file the spec does not list is not in scope. (A spec assumed one module for
+  every file, ignored a derived page the docs check walks, and assumed a project-owned file reaches clones.)
 - **A script or a patch that contains backslashes or quotes is written to a file and the file run**, never carried through a
   shell heredoc. (Framework 3 and 4 hold the cause; the rule is where the work starts. It recurred in at least seven pull
   requests.)

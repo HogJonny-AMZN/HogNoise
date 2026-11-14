@@ -39,6 +39,7 @@ specimens = "planned"
 lanes = "off"
 branch-ownership = "off"
 devblog = "off"
+process-map = "off"
 
 [harnesses]
 enabled = []
@@ -95,6 +96,22 @@ def test_a_module_that_is_off_takes_its_stages_with_it(tmp_path: Path, module: s
     assert names == [n for n in ALL_NAMES if n not in gone]
 
 
+def test_the_process_map_stage_runs_only_while_its_module_is_on_and_right_after_the_graph(tmp_path: Path) -> None:
+    assert "process-map" not in [s.name for s in check.stages(_repo(tmp_path))]
+    names = [s.name for s in check.stages(_repo(tmp_path, process_map="on"))]
+    after_graph = ALL_NAMES.index("graph") + 1
+    assert names == [*ALL_NAMES[:after_graph], "process-map", *ALL_NAMES[after_graph:]]
+    assert next(s for s in check.ALL_STAGES if s.name == "process-map").fast
+
+
+def test_a_framework_toml_that_does_not_name_the_process_map_runs_without_its_stage(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    text = (root / "framework.toml").read_text(encoding="utf-8")
+    (root / "framework.toml").write_text(text.replace('process-map = "off"\n', ""), encoding="utf-8")
+    assert "process-map" not in (root / "framework.toml").read_text(encoding="utf-8")
+    assert [s.name for s in check.stages(root)] == ALL_NAMES
+
+
 def test_a_module_that_is_planned_runs_nothing(tmp_path: Path) -> None:
     assert "graph" not in [s.name for s in check.stages(_repo(tmp_path, graph="planned"))]
 
@@ -114,7 +131,12 @@ def test_every_stage_is_a_uv_run_argv_and_names_a_real_module() -> None:
 
 
 def test_every_script_a_stage_runs_exists() -> None:
+    """The payload ships every stage's script; a made repository, only those of the modules it has on."""
+    made = (ROOT / "project.json").exists()
+    modules = fc.load_framework(ROOT / "framework.toml").modules
     for stage in check.ALL_STAGES:
+        if made and modules[stage.module] != "on":
+            continue
         for arg in stage.argv:
             if arg.startswith("tools/"):
                 assert (ROOT / arg).is_file(), (stage.name, arg)

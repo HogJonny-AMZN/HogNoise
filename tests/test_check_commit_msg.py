@@ -6,6 +6,7 @@ Package: tests/test_check_commit_msg
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from dataclasses import replace
@@ -337,3 +338,234 @@ def test_the_script_runs_as_the_hook_runs_it_with_a_roster(tmp_path: Path) -> No
     bad = _message(tmp_path, "Add\n\nSigned-off-by: Someone Else <else@example.org>\n")
     ran = subprocess.run([sys.executable, str(script), "--root", str(root), str(bad)], capture_output=True, text=True)
     assert ran.returncode == 1 and "Moon Mulligan <moon@example.org>" in ran.stderr and "Ada Example" in ran.stderr
+
+
+# ---- the range mode: every commit a pull request brings (CI's job)
+DEPENDABOT = "dependabot[bot]"
+DEPENDABOT_SIGNOFF = "Signed-off-by: dependabot[bot] <support@github.com>"
+
+
+def _git(repo: Path, *args: str, author: tuple[str, str] = ("Ada Example", "ada@example.org")) -> str:
+    """Run git in ``repo`` with no machine configuration, as ``author``; returns its standard output."""
+    env = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": author[0],
+        "GIT_AUTHOR_EMAIL": author[1],
+        "GIT_COMMITTER_NAME": author[0],
+        "GIT_COMMITTER_EMAIL": author[1],
+    }
+    done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, env=env, check=True)
+    return done.stdout.strip()
+
+
+def _commit(repo: Path, message: str, author: tuple[str, str] = ("Ada Example", "ada@example.org")) -> str:
+    _git(repo, "commit", "--allow-empty", "-q", "-m", message, author=author)
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _repo(tmp_path: Path) -> tuple[Path, str]:
+    """A repository with ``project.json`` and one base commit; returns it and the base's sha."""
+    repo = _root(tmp_path)
+    _git(repo, "init", "-q", "-b", "main")
+    return repo, _commit(repo, f"Base\n\n{SIGNOFF}\n")
+
+
+def _range(repo: Path, base: str, capsys, *extra: str, revision_range: str | None = None) -> tuple[int, str, str]:
+    code = ccm.main(["--root", str(repo), f"--range={revision_range or f'{base}..HEAD'}", *extra])
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+def _commit_file(repo: Path, message: str) -> str:
+    """Commit ``message`` from a file, so control characters reach git as they are."""
+    path = repo.parent / "message.txt"
+    path.write_bytes(message.encode("utf-8"))
+    _git(repo, "commit", "--allow-empty", "-q", "-F", str(path))
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_a_range_of_clean_commits_passes_and_is_counted(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _commit(repo, f"One\n\n{SIGNOFF}\n")
+    _commit(repo, f"Two\n\n{SIGNOFF}\n")
+    code, out, err = _range(repo, base, capsys)
+    assert code == 0 and err == ""
+    assert "commit-msg: 2 commit(s) checked, 0 rejected" in out
+
+
+def test_an_unsigned_commit_in_the_range_fails_and_is_named_by_sha_and_subject(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _commit(repo, f"Good\n\n{SIGNOFF}\n")
+    bad = _commit(repo, "Made with --no-verify\n")
+    code, out, err = _range(repo, base, capsys)
+    assert code == 1
+    assert f"[commit-msg] {bad[:7]} Made with --no-verify: the sign-off is missing" in err
+    assert "Good" not in err and "commit-msg: 2 commit(s) checked, 1 rejected" in out
+
+
+def test_an_ai_trailer_in_the_range_fails(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _commit(repo, f"Add\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n{SIGNOFF}\n")
+    code, _, err = _range(repo, base, capsys)
+    assert code == 1 and "an AI attribution trailer is not allowed" in err
+
+
+def test_a_merge_of_main_needs_no_signoff_in_the_range(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _git(repo, "switch", "-q", "-c", "work")
+    _commit(repo, f"Work\n\n{SIGNOFF}\n")
+    _git(repo, "switch", "-q", "main")
+    _commit(repo, f"Elsewhere\n\n{SIGNOFF}\n")
+    _git(repo, "switch", "-q", "work")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "Merge branch 'main' into work", "main")
+    code, out, _ = _range(repo, base, capsys)
+    assert code == 0, out
+
+
+def test_an_empty_range_passes(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    code, out, _ = _range(repo, base, capsys)
+    assert code == 0 and "commit-msg: 0 commit(s) checked, 0 rejected" in out
+
+
+def test_an_unknown_revision_cannot_run(tmp_path: Path, capsys) -> None:
+    repo, _ = _repo(tmp_path)
+    code, _, err = _range(repo, "0" * 40, capsys)
+    assert code == 2 and "commit-msg: cannot run" in err
+
+
+# ---- git failing in ways a real repository will not show on demand: each is a run that cannot vouch for the range
+def _git_fails_at(monkeypatch, step: str, outcome) -> None:
+    """Make the ``git <step>`` call ``outcome(argv)`` (raise, or return a result); every other git call runs."""
+    real = subprocess.run
+
+    def run(argv, *args, **kwargs):
+        if argv[:1] == ["git"] and step in argv:
+            return outcome(argv)
+        return real(argv, *args, **kwargs)
+
+    monkeypatch.setattr(ccm.subprocess, "run", run)
+
+
+def _raise(error: BaseException):
+    def outcome(argv):
+        raise error
+
+    return outcome
+
+
+def _returns(code: int, out: str = "", err: str = ""):
+    return lambda argv: subprocess.CompletedProcess(argv, code, out, err)
+
+
+@pytest.mark.parametrize(
+    ("step", "outcome", "said"),
+    [
+        ("rev-list", _raise(subprocess.TimeoutExpired(["git"], 30)), "git rev-list took longer than"),
+        ("rev-list", _raise(FileNotFoundError(2, "No such file or directory", "git")), "No such file or directory"),
+        ("show", _returns(128, err="fatal: bad object\n"), "git show failed: fatal: bad object"),
+        ("show", _returns(0, out="no separator here\n"), "gave no author/message separator"),
+    ],
+    ids=["timeout", "git-cannot-start", "show-fails", "show-no-separator"],
+)
+def test_git_failing_cannot_run_and_reports_no_count(tmp_path: Path, capsys, monkeypatch, step, outcome, said) -> None:
+    repo, base = _repo(tmp_path)
+    _commit(repo, f"One\n\n{SIGNOFF}\n")
+    _git_fails_at(monkeypatch, step, outcome)
+    code, out, err = _range(repo, base, capsys)
+    assert code == 2 and "commit-msg: cannot run" in err and said in err, err
+    assert "checked" not in out, out  # no success line for a range it could not read
+
+
+@pytest.mark.parametrize("argv", [["--range", "a..b", "MSG"], []])
+def test_a_message_file_and_a_range_are_one_or_the_other(tmp_path: Path, argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as raised:
+        ccm.main(["--root", str(_root(tmp_path)), *argv])
+    assert raised.value.code == 2
+
+
+# ---- Dependabot's own sign-off: only on a pull request GitHub says it opened
+def _dependabot_commit(repo: Path, message: str | None = None, author: str = DEPENDABOT) -> str:
+    text = message or f"chore(deps-dev): Bump ruff from 0.17.2 to 0.17.3\n\nBumps ruff.\n\n---\n{DEPENDABOT_SIGNOFF}\n"
+    return _commit(repo, text, author=(author, "49699333+dependabot[bot]@users.noreply.github.com"))
+
+
+def test_dependabots_commit_passes_on_a_pull_request_dependabot_opened(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _dependabot_commit(repo)
+    code, out, err = _range(repo, base, capsys, "--opened-by", DEPENDABOT)
+    assert code == 0, err
+
+
+@pytest.mark.parametrize("opened_by", [(), ("--opened-by", "mallory")])
+def test_dependabots_commit_fails_on_a_pull_request_someone_else_opened(
+    tmp_path: Path, capsys, opened_by: tuple[str, ...]
+) -> None:
+    """A commit's author and sign-off are text anyone can write; the opener is what GitHub recorded."""
+    repo, base = _repo(tmp_path)
+    _dependabot_commit(repo)
+    code, _, err = _range(repo, base, capsys, *opened_by)
+    assert code == 1 and "the sign-off is missing or is not an accepted identity" in err
+
+
+def test_dependabots_commit_with_an_ai_trailer_still_fails(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _dependabot_commit(repo, f"Bump\n\nCo-authored-by: Copilot <copilot@github.com>\n{DEPENDABOT_SIGNOFF}\n")
+    code, _, err = _range(repo, base, capsys, "--opened-by", DEPENDABOT)
+    assert code == 1 and "an AI attribution trailer is not allowed" in err
+
+
+def test_another_bot_signing_off_as_dependabot_fails(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    _dependabot_commit(repo, author="copilot-swe-agent[bot]")
+    code, _, err = _range(repo, base, capsys, "--opened-by", DEPENDABOT)
+    assert code == 1 and "the sign-off is missing" in err
+
+
+def test_extra_identities_are_accepted_for_the_signoff_only() -> None:
+    extra = (("dependabot[bot]", "support@github.com"),)
+    assert ccm.check_message(f"Bump\n\n{DEPENDABOT_SIGNOFF}\n", _project(), extra=extra) == []
+    assert ccm.check_message(f"Bump\n\n{DEPENDABOT_SIGNOFF}\n", _project()) != []  # the hook passes none
+
+
+# ---- the review: a message cannot forge a commit, and the range cannot be an option
+def test_separator_characters_in_a_message_cannot_hide_an_attribution(tmp_path: Path, capsys) -> None:
+    """Each commit is read by its sha: no character a message holds can split it into records the check skips."""
+    repo, base = _repo(tmp_path)
+    hidden = f"hide\n\n{SIGNOFF}\n\x1e\nCo-Authored-By: Claude <noreply@anthropic.com>\x1fx\x1fy\n\n{SIGNOFF}\n"
+    sha = _commit_file(repo, hidden)
+    code, out, err = _range(repo, base, capsys)
+    assert code == 1 and f"[commit-msg] {sha[:7]} hide: an AI attribution trailer is not allowed" in err
+    assert "commit-msg: 1 commit(s) checked, 1 rejected" in out  # one commit, not a forged second
+
+
+def test_a_message_with_a_record_separator_and_no_field_separator_is_checked_not_a_crash(
+    tmp_path: Path, capsys
+) -> None:
+    repo, base = _repo(tmp_path)
+    _commit_file(repo, f"odd\n\x1e trailing\n\n{SIGNOFF}\n")
+    code, out, _ = _range(repo, base, capsys)
+    assert code == 0 and "commit-msg: 1 commit(s) checked, 0 rejected" in out
+
+
+@pytest.mark.parametrize(
+    "revision_range",
+    ["--output=pwned.txt", "HEAD", "-x..HEAD", "HEAD..--all", "a...b", "a..", "..b", "a b..c"],
+)
+def test_the_range_must_be_two_revisions_neither_an_option(tmp_path: Path, capsys, revision_range: str) -> None:
+    repo, base = _repo(tmp_path)
+    code, _, err = _range(repo, base, capsys, revision_range=revision_range)
+    assert code == 2 and "--range must be BASE..HEAD" in err
+    assert not (repo / "pwned.txt").exists() and not (Path.cwd() / "pwned.txt").exists()
+
+
+def test_the_range_mode_logs_what_it_read(tmp_path: Path, capsys, caplog) -> None:
+    repo, base = _repo(tmp_path)
+    _dependabot_commit(repo)
+    with caplog.at_level("INFO", logger=ccm._MODULE_NAME):
+        _range(repo, base, capsys, "--opened-by", DEPENDABOT)
+    logged = caplog.text
+    assert f"{base}..HEAD" in logged and "1 commit(s)" in logged and "opened by dependabot[bot]" in logged
+    assert "accepted dependabot[bot]'s own sign-off" in logged  # a decision the tool made, said

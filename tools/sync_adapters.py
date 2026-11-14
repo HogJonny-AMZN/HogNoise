@@ -49,12 +49,13 @@ from pathlib import Path
 
 import framework_config as fc
 import init
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.sync_adapters"
-__version__ = "0.2.0"
-__updated__ = "2026-10-13"
+__version__ = "0.2.1"
+__updated__ = "2026-11-07"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -270,7 +271,7 @@ def _passed(cell: str, today: datetime.date) -> tuple[str, str] | str:
 def probe_status(root: Path, today: datetime.date | None = None) -> dict[str, tuple[str, str] | None]:
     """``{harness key: (date, who) when its probe passed, else None}``; the last row wins when a key repeats (a
     repeat is reported by ``check_probes``)."""
-    today = today or datetime.date.today()
+    today = today or datetime.datetime.now(datetime.UTC).date()  # records carry the UTC day (framework ledger 38)
     return {key: (r if not isinstance(r := _passed(cell, today), str) else None) for key, cell in matrix_rows(root)}
 
 
@@ -369,7 +370,7 @@ def check_probes(root: Path, enabled: tuple[str, ...], today: datetime.date | No
         return [Finding("corpus", MATRIX, "is missing, so no probe can be shown to have passed")]
     if not enabled:
         return []
-    today = today or datetime.date.today()
+    today = today or datetime.datetime.now(datetime.UTC).date()  # records carry the UTC day (framework ledger 38)
     rows = matrix_rows(root)
     log = probe_log(root)
     found: list[Finding] = []
@@ -561,9 +562,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=ROOT, help="the repository (default: this one)")
     parser.add_argument("-v", "--verbose", action="store_true", help="log what was read and written to standard error")
     args = parser.parse_args(argv)
-    _logging.basicConfig(
-        level=_logging.INFO if args.verbose else _logging.WARNING, format="%(message)s", stream=sys.stderr
-    )
+    log_setup.configure(args.verbose)
     root = args.root.resolve()
     if not root.is_dir():
         print(f"adapters: cannot run: {root} is not a directory", file=sys.stderr)

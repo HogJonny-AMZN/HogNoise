@@ -27,7 +27,8 @@ polite 7. Prefer the repository's discovered standards over generic preference; 
 defaults for the language.
 
 A failing gate (`make check` or any of its stages, including the hygiene and docs checks) is a hard finding regardless of
-score; so is a design, spec or plan without its *Terms introduced* section where no docs check yet catches it. **Any hard
+score; so is a design, spec or plan without its *Terms introduced* section where no docs check yet catches it, and so is
+an error-path case the *Error paths* table marks "missing". **Any hard
 finding makes the verdict `needs work`.** If the project has no gate yet, say so in the report; do not claim a pass.
 
 ## Output template
@@ -52,6 +53,15 @@ Return exactly this shape (drop *Below baseline* if nothing is under 7):
 
 ### Hard findings
 - <a hygiene match, a failing gate, a missing Terms introduced section, or "none">
+
+### Error paths
+<!-- Required whenever the change reads the filesystem, runs a subprocess, calls the network, or parses text it did
+not write; otherwise one line saying none does. For each such function, one row per case of the error-path checklist
+in Docs/standards/testing.md that applies to it: the test that covers it, or "missing" (a Hard finding), or
+"n/a" with the reason. Probe a "missing" case where you can. A checklist only consulted is the one that failed. -->
+| Function | Case | Covered by |
+|----------|------|------------|
+| `path/to/file.py:walk` | a folder it cannot list | `test_x` / missing / n/a: <why> |
 
 ### Below baseline (< 7)
 - **Error handling** (`path/to/file.py:42`) — <what is wrong> → <concrete fix>

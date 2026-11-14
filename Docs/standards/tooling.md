@@ -44,6 +44,7 @@ pass).
 | `hygiene` | `uv run python tools/check_hygiene.py` | hygiene | yes | An identifier on the project's list is in a tracked file |
 | `log-format` | `uv run python tools/check_log_format.py` | python-uv | yes | A log call is not an f-string |
 | `graph` | `uv run python tools/render_framework_graph.py --check` | graph | yes | The framework graph is malformed or its page is stale |
+| `process-map` | `uv run python tools/render_process_map.py --check` | process-map | yes | The process map's data is malformed or its page is stale |
 | `adapters` | `uv run python tools/sync_adapters.py --check` | harness-adapters | yes | An adapter or skills mirror is not the generated one, an enabled harness has no passing probe, or a managed document names a harness |
 | `sync` | `uv run python tools/framework_sync.py --check` | core | yes | A managed file differs from the lock without an override in `framework.toml`, or is missing, or the lock cannot be read |
 | `tests` | `uv run pytest -q` | python-uv | no | Behaviour is broken |
@@ -80,15 +81,16 @@ To add a stage: add it to `ALL_STAGES` in `tools/check.py` with its module, add 
 
 ## The layer rules
 
-`framework.toml` `[layers]` names the packages of `src/` from the lowest layer to the highest, which of them are pure, and
-which are deliberately outside the order. `tools/boundaries.py` reads `src/` with `ast` and prints each broken rule as
-`[rule] path:line: detail` (exit 0 clean, 1 findings, 2 unusable arguments or configuration); `tests/test_boundaries.py`
-runs it, so it is part of the `tests` stage. The rules and the reason for each are in *Layers* in
-[python.md](python.md).
+`framework.toml` `[layers]` names the import packages of the workspace's members from the lowest layer to the highest,
+which of them are pure, and which are deliberately outside the order. `tools/boundaries.py` reads the root manifest's
+members, reads every member's `src/` with `ast`, and prints each broken rule as `[rule] path:line: detail` (exit 0 clean,
+1 findings, 2 unusable arguments or configuration); `tests/test_boundaries.py` runs it, so it is part of the `tests`
+stage. The rules within packages are in *Layers* in [python.md](python.md); the rules between members, and a root
+`src/` as a finding, in [layout.md](layout.md).
 
 ## The renderers
 
-Three tools write a page derived from the repository's own files. Each page is git-ignored or checked for being current, so it
+Four tools write a page derived from the repository's own files. Each page is git-ignored or checked for being current, so it
 cannot drift from its sources:
 
 | Tool | Writes | `make` | The rules |
@@ -96,6 +98,7 @@ cannot drift from its sources:
 | `tools/render_journal_index.py` | `Docs/journal/INDEX.md`, the journal's browsable index (git-ignored) | `make journal` | [journal.md](journal.md) |
 | `tools/render_board.py` | `Docs/plan/BOARD.md`, the board page from its row files (git-ignored) | `make board` | [workflow.md](workflow.md) |
 | `tools/render_framework_graph.py` | `Docs/knowledge/ai-first-framework-graph.md`, from the graph's data (committed; the `graph` stage holds it current) | none | this file's check runner |
+| `tools/render_process_map.py` | `Docs/knowledge/process-map.html`, the process map's page from its data (committed; the `process-map` stage holds it current; the `process-map` module only) | none | the `process-map` skill |
 
 ## The git hooks
 
@@ -125,15 +128,25 @@ The commit-message rules are the definition of done's *Identity* section:
   `Merge pull request`...) and a `fixup!`, `squash!` or `amend!` message need none of their own.
 
 A hook can be bypassed (`git commit --no-verify`). For the **fast stages** that is why CI runs the same stages: the hook is a
-convenience that fails early and CI is the enforcement. **The commit-message rules have no such backstop:** CI does not run
-`check_commit_msg.py`, so `--no-verify` bypasses the attribution rule and the sign-off rule alike, and nothing server-side
-rechecks them (on GitHub the DCO app checks sign-offs on a pull request; nothing checks attribution). They are local rules.
+convenience that fails early and CI is the enforcement. **The commit-message rules are rechecked on a pull request:**
+CI's `commits` job runs `check_commit_msg.py --range` over every commit the pull request brings, so a commit made with
+`--no-verify` is caught there ([ci.md](ci.md)). A direct push to the default branch is not checked, and nor is the message
+GitHub writes for a squash merge.
 
 ## Line endings
 
 `.gitattributes` keeps text files LF in the repository and native in the working tree, and forces LF for the Makefile and
 the hook files: a hook with a carriage return does not run under `sh`, and a Makefile with one does not parse. A test fails
 on either.
+
+## An editor holding a tool open (Windows)
+
+`uv run` re-syncs the environment first, and on Windows a file another process holds open cannot be replaced. VS Code's
+Ruff extension runs the environment's own `ruff.exe` as its language server, so while the editor is open a re-sync that
+updates ruff fails (`failed to remove ... ruff.exe`, access denied), and every stage after it, the hooks and `make board`
+with it. Either stop the server (*Ruff: Stop Server* in the command palette) and run `uv sync`, or set the extension's
+`ruff.importStrategy` to `useBundled` so it never holds the environment's copy. `UV_NO_SYNC=1` skips the re-sync for one
+shell; it also reaches any repository a tool launches from that shell, so unset it before a proof that makes one.
 
 ## What is deliberately not here
 

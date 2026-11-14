@@ -6,6 +6,7 @@ Package: tests/test_framework_config
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -164,6 +165,34 @@ def test_a_missing_module_is_refused(framework_data: dict) -> None:
     _refused(fc.parse_framework, framework_data, "modules.graph")
 
 
+def test_a_module_newer_than_0_4_0_reads_off_when_absent(framework_data: dict) -> None:
+    """An older repository's framework.toml does not name a module added after 0.4.0, and must stay valid."""
+    assert "process-map" not in framework_data["modules"]
+    assert fc.parse_framework(framework_data).modules["process-map"] == "off"
+    for state in fc.MODULE_STATES:
+        data = copy.deepcopy(framework_data)
+        data["modules"]["process-map"] = state
+        assert fc.parse_framework(data).modules["process-map"] == state
+
+
+def test_a_newer_module_present_with_a_bad_state_is_still_refused(framework_data: dict) -> None:
+    for bad in ("maybe", True, ""):
+        data = copy.deepcopy(framework_data)
+        data["modules"]["process-map"] = bad
+        _refused(fc.parse_framework, data, "modules.process-map")
+
+
+def test_only_the_modules_newer_than_0_4_0_are_optional() -> None:
+    assert fc.OPTIONAL_MODULES == ("process-map",)
+    assert set(fc.OPTIONAL_MODULES) <= set(fc.MODULES)
+    for name in fc.MODULES:
+        if name not in fc.OPTIONAL_MODULES:
+            data = _framework_data()
+            data["modules"].setdefault(name, "off")
+            del data["modules"][name]
+            _refused(fc.parse_framework, data, f"modules.{name}")
+
+
 def test_the_core_cannot_be_off_or_planned(framework_data: dict) -> None:
     for state in ("off", "planned"):
         data = copy.deepcopy(framework_data)
@@ -301,7 +330,7 @@ def test_slug_is_lower_case_kebab(project_data: dict) -> None:
         data = copy.deepcopy(project_data)
         data["slug"] = bad
         _refused(fc.parse_project, data, "slug")
-    for good in ("a", "abc", "a1-b2-c3"):
+    for good in ("a", "acme", "a1-b2-c3"):  # not "abc": it is a standard-library module
         data = copy.deepcopy(project_data)
         data["slug"] = good
         assert fc.parse_project(data).slug == good
@@ -312,6 +341,59 @@ def test_email_needs_one_at_and_a_dotted_domain(project_data: dict) -> None:
         data = copy.deepcopy(project_data)
         data["owner"]["email"] = bad
         _refused(fc.parse_project, data, "owner.email")
+
+
+def test_owner_login_is_optional_and_absent_by_default(project_data: dict) -> None:
+    config = fc.parse_project(project_data)
+    assert config.owner.login is None
+    assert '"login"' not in fc.dump_project(config)  # a project.json without one dumps as it did before the field
+
+
+def test_owner_login_round_trips_when_given(project_data: dict) -> None:
+    for good in ("a", "ada", "Ada-Lovelace", "a1-b2", "x" * 39):
+        data = copy.deepcopy(project_data)
+        data["owner"]["login"] = good
+        config = fc.parse_project(data)
+        assert config.owner.login == good
+        assert fc.parse_project_text(fc.dump_project(config)) == config
+
+
+def test_owner_login_is_a_github_login(project_data: dict) -> None:
+    for bad in ("", " ", "-ada", "ada-", "a--b", "a_b", "a b", "x" * 40, 7, None):
+        data = copy.deepcopy(project_data)
+        data["owner"]["login"] = bad
+        _refused(fc.parse_project, data, "owner.login")
+    data = copy.deepcopy(project_data)
+    data["owner"]["login"] = ""
+    with pytest.raises(fc.ConfigError, match="must not be empty: omit the key for no roster"):
+        fc.parse_project(data)
+
+
+def test_dump_person_is_the_roster_table_dump_framework_writes(framework_data: dict) -> None:
+    person = fc.Person("ada", 'Ada "A" Example', "owner", ("ada@example.org",))
+    text = fc.dump_person(person)
+    assert (
+        text
+        == '[[people]]\nlogin = "ada"\nname = "Ada \\"A\\" Example"\nrole = "owner"\nemails = ["ada@example.org"]\n'
+    )
+    assert fc.dump_person(fc.Person("bob", "Bob", "contributor", ())) == (
+        '[[people]]\nlogin = "bob"\nname = "Bob"\nrole = "contributor"\n'
+    )
+    config = fc.parse_framework(framework_data)
+    with_people = fc.dump_framework(dataclasses.replace(config, people=(person,)))
+    assert with_people.endswith("\n" + text)
+
+
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029"])
+def test_a_name_with_a_unicode_line_separator_round_trips_through_dump_framework(
+    framework_data: dict, separator: str
+) -> None:
+    """Not a control character, so a name may hold one; a dump must not split the row on it (Copilot, #123)."""
+    person = fc.Person("ada", f"Ada{separator}Example", "owner", ("ada@example.org",))
+    config = dataclasses.replace(fc.parse_framework(framework_data), people=(person,))
+    text = fc.dump_framework(config)
+    assert fc.parse_framework_text(text).people == (person,)
+    assert text.endswith("\n" + fc.dump_person(person))
 
 
 def test_default_branch_is_a_plain_ref_name(project_data: dict) -> None:
@@ -404,8 +486,8 @@ def test_the_toml_string_escaper_handles_every_control_character() -> None:
 
     for code in range(0x80):
         text = f"a{chr(code)}b"
-        assert tomllib.loads("v = " + fc._toml_string(text))["v"] == text, hex(code)
-    assert tomllib.loads("v = " + fc._toml_string(_AWKWARD))["v"] == _AWKWARD
+        assert tomllib.loads("v = " + fc.toml_string(text))["v"] == text, hex(code)
+    assert tomllib.loads("v = " + fc.toml_string(_AWKWARD))["v"] == _AWKWARD
 
 
 def test_control_characters_are_refused_in_single_line_text(framework_data: dict, project_data: dict) -> None:
@@ -1076,3 +1158,196 @@ def test_the_board_dir_key_round_trips_and_refuses_a_bad_path(framework_data: di
         with pytest.raises(fc.ConfigError) as caught:
             fc.parse_framework(framework_data)
         assert caught.value.field == "docs.board_dir"
+
+
+# --------------------------------------------------------------------------- names and workspace members
+@pytest.mark.parametrize(("slug", "name"), [("acme-tools", "acme_tools"), ("acme", "acme"), ("a1-b2-c3", "a1_b2_c3")])
+def test_a_slug_gives_its_import_name(slug: str, name: str) -> None:
+    assert fc.import_name(slug) == name
+
+
+@pytest.mark.parametrize("slug", ["class", "Acme", "acme_tools", "-acme", "1acme", ""])
+def test_a_slug_with_no_import_name_is_refused(slug: str) -> None:
+    with pytest.raises(fc.ConfigError):
+        fc.import_name(slug)
+
+
+def _member(root: Path, rel: str, name: str, deps: tuple[str, ...] = (), packages: tuple[str, ...] = ()) -> None:
+    folder = root / rel
+    folder.mkdir(parents=True, exist_ok=True)
+    listed = ", ".join(f'"{d}"' for d in deps)
+    (folder / "pyproject.toml").write_text(
+        f'[project]\nname = "{name}"\nversion = "0.1.0"\ndependencies = [{listed}]\n', encoding="utf-8"
+    )
+    for package in packages:
+        (folder / "src" / package).mkdir(parents=True, exist_ok=True)
+        (folder / "src" / package / "__init__.py").write_text("", encoding="utf-8")
+
+
+def _workspace(root: Path, members: str, extra: str = "") -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text(f"[tool.uv.workspace]\nmembers = {members}\n{extra}", encoding="utf-8")
+
+
+def test_workspace_members_resolve_the_globs_and_read_each_manifest(tmp_path: Path) -> None:
+    _workspace(tmp_path, '["apps/*", "packages/python/*"]')
+    _member(tmp_path, "apps/acme-tools", "acme-tools", ("acme-tools-core>=0.1",), ("acme_tools",))
+    _member(tmp_path, "packages/python/acme-tools-core", "Acme_Tools.Core", (), ("acme_tools_core",))
+    members = fc.workspace_members(tmp_path)
+    assert [m.path for m in members] == ["apps/acme-tools", "packages/python/acme-tools-core"]
+    app, core = members
+    assert app.name == "acme-tools" and app.dependencies == ("acme-tools-core",) and app.packages == ("acme_tools",)
+    assert core.name == "acme-tools-core"  # the distribution name, normalised as packaging compares it
+    assert core.packages == ("acme_tools_core",)
+
+
+def _manifest_with(root: Path, authors: str) -> None:
+    _workspace(root, '["apps/*"]')
+    folder = root / "apps/acme-tools"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "pyproject.toml").write_text(
+        f'[project]\nname = "acme-tools"\nversion = "0.1.0"\n{authors}', encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    ("authors", "expected"),
+    [
+        ("", ()),  # absent: no authors, and no error (the boundary check names it)
+        ('authors = "Ada"\n', ()),  # not a list
+        ("authors = []\n", ()),
+        (
+            'authors = [{ name = "Ada", email = "ada@example.org" }, { name = "Bob" }, { email = "c@example.org" }]\n',
+            (
+                fc.Author("Ada", "ada@example.org"),
+                fc.Author("Bob", None),
+                fc.Author(None, "c@example.org"),
+            ),
+        ),
+        (
+            'authors = ["Ada", { name = "", email = 7 }]\n',
+            (fc.Author(None, None, table=False), fc.Author(None, None)),
+        ),
+    ],
+    ids=["absent", "not-a-list", "empty", "tables", "not-tables-and-blank"],
+)
+def test_a_members_authors_are_read_leniently(tmp_path: Path, authors: str, expected) -> None:
+    _manifest_with(tmp_path, authors)
+    assert fc.workspace_members(tmp_path)[0].authors == expected
+
+
+def test_workspace_members_honour_exclude_skip_a_folder_with_no_manifest_and_ignore_files(tmp_path: Path) -> None:
+    _workspace(tmp_path, '["apps/*"]', 'exclude = ["apps/old"]\n')
+    _member(tmp_path, "apps/acme-tools", "acme-tools")
+    _member(tmp_path, "apps/old", "old")
+    (tmp_path / "apps" / "notes").mkdir()  # no manifest: uv would refuse it, and it is not a member here
+    (tmp_path / "apps" / "README.md").write_text("x", encoding="utf-8")
+    assert [m.path for m in fc.workspace_members(tmp_path)] == ["apps/acme-tools"]
+
+
+def test_a_nested_part_is_a_member_when_the_list_names_it(tmp_path: Path) -> None:
+    _workspace(tmp_path, '["apps/*", "apps/web/*"]')
+    _member(tmp_path, "apps/acme-tools", "acme-tools")
+    _member(tmp_path, "apps/web/backend", "web-backend", (), ("web_backend",))
+    (tmp_path / "apps" / "web" / "frontend").mkdir(parents=True)  # a JS half: no pyproject.toml, not a Python member
+    assert [m.path for m in fc.workspace_members(tmp_path)] == ["apps/acme-tools", "apps/web/backend"]
+
+
+@pytest.mark.parametrize(
+    ("dependency", "name"),
+    [
+        ("requests[socks]>=2 ; python_version > '3.10'", "requests"),
+        ("Acme_Tools.Core==0.1.0", "acme-tools-core"),
+        ("acme-tools-core @ file:///x", "acme-tools-core"),
+        ("plain", "plain"),
+    ],
+)
+def test_a_dependency_is_read_as_its_normalised_distribution_name(tmp_path: Path, dependency: str, name: str) -> None:
+    _workspace(tmp_path, '["apps/*"]')
+    _member(tmp_path, "apps/a", "a", (dependency,))
+    assert fc.workspace_members(tmp_path)[0].dependencies == (name,)
+
+
+def test_no_root_manifest_or_no_workspace_means_no_members(tmp_path: Path) -> None:
+    assert fc.workspace_members(tmp_path) == ()
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
+    assert fc.workspace_members(tmp_path) == ()
+
+
+def test_an_unreadable_root_manifest_is_a_config_error_naming_it(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[tool.uv.workspace\n", encoding="utf-8")
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.workspace_members(tmp_path)
+    assert "pyproject.toml" in caught.value.field
+
+
+@pytest.mark.parametrize("slug", ["logging", "json", "tools", "tests", "email"])
+def test_a_slug_whose_import_name_shadows_the_standard_library_or_the_framework_is_refused(slug: str) -> None:
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.import_name(slug)
+    assert "slug" in caught.value.field
+
+
+def test_a_slug_whose_core_package_would_shadow_one_is_refused_too() -> None:
+    # "asyncio-core" is fine as a name, but the mock core would be "asyncio_core"; "test" would make "test_core"
+    assert fc.import_name("acme-tools") == "acme_tools"
+    with pytest.raises(fc.ConfigError):
+        fc.import_name("test")
+
+
+def test_a_members_packages_are_every_folder_with_python_and_every_top_level_module(tmp_path: Path) -> None:
+    _workspace(tmp_path, '["apps/*"]')
+    _member(tmp_path, "apps/a", "a")
+    (tmp_path / "apps/a/src/nsp").mkdir(parents=True)  # a namespace package: no __init__.py
+    (tmp_path / "apps/a/src/nsp/x.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "apps/a/src/single.py").write_text("y = 1\n", encoding="utf-8")  # a top-level module
+    (tmp_path / "apps/a/src/__pycache__").mkdir()
+    (tmp_path / "apps/a/src/a.egg-info").mkdir()
+    (tmp_path / "apps/a/src/empty").mkdir()  # no Python in it: not a package
+    assert fc.workspace_members(tmp_path)[0].packages == ("nsp", "single")
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        "[tool]\nuv = 1\n",
+        '[tool.uv]\nworkspace = "apps/*"\n',
+        '[tool.uv.workspace]\nmembers = "apps/*"\n',
+        "[tool.uv.workspace]\nmembers = [1]\n",
+        '[tool.uv.workspace]\nmembers = ["/abs"]\n',
+        '[tool.uv.workspace]\nmembers = ["../out"]\n',
+        '[tool.uv.workspace]\nmembers = ["apps/*"]\nexclude = "apps/x"\n',
+    ],
+)
+def test_a_malformed_workspace_table_is_a_config_error_not_a_traceback(tmp_path: Path, manifest: str) -> None:
+    (tmp_path / "pyproject.toml").write_text(manifest, encoding="utf-8")
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.workspace_members(tmp_path)
+    assert "pyproject.toml" in caught.value.field
+
+
+@pytest.mark.parametrize("slug", ["pins", "init", "boundaries", "framework-config", "check-docs", "conftest"])
+def test_a_slug_whose_import_name_is_a_framework_module_is_refused(slug: str) -> None:
+    # tests/ and tools/ are on the import path when the tests run, so a package of that name would be shadowed
+    with pytest.raises(fc.ConfigError):
+        fc.import_name(slug)
+
+
+@pytest.mark.parametrize("slug", ["con", "prn", "aux", "nul", "com1", "lpt9"])
+def test_a_slug_windows_reserves_is_refused_on_every_host(slug: str) -> None:
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.import_name(slug)
+    assert "Windows" in str(caught.value)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a symlink needs a privilege on Windows")
+def test_a_member_that_resolves_outside_the_repository_is_a_config_error(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    _member(outside, "shared", "shared")
+    repo = tmp_path / "repo"
+    _workspace(repo, '["apps/*"]')
+    (repo / "apps").mkdir()
+    (repo / "apps" / "shared").symlink_to(outside / "shared", target_is_directory=True)
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.workspace_members(repo)
+    assert "outside" in str(caught.value)

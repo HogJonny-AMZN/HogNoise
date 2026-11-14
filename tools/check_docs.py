@@ -11,6 +11,10 @@ Checks, in the order they run:
 
 - **corpus**: at least one markdown file was scanned (every other check passes vacuously over nothing), and every
   file could be read
+- **control-char**: no invisible control character anywhere in a file, code included: a C0 control but tab and line
+  feed, DEL, a C1 control, a bidirectional embedding, override or isolate, the line or paragraph separator, the
+  zero-width space, or a byte-order mark after the start (invisible on the page; the trace of a shell that mangled a
+  backslash, or a line that displays other than it reads)
 - **links**: every relative markdown link, inline or reference-style, resolves to a file with that exact spelling (a
   case-insensitive disk says yes where Linux CI says no); code is skipped; a link may not climb above the root
 - **fences**: a fenced code block that never closes (without this, the links and status checks go silently vacuous
@@ -20,7 +24,8 @@ Checks, in the order they run:
 - **single-status**: a governed document declares its status once, because the check reads only the first 12 lines
   and a second declaration further down would hide
 - **status-copy**: a status written beside a link to a governed document (after it, before it, or in a table cell) is
-  the one on that document's own ``**Status:**`` line; a copy goes stale when the document moves; the journal is exempt
+  the one on that document's own ``**Status:**`` line; a copy goes stale when the document moves; the journal and
+  the per-login handoffs are exempt
 - **journal-index**, **journal-day**: every ``YYYY-MM-DD-session-NN.md`` at the top of the journal directory is a row
   in the journal index (a ``YYYY-MM-DD-<login>-HHMM.md`` file needs none, and lives in its month folder ``YYYY-MM/``:
   one elsewhere, an old-form file in a month folder, a stray file there, or a month folder that is not a month is a
@@ -37,6 +42,14 @@ Checks, in the order they run:
   and no hand-kept page beside the rows
 - **landed-rows**: a struck-through board row, or a row file whose state starts with ``Landed``, names the pull
   request that landed it
+- **board-state**: a row file's section agrees with its state: a landed row is in *Now*, a queued row is not, and an
+  Icebox row never says it was pulled forward (a row is moved, not copied)
+- **waits-on**: a row file's ``Waits on`` line links rows on the board that are not done; a link to a done row means
+  the wait is over and the row is decided again
+- **row-ref**: a design, spec or plan names its board row in a ``**Board:**`` header line, by the row's id (its file
+  name) or ``none (reason)``; an ADR or a journal entry may, and is checked when it does
+- **row-kept**: every row file on the base (the pull request's base in CI, the merge base with the default branch
+  locally) is still in the tree under the same name; ``main`` reads the base with git, and says when there is none
 - **handoff**: the handoff exists, carries a real ``**Last updated:**`` date and is within ``handoff_max_lines``;
   a per-login handoff (``<handoff_people_dir>/<login>.md``, that person's session truth) is held to the same two rules,
   is named for a login that is on the roster when there is one, and nothing else lives in that directory
@@ -78,21 +91,23 @@ import logging as _logging
 import os
 import posixpath
 import re
+import subprocess
 import sys
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import cached_property
 from pathlib import Path
 from urllib.parse import unquote
 
 import framework_config as fc
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_docs"
-__version__ = "0.4.0"
-__updated__ = "2026-10-11"
+__version__ = "0.5.0"
+__updated__ = "2026-11-05"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: The closed set of document statuses. A reader must be able to tell a decision from a hypothesis and a live document
@@ -113,8 +128,11 @@ _ESCAPED_BRACKET_RE = re.compile(r"\\[\[\]]")
 #: A reference definition ``[label]: destination "title"``: nothing else may follow the destination, so
 #: ``[Note]: this is important`` is prose; ``[^1]: text`` is a footnote, not a link.
 _REFDEF_RE = re.compile(
-    r"^ {0,3}\[(?!\^)[^\]]{1,999}\]:[ \t]*(<[^>]*>|\S+)(?:[ \t]+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?[ \t]*$"
+    r"^ {0,3}\[(?!\^)(?P<label>[^\]]{1,999})\]:[ \t]*(?P<dest><[^>]*>|\S+)"
+    r"(?:[ \t]+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?[ \t]*$"
 )
+#: A full or collapsed reference link, ``[text][label]`` or ``[label][]``.
+_REF_LINK_RE = re.compile(r"\[(?P<text>[^\]]+)\]\[(?P<label>[^\]]*)\]")
 #: ``href="..."`` and ``src='...'`` in inline HTML.
 _HTML_ATTR_RE = re.compile(r"\b(?:href|src)[ \t]*=[ \t]*(?:\"([^\"]*)\"|'([^']*)')", re.IGNORECASE)
 #: ``**Status:** word`` or ``**Status**: word``, optionally in a block quote or indented.
@@ -184,8 +202,9 @@ _ROW_FILE_RE = re.compile(r"(?P<day>[0-9]{4}-[0-9]{2}-[0-9]{2})-(?P<slug>[a-z0-9
 ROW_SLUG_MAX = 60
 #: ``**Name:** value`` in a row file's header, the colon inside or outside the bold.
 _ROW_LINE_RE = re.compile(r"^\*\*(?P<name>[A-Za-z][A-Za-z ]*?)(?::\*\*|\*\*:)[ \t]*(?P<value>.*)$")
-ROW_NAMES = ("Section", "Owner", "State", "Decider", "Cost", "Verdict", "Raised", "Was owned by")
-#: Which lines each section requires, allows, and refuses.
+ROW_NAMES = ("Section", "Owner", "State", "Decider", "Cost", "Verdict", "Raised", "Waits on", "Was owned by")
+#: Which lines each section requires, allows, and refuses. A row pulled forward from the Icebox is moved, not copied, so
+#: it keeps its ``Verdict``; a ``Waits on`` line is decided before a row reaches *Now*.
 _ROW_REQUIRED = {
     "gate": ("Section", "Owner", "State"),
     "now": ("Section", "Owner", "State"),
@@ -195,16 +214,22 @@ _ROW_REQUIRED = {
 }
 _ROW_ALLOWED = {
     "gate": ("Decider", "Raised", "Was owned by"),
-    "now": ("Cost", "Raised", "Was owned by"),
-    "next": ("Cost", "Raised", "Was owned by"),
-    "blocked": ("Cost", "Raised", "Was owned by"),
-    "icebox": ("Was owned by",),
+    "now": ("Cost", "Verdict", "Raised", "Was owned by"),
+    "next": ("Cost", "Verdict", "Raised", "Waits on", "Was owned by"),
+    "blocked": ("Cost", "Verdict", "Raised", "Waits on", "Was owned by"),
+    "icebox": ("Waits on", "Was owned by"),
 }
+#: The first word of a state, for ``board-state``: the section a row with that state belongs in, or must leave.
+_STATE_WORD_RE = re.compile(r"^(?P<word>landed|queued|pulled forward)\b", re.IGNORECASE)
+#: A done word, capitalised, opening a later clause of a state: it reads as the state, and is not one.
+_LATE_DONE_RE = re.compile(r"[;.,:]\s+(?P<word>Landed|Closed|Dropped)\b")
 #: A cost: a number or a range (digits, a decimal, ½ ¼ ¾, ``1 to 2``) and a unit, then optionally an explanation.
 _COST_RE = re.compile(
     r"^(?:[0-9]+(?:\.[0-9]+)?|[½¼¾])(?:\s+to\s+(?:[0-9]+(?:\.[0-9]+)?|[½¼¾]))?\s+(?:h|d|w|hours?|days?|weeks?)"
     r"(?:\s*[:,(].*)?$"
 )
+#: A cost no one can give yet: ``unsized:`` and the reason, which may not be empty (#100).
+_UNSIZED_RE = re.compile(r"^unsized:\s*\S")
 _RAISED_LINK_RE = re.compile(r"^\[[^\]]+\]\([^)]+\)")
 _RAISED_UNRECORDED_RE = re.compile(r"^unrecorded \(converted ([0-9]{4}-[0-9]{2}-[0-9]{2})\)$")
 _DONE_RE = re.compile(r"^(?:landed|closed|dropped)\b", re.IGNORECASE)
@@ -236,6 +261,7 @@ class Context:
     unreadable: Mapping[str, str] = field(default_factory=dict)  # path -> why it could not be read
     instructions: tuple[str, ...] = ()  # instruction files below the root, found by their own walk
     people: tuple[fc.Person, ...] = ()  # the roster: empty means authorship is not checked
+    base_rows: frozenset[str] | None = None  # the row ids on the base; None: no base, row-kept is skipped
     _listings: dict[str, frozenset[str]] = field(default_factory=dict, compare=False, repr=False)
 
     def text(self, rel: str) -> str:
@@ -528,7 +554,7 @@ def link_targets(text: str) -> list[str]:
         code_free = _ESCAPED_BRACKET_RE.sub("  ", _blank_code_spans(line))
         definition = _REFDEF_RE.match(code_free)
         if definition:
-            raw.append(definition.group(1).strip("<>"))
+            raw.append(definition.group("dest").strip("<>"))
         found, depth = _destinations(code_free, depth)
         raw += found
         raw += [m.group(1) or m.group(2) for m in _HTML_ATTR_RE.finditer(code_free)]
@@ -702,6 +728,84 @@ def check_corpus(ctx: Context) -> list[Finding]:
     return findings
 
 
+#: The control characters a reader is likeliest to recognise, by code point; the rest are named generically.
+_CONTROL_NAMES = {
+    0x00: "NUL",
+    0x07: "bell",
+    0x08: "backspace",
+    0x0B: "vertical tab",
+    0x0C: "form feed",
+    0x1B: "escape",
+    0x7F: "DEL",
+    0x85: "next line",
+    0x200B: "zero-width space",
+    0x2028: "line separator",
+    0x2029: "paragraph separator",
+    0x202A: "left-to-right embedding",
+    0x202B: "right-to-left embedding",
+    0x202C: "pop directional formatting",
+    0x202D: "left-to-right override",
+    0x202E: "right-to-left override",
+    0x2066: "left-to-right isolate",
+    0x2067: "right-to-left isolate",
+    0x2068: "first strong isolate",
+    0x2069: "pop directional isolate",
+    0xFEFF: "byte-order mark after the start of the file",
+}
+
+_BIDI_CONTROLS = frozenset(range(0x202A, 0x202F)) | frozenset(range(0x2066, 0x206A))
+
+_C0_HINT = "often a shell heredoc that turned a backslash escape into the character, framework ledger 3"
+_BIDI_HINT = "a bidirectional control reorders what follows, so the line displays other than it reads"
+_SEPARATOR_HINT = (
+    "str.splitlines() breaks the line there; often an escape written as the character, by a heredoc or an agent's file"
+    " tools, framework ledger 3"
+)
+_OTHER_HINT = "it splits a word that a search or a check looks for"
+
+
+def _invisible_hint(code: int) -> str | None:
+    """Why ``code`` is a ``control-char`` finding, or ``None`` when it is not one. A C0 control but tab and line feed,
+    DEL, a C1 control, a bidirectional embedding, override or isolate, the line and paragraph separators, the zero-width
+    space, and a byte-order mark (which reading has already removed from the start of the file, so any left is inside
+    it). The zero-width joiner and non-joiner, the direction marks and the word joiner are left alone: prose uses them
+    (#159)."""
+    if (code < 0x20 and code != 0x09) or code == 0x7F:
+        return _C0_HINT
+    if 0x80 <= code <= 0x9F:
+        return _C0_HINT
+    if code in _BIDI_CONTROLS:
+        return _BIDI_HINT
+    if code in (0x2028, 0x2029):
+        return _SEPARATOR_HINT
+    if code in (0x200B, 0xFEFF):
+        return _OTHER_HINT
+    return None
+
+
+def check_control_chars(ctx: Context) -> list[Finding]:
+    """An invisible control character anywhere in a file, code included (``_invisible_hint`` says which): invisible
+    in an editor and on the page, and in a file an agent reads as instructions, able to make a line say other than it
+    shows. One finding per character. A carriage return never reaches here, since reading translates it. Lines are
+    counted by ``\\n`` alone, because ``str.splitlines`` also breaks at a form feed and would miscount."""
+    findings: list[Finding] = []
+    for rel in ctx.files:
+        for number, line in enumerate(ctx.text(rel).split("\n"), start=1):
+            for char in line:
+                code = ord(char)
+                hint = _invisible_hint(code)
+                if hint is not None:
+                    findings.append(
+                        Finding(
+                            "control-char",
+                            f"{rel}:{number}",
+                            f"U+{code:04X} {_CONTROL_NAMES.get(code, 'control character')}: invisible in an editor "
+                            f"and on the page; remove it ({hint})",
+                        )
+                    )
+    return findings
+
+
 def check_links(ctx: Context) -> list[Finding]:
     """Every relative markdown link resolves to a file with that exact spelling; code is not prose."""
     findings: list[Finding] = []
@@ -802,7 +906,8 @@ def check_status_copy(ctx: Context) -> list[Finding]:
     exactly a status word beside the one governed link of its row. A parenthesis that names a second status
     (``Proposed then Accepted``, ``Accepted, was Proposed``) is a history, not a copy. The target is resolved with its
     fragment removed and read as ``check_status`` reads it; a target that is not governed, does not resolve or has no
-    status is another check's finding, not this one's. Every file inside the journal directory is history, not read.
+    status is another check's finding, not this one's. Every file inside the journal directory is history, not read;
+    nor is a per-login handoff, which only its login writes (a lock by another login must not fail on it, #82).
 
     What is **not** read, because the forms are exact: a title in single quotes, a destination in ``<...>``, a
     reference-style link, a status on the next wrapped line, a status inside bold, and a status beside a link that
@@ -835,7 +940,7 @@ def check_status_copy(ctx: Context) -> list[Finding]:
             )
 
     for rel in ctx.files:
-        if _in_dir(rel, ctx.docs.journal_dir):
+        if _in_dir(rel, ctx.docs.journal_dir) or _in_dir(rel, ctx.docs.handoff_people_dir):
             continue
         for number, raw in prose_lines(ctx.text(rel))[0]:
             line = _ESCAPED_BRACKET_RE.sub("  ", _blank_code_spans(raw))
@@ -1446,7 +1551,10 @@ def row_problems(row: Row, logins: set[str]) -> list[str]:
     if section not in BOARD_SECTIONS:
         problems.append(f"`Section` is {row.lines['Section']!r}, not one of {', '.join(BOARD_SECTIONS)}")
         return problems
+    done = bool(_DONE_RE.match(row.lines.get("State", "").strip()))
     for name in _ROW_REQUIRED[section]:
+        if name == "Cost" and done:  # a done row's cost is moot; one it keeps is still read below (#100)
+            continue
         if name not in row.lines:
             article = "an" if section[0] in "aeiou" else "a"
             problems.append(f"no `**{name}:**` line, which {article} {section} row needs")
@@ -1466,10 +1574,11 @@ def row_problems(row: Row, logins: set[str]) -> list[str]:
             found = _login_problem(part, "Was owned by", logins, none_allowed=False)
             if found:
                 problems.append(found)
-    if "Cost" in row.lines and not _COST_RE.match(row.lines["Cost"].strip()):
+    cost = row.lines.get("Cost", "").strip()
+    if "Cost" in row.lines and not (_COST_RE.match(cost) or _UNSIZED_RE.match(cost)):
         problems.append(
             f"`Cost` is {row.lines['Cost']!r}; it needs a number or a range and a unit (`2 d`, `½ d`, `1 to 2 w`), "
-            "then optionally an explanation"
+            "then optionally an explanation, or `unsized: <reason>` when no one can size it yet"
         )
     if "Raised" in row.lines:
         raised = row.lines["Raised"].strip()
@@ -1654,6 +1763,454 @@ def check_landed_rows(ctx: Context) -> list[Finding]:
             )
         )
     return findings
+
+
+def check_board_state(ctx: Context) -> list[Finding]:
+    """A row file's section agrees with its state.
+
+    A row's ``Section`` and its ``State`` are two lines, and moving work forward edits the state; nothing made the
+    section follow. On the template's own board two rows sat in *Next* for days saying they had landed, and three
+    Icebox rows said "Pulled forward: see the Now row", a second copy of a fact the *Now* row already held. Three
+    rules, each read from the first word of the state (whatever its case): a landed row belongs in *Now* (a gate stays
+    in the gates: it closes in place, by a person's decision, as ``landed-rows`` already allows); a queued row does
+    not; an Icebox row never says it was pulled forward, because pulling an idea forward moves its row. And a state
+    that is not done, with ``Landed``, ``Closed`` or ``Dropped`` opening a later clause, is a finding: a row is done
+    only when its state starts with the word, so one written at the end leaves the row open on the page and to
+    ``waits-on`` (the row id's state, 2026-11-05). A row with no known section is the ``board`` check's to report,
+    not this one's. A hand-kept board has no state lines.
+    """
+    if not ctx.board_is_directory:
+        return []
+    findings: list[Finding] = []
+    for rel in row_files(ctx):
+        if rel not in ctx.texts:
+            continue
+        row = parse_row(rel, ctx.text(rel))
+        if row.section not in BOARD_SECTIONS:
+            continue
+        late = None if row.done else _LATE_DONE_RE.search(row.state)
+        if late is not None:
+            findings.append(
+                Finding(
+                    "board-state",
+                    rel,
+                    f'"{row.title[:60]}" says {late.group("word")} later in its state, but a row is done only when its '
+                    "state starts with that word: move it to the front",
+                )
+            )
+            continue
+        match = _STATE_WORD_RE.match(row.state)
+        if match is None:
+            continue
+        word, title = match.group("word").lower(), row.title[:60]
+        if word == "landed" and row.section not in ("now", "gate"):  # a gate closes in place, by a decision
+            detail = f'"{title}" says it landed, so the row belongs in now, not {row.section}: change its Section'
+        elif word == "queued" and row.section == "now":
+            detail = f'"{title}" says it is queued, so the row belongs in next, not now: change its Section'
+        elif word == "pulled forward" and row.section == "icebox":
+            detail = (
+                f'"{title}" says it was pulled forward: move this row to now instead of keeping a copy (its Section, '
+                "Owner and State; Cost, Verdict and Raised stay), and delete any second row written for it"
+            )
+        else:
+            continue
+        findings.append(Finding("board-state", rel, detail))
+    return findings
+
+
+def _reference_label(label: str) -> str:
+    """A reference label as CommonMark matches it: case folded, runs of white space collapsed."""
+    return " ".join(label.split()).casefold()
+
+
+def _wait_destinations(value: str, row_text: str) -> tuple[list[str], list[str]]:
+    """A ``Waits on`` line's destinations, and the reference labels on it that the row defines nowhere.
+
+    Inline links are read by ``_destinations``; a full or collapsed reference (``[text][label]``, ``[label][]``) is
+    resolved against the reference definitions in the row's own prose, as a renderer would.
+    """
+    line = _ESCAPED_BRACKET_RE.sub("  ", _blank_code_spans(value))
+    destinations, _ = _destinations(line)
+    definitions: dict[str, str] = {}
+    for row_line in prose(row_text).split("\n"):
+        definition = _REFDEF_RE.match(row_line)
+        if definition:
+            definitions.setdefault(_reference_label(definition.group("label")), definition.group("dest").strip("<>"))
+    undefined: list[str] = []
+    for reference in _REF_LINK_RE.finditer(line):
+        label = reference.group("label") or reference.group("text")
+        target = definitions.get(_reference_label(label))
+        if target is None:
+            undefined.append(label)
+        else:
+            destinations.append(target)
+    return destinations, undefined
+
+
+def check_waits_on(ctx: Context) -> list[Finding]:
+    """A row file's ``Waits on`` line links rows on the board that are not done.
+
+    A wait written as prose ("needed with increment 2") has nothing to notice when that work lands: on the template's
+    own board five Icebox verdicts waited on work that had landed, one of them for three weeks. A ``Waits on`` line
+    links the rows it waits for, so a check can. Each link is resolved from the row file; one that reaches no row file
+    in the board directory, a URL, or a line with no link at all, waits on nothing the board has. A link to a row that
+    is done (landed, closed or dropped) means the wait is over: the row is decided again. Links are read as the
+    ``links`` check reads them (``_destinations``: an angle destination, a title, a fragment, percent-encoding; a
+    reference link resolved against the row's own definitions), so a link one check accepts the other does too. The
+    line is read only where its section allows it; elsewhere the ``board`` check refuses it.
+    """
+    if not ctx.board_is_directory:
+        return []
+    rows = set(row_files(ctx))
+    findings: list[Finding] = []
+    for rel in sorted(rows):
+        if rel not in ctx.texts:
+            continue
+        row = parse_row(rel, ctx.text(rel))
+        value = row.lines.get("Waits on")
+        if value is None or row.section not in BOARD_SECTIONS or "Waits on" not in _ROW_ALLOWED[row.section]:
+            continue
+        destinations, undefined = _wait_destinations(value, ctx.text(rel))
+        for label in undefined:
+            findings.append(Finding("waits-on", rel, f"waits on [{label[:60]}], which is nothing the board has"))
+        if not destinations and not undefined:
+            findings.append(Finding("waits-on", rel, f"waits on {value[:60]!r}, which links nothing the board has"))
+        for destination in destinations:
+            path = unquote(destination.strip().split("#")[0].split("?")[0].strip())
+            if _URL_RE.match(path):
+                findings.append(
+                    Finding("waits-on", rel, f"waits on {path[:60]}: a URL is not a row, so nothing the board has")
+                )
+                continue
+            target = _resolve(rel, path)
+            if target not in rows or target not in ctx.texts:
+                findings.append(Finding("waits-on", rel, f"waits on {path[:60]}, which is nothing the board has"))
+                continue
+            awaited = parse_row(target, ctx.text(target))
+            if awaited.done:
+                findings.append(
+                    Finding(
+                        "waits-on",
+                        rel,
+                        f'waits on "{awaited.title[:60]}", which is done ({awaited.state[:40]}): decide this row again',
+                    )
+                )
+    return findings
+
+
+# -------------------------------------------------------------------------
+# the row id: a design, spec or plan names its row (``row-ref``); a row on the base is never gone (``row-kept``)
+#: A heading of level two or deeper: the end of a file's header.
+_HEADING_TWO_RE = re.compile(r" {0,3}#{2,6}(?:[ \t]|$)")
+_BOARD_PREFIX = "**Board:**"
+#: The old form, before the row id: a plain ``Board:`` line linking the board page.
+_OLD_BOARD_RE = re.compile(r"Board:(?:\s|$)")
+#: ``none`` and a reason in parentheses: an answer, as in the pull request template.
+_NONE_REASON_RE = re.compile(r"none\s*\(.*\S.*\)", re.IGNORECASE)
+#: One inline link on a ``Board:`` line: its text and its destination.
+_BOARD_LINK_RE = re.compile(r"\[([^\]]*)\]\(\s*(?:<([^>\n]*)>|([^)\s]+))(?:\s+\"[^\"]*\"|\s+'[^']*')?\s*\)")
+#: A setext underline of ``-``: with prose on the line above, a level-two heading.
+_SETEXT_TWO_RE = re.compile(r" {0,3}-+[ \t]*$")
+#: Any ATX heading, which ends an open journal entry header.
+_ANY_HEADING_RE = re.compile(r" {0,3}#{1,6}(?:[ \t]|$)")
+_NAME_A_ROW = "say which row, or none (reason)"
+
+
+def header_lines(text: str) -> list[tuple[int, str]]:
+    """A file's header: its prose lines (fences and comments removed) before its first heading of level two or deeper.
+    The ``row-ref`` check and the board page read ``**Board:**`` lines here and nowhere else in a file, so a line shown
+    as an example in a body is not a reference."""
+    out: list[tuple[int, str]] = []
+    for number, line in prose_lines(text)[0]:
+        if _HEADING_TWO_RE.match(line):
+            break
+        if _SETEXT_TWO_RE.match(line) and out and out[-1][1].strip():
+            out.pop()  # the line above was the heading's text
+            break
+        out.append((number, line))
+    return out
+
+
+def entry_headers(text: str) -> list[list[tuple[int, str]]]:
+    """The header of each journal entry (a ``###`` section): its ``**By:**`` line and the lines directly after it, up to
+    the first blank line or heading. Blank lines between the heading and the ``By:`` line are allowed; an entry whose
+    first line is not a ``By:`` line has no header (``journal-author`` reports it)."""
+    headers: list[list[tuple[int, str]]] = []
+    current: list[tuple[int, str]] = []
+    state = "body"
+    for number, line in prose_lines(text)[0]:
+        if _entry_title(line) is not None:
+            if current:
+                headers.append(current)
+            current, state = [], "seek"
+            continue
+        if state == "seek":
+            if not line.strip():
+                continue
+            state = "body"
+            if _after(_BY_PREFIX, line) is not None:
+                current, state = [(number, line)], "open"
+            continue
+        if state == "open":
+            if not line.strip() or _ANY_HEADING_RE.match(line):
+                state = "body"
+                continue
+            current.append((number, line))
+    if current:
+        headers.append(current)
+    return headers
+
+
+def board_refs(value: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """One ``**Board:**`` line's value read: its links as (text, destination), and what is wrong with it. ``none`` is an
+    answer only with a reason in parentheses; a value that is neither links nor ``none`` names nothing."""
+    bare = value.strip()
+    if bare.lower().startswith("none"):
+        return ([], []) if _NONE_REASON_RE.fullmatch(bare) else ([], [_NAME_A_ROW])
+    links = [(m.group(1), m.group(2) if m.group(2) is not None else m.group(3)) for m in _BOARD_LINK_RE.finditer(bare)]
+    return (links, []) if links else ([], [_NAME_A_ROW])
+
+
+def _board_values(header: list[tuple[int, str]]) -> list[str]:
+    return [found for _, line in header if (found := _after(_BOARD_PREFIX, line)) is not None]
+
+
+def _row_ref_headers(ctx: Context, rel: str, adrs: frozenset[str]) -> tuple[bool, list[list[tuple[int, str]]]]:
+    """Whether ``rel`` must carry a ``**Board:**`` line, and the headers it may carry one in: a design, spec or plan
+    (required, its file header), an ADR (optional, its file header), a journal session file (optional, each entry's
+    header). Anything else carries none."""
+    name = posixpath.basename(rel)
+    if any(_in_dir(rel, d) for d in ctx.docs.terms_dirs) and name.lower() != "readme.md":
+        return True, [header_lines(ctx.text(rel))]
+    if rel in adrs:
+        return False, [header_lines(ctx.text(rel))]
+    if _in_scope(rel, ctx.docs.journal_dir, True) and journal_file_form(name) is not None:
+        return False, entry_headers(ctx.text(rel))
+    return False, []
+
+
+def _row_id_of(rel: str, destination: str, rows: set[str]) -> str | None:
+    """The row id a ``Board:`` link names from ``rel``, or ``None`` when it reaches no row file."""
+    path = unquote(destination.strip().split("#")[0].split("?")[0].strip())
+    if not path or _URL_RE.match(path):
+        return None
+    target = _resolve(rel, path)
+    return posixpath.basename(target)[: -len(".md")] if target in rows else None
+
+
+def check_row_ref(ctx: Context) -> list[Finding]:
+    """A design, spec or plan names the board row it serves in a ``**Board:**`` header line, and every such line names
+    rows that exist, by their id.
+
+    A row id is a row file's name without ``.md``, kept for the row's life: the file is the id, so the link's text is
+    the id in backticks and its target the row file. ``none (reason)`` is an answer; ``none`` alone, or a line naming
+    nothing, is not. The line is required in a file under ``terms_dirs`` (an index, ``README.md``, is not asked) and
+    optional in an ADR's header and in a journal entry's header, where it is checked the same way when present. Only
+    headers are read, so a ``Board:`` in a body or a code block is not a reference. The old form, a plain ``Board:``
+    line linking the board page, is named so it is rewritten rather than reported as missing. A board kept as one page
+    has no row ids, and the check stands down.
+    """
+    if not ctx.board_is_directory:
+        return []
+    rows, adrs = set(row_files(ctx)), frozenset(_adr_files(ctx))
+    linked_from: dict[str, set[str]] = {}  # a document, and the row ids whose files link it: the hint for choosing
+    for row in rows:
+        for target in link_targets(ctx.text(row)):
+            linked_from.setdefault(_resolve(row, target), set()).add(posixpath.basename(row)[: -len(".md")])
+    findings: list[Finding] = []
+    for rel in ctx.files:
+        if rel not in ctx.texts:
+            continue
+        required, headers = _row_ref_headers(ctx, rel, adrs)
+        for header in headers:
+            values = _board_values(header)
+            if not values:
+                if required:
+                    old = any(_OLD_BOARD_RE.match(line.strip()) for _, line in header)
+                    detail = (
+                        "write the row as **Board:** with its id"
+                        if old
+                        else "no `**Board:**` line: name its row, or say none (reason)"
+                    )
+                    if rel in linked_from:
+                        detail += "; rows whose files link it: " + ", ".join(f"`{r}`" for r in sorted(linked_from[rel]))
+                    findings.append(Finding("row-ref", rel, detail))
+                continue
+            if len(values) > 1:
+                findings.append(Finding("row-ref", rel, "one `**Board:**` line, several rows separated by commas"))
+                continue
+            links, problems = board_refs(values[0])
+            findings += [Finding("row-ref", rel, problem) for problem in problems]
+            for text, destination in links:
+                row_id = _row_id_of(rel, destination, rows)
+                if row_id is None:
+                    findings.append(Finding("row-ref", rel, f"names no row: {destination[:80]}"))
+                elif text != f"`{row_id}`":
+                    findings.append(Finding("row-ref", rel, f"link text is not the row's id: `{row_id}`"))
+    return findings
+
+
+def row_artifacts(ctx: Context) -> dict[str, list[str]]:
+    """Each row id, and the files whose ``**Board:**`` header lines name it, sorted by path: the designs, specs, plans,
+    ADRs and journal files about the row. Read with the same headers ``row-ref`` checks, so what the check validates is
+    what the board page lists. A link that reaches no row is left out (``row-ref`` reports it)."""
+    rows, adrs = set(row_files(ctx)), frozenset(_adr_files(ctx))
+    found: dict[str, list[str]] = {}
+    for rel in ctx.files:
+        if rel not in ctx.texts:
+            continue
+        for header in _row_ref_headers(ctx, rel, adrs)[1]:
+            for value in _board_values(header):
+                for _, destination in board_refs(value)[0]:
+                    row_id = _row_id_of(rel, destination, rows)
+                    if row_id is not None and rel not in found.setdefault(row_id, []):
+                        found[row_id].append(rel)
+    return {row_id: sorted(paths) for row_id, paths in sorted(found.items())}
+
+
+class BaseError(Exception):
+    """A base that should exist could not be read: the run cannot judge ``row-kept`` and must not skip it."""
+
+
+@dataclass(frozen=True)
+class Base:
+    """The row ids on the base (``None``: no base, so ``row-kept`` is skipped), and which base it is, or why none."""
+
+    rows: frozenset[str] | None
+    note: str
+
+
+#: Runs one git command and returns its exit code, standard output and standard error; raises ``OSError`` when git
+#: cannot be run at all.
+GitRunner = Callable[[list[str]], tuple[int, str, str]]
+
+
+def run_git(argv: list[str]) -> tuple[int, str, str]:
+    """Run git; a run that takes longer than ``GIT_TIMEOUT`` seconds raises ``TimeoutError``, an ``OSError``, as a git
+    that cannot be run at all does."""
+    try:
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            stdin=subprocess.DEVNULL,
+            timeout=GIT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise TimeoutError(f"git did not answer in {GIT_TIMEOUT} s: {' '.join(argv)}") from e
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+#: Seconds one git command may take before the docs check gives up on it.
+GIT_TIMEOUT = 60
+
+
+def _base_rows(git: Callable[..., tuple[int, str, str]], base: str, board_dir: str) -> frozenset[str] | None:
+    """The row ids in ``board_dir`` at ``base``, or ``None`` when git cannot list it. A base whose board directory is
+    absent or holds no row file has no rows: an empty set, not an error."""
+    code, out, _ = git("ls-tree", "--name-only", base, "--", f"{board_dir}/")
+    if code != 0:
+        return None
+    names = [posixpath.basename(line.strip()) for line in out.splitlines() if line.strip()]
+    return frozenset(name[: -len(".md")] for name in names if row_file_name(name) is not None)
+
+
+def _answer(git: Callable[..., tuple[int, str, str]], *args: str) -> str | None:
+    """A git query with three outcomes: its output (exit 0), ``None`` when the thing asked for is absent (exit 1, as
+    ``--quiet`` queries and ``merge-base`` with no common ancestor answer), and a ``BaseError`` for anything else."""
+    code, out, err = git(*args)
+    if code == 0:
+        return out.strip()
+    if code == 1:
+        return None
+    raise BaseError(f"git {' '.join(args)} failed (exit {code}): {err.strip()[:200]}")
+
+
+def read_base(root: Path, board_dir: str, env: Mapping[str, str], run: GitRunner) -> Base:
+    """The base ``row-kept`` compares the tree with.
+
+    **In a pull request on CI** (``GITHUB_BASE_REF`` set and not empty, and the root is the checkout,
+    ``GITHUB_WORKSPACE``) the base is ``origin/<that branch>``, decided from the environment before git is asked
+    anything, and **any** git failure is a ``BaseError``: CI expected a base, and a skip would hide every rename (a
+    shallow checkout is the usual cause, so the message says to fetch the history).
+
+    **Elsewhere** the root must be the top of a git work tree, and the base is the merge base of ``HEAD`` and the
+    default branch (``origin/HEAD``, else a branch ``main``); on the default branch itself that is ``HEAD``, so an
+    uncommitted rename is still found. A repository a CI job builds inside the runner (the day-0 run's) is not the
+    checkout and is read this way. No git installed, no work tree, a root below the top, no commit yet, no default
+    branch and no common ancestor are absent answers: a ``Base`` with no rows and the reason. Any other git failure,
+    a timeout or a refusal included, is an error.
+    """
+
+    def git(*args: str) -> tuple[int, str, str]:
+        return run(["git", "-C", str(root), *args])
+
+    ref = env.get("GITHUB_BASE_REF", "").strip()
+    workspace = env.get("GITHUB_WORKSPACE", "").strip()
+    if ref and workspace and Path(workspace).resolve() == root.resolve():
+        base = f"origin/{ref}"
+        try:
+            rows = _base_rows(git, base, board_dir)
+        except OSError as e:
+            raise BaseError(f"git could not be run in the pull request's checkout ({type(e).__name__}: {e})") from e
+        if rows is None:
+            raise BaseError(
+                f"the pull request's base {base} cannot be read, so row-kept cannot run; a shallow checkout has no "
+                "base: add `fetch-depth: 0` to the checkout step in .github/workflows/ci.yml"
+            )
+        return Base(rows, f"against {base}")
+    try:
+        code, out, err = git("rev-parse", "--show-toplevel")
+        if code != 0:
+            if "not a git repository" in err.lower():
+                return Base(None, f"{root} is not a git work tree")
+            raise BaseError(f"git rev-parse --show-toplevel failed in {root} (exit {code}): {err.strip()[:200]}")
+        top = out.strip()
+        if Path(top).resolve() != root.resolve():
+            return Base(None, f"{root} is not the top of its work tree ({top})")
+        if _answer(git, "rev-parse", "--verify", "--quiet", "HEAD") is None:
+            return Base(None, "no commit yet")
+        branch = _answer(git, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD") or None
+        if branch is None and _answer(git, "rev-parse", "--verify", "--quiet", "main") is not None:
+            branch = "main"
+        if branch is None:
+            return Base(None, "no default branch (no origin/HEAD and no branch main)")
+        commit = _answer(git, "merge-base", "HEAD", branch)
+        if not commit:
+            return Base(None, f"HEAD and {branch} have no common ancestor")
+        rows = _base_rows(git, commit, board_dir)
+    except FileNotFoundError as e:  # git is not installed: a skip
+        return Base(None, f"git could not be run ({type(e).__name__}: {e})")
+    except OSError as e:  # a git that hangs or is refused: the lookup failed, so the gate must not pass quietly
+        raise BaseError(f"git failed in {root} ({type(e).__name__}: {e})") from e
+    if rows is None:
+        raise BaseError(f"git cannot list {board_dir} at {commit}, the merge base with {branch}")
+    return Base(rows, f"against the merge base with {branch}")
+
+
+def check_row_kept(ctx: Context) -> list[Finding]:
+    """Every row file on the base is still in the tree under the same name.
+
+    A row id never changes once the row is on the default branch: designs, specs, plans, pull requests and commit
+    messages name it, and the ones outside the checkout cannot be fixed by a rename. The links in the checkout cannot
+    prove it either: a rename with every link updated passes them. So the tree is compared with the base (``read_base``,
+    run by ``main``): a row file there that is gone here, deleted or renamed, is a finding. A new row is not. With no
+    base the check finds nothing, and ``main`` prints why.
+    """
+    if ctx.base_rows is None:
+        return []
+    present = {posixpath.basename(rel)[: -len(".md")] for rel in row_files(ctx)}
+    return [
+        Finding(
+            "row-kept",
+            posixpath.join(ctx.docs.board_dir, f"{row_id}.md"),
+            f"row `{row_id}` is on the base and gone: a row id never changes once on main",
+        )
+        for row_id in sorted(ctx.base_rows - present)
+    ]
 
 
 def _handoff_rules(ctx: Context, rel: str) -> list[Finding]:
@@ -2125,6 +2682,7 @@ Check = Callable[[Context], list[Finding]]
 #: Check name -> function, in the order they run. A function emits findings under exactly its own name.
 CHECKS: dict[str, Check] = {
     "corpus": check_corpus,
+    "control-char": check_control_chars,
     "links": check_links,
     "fences": check_fences,
     "status": check_status,
@@ -2138,6 +2696,10 @@ CHECKS: dict[str, Check] = {
     "adr-refs": check_adr_refs,
     "board": check_board,
     "landed-rows": check_landed_rows,
+    "board-state": check_board_state,
+    "waits-on": check_waits_on,
+    "row-ref": check_row_ref,
+    "row-kept": check_row_kept,
     "handoff": check_handoff,
     "glossary-row": check_glossary_row,
     "terms": check_terms,
@@ -2158,7 +2720,7 @@ def run(ctx: Context, checks: Mapping[str, Check] = CHECKS) -> list[Finding]:
     return findings
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, env: Mapping[str, str] | None = None, git: GitRunner | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):  # a finding naming a non-ASCII file must not crash the report
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
@@ -2169,8 +2731,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) > 1 or any(a.startswith("-") for a in args):
         print("usage: check_docs.py [-v] [root]", file=sys.stderr)
         return 2
-    if verbose:
-        _logging.basicConfig(level=_logging.INFO, format="%(message)s", stream=sys.stderr)
+    log_setup.configure(verbose)
     root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
     if not root.is_dir():
         print(f"docs check: cannot run: {root} is not a directory", file=sys.stderr)
@@ -2180,6 +2741,22 @@ def main(argv: list[str] | None = None) -> int:
     except fc.ConfigError as e:
         print(f"docs check: cannot run: {e}", file=sys.stderr)
         return 2
+    try:
+        base = read_base(root, ctx.docs.board_dir, os.environ if env is None else env, run_git if git is None else git)
+    except BaseError as e:
+        if ctx.board_is_directory:
+            print(f"docs check: cannot run: {e}", file=sys.stderr)
+            return 2
+        base = Base(None, "")  # a one-page board needs no `fetch-depth: 0`: no base read is no base
+    if not ctx.board_is_directory and not base.rows:
+        # One page, and no row file on the base either: it was always one page, so row-kept has nothing to keep. A
+        # base with rows is still compared, so deleting every row file does not turn the check off.
+        base = Base(None, "the board is one page, so its rows have no ids")
+    if base.rows is None:
+        print(f"row-kept: skipped: {base.note}")
+    else:
+        _LOGGER.info(f"row-kept: {len(base.rows)} row(s) on the base, {base.note}")
+    ctx = replace(ctx, base_rows=base.rows)
     findings = run(ctx)
     for finding in findings:
         print(finding)

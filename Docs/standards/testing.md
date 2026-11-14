@@ -67,10 +67,14 @@ is absent; a test that depends on an optional extra says so. A skip is never a w
 
 **Do not pin a hash of computed floats.** Recompute the value by the formula in the test, with a tolerance across machines.
 
-**The boundary test.** `tests/test_boundaries.py` holds the repository's own `src/` to the `[layers]` table of
-`framework.toml` (see *Layers* in [python.md](python.md)), and proves the check can fail by breaking the rule in a copy of
-`src/` and requiring the finding. It runs with the rest of the tests. Run the tool alone, with the line of every
+**The boundary test.** `tests/test_boundaries.py` holds the repository's own workspace members to the `[layers]` table of
+`framework.toml` and to the rules between members (see *Layers* in [python.md](python.md) and [layout.md](layout.md)), and
+proves the check can fail by breaking the rule in a copy of the members and requiring the finding. It runs with the rest of the tests. Run the tool alone, with the line of every
 finding, by `uv run python tools/boundaries.py`.
+
+**Tests across members.** One root run collects the framework's tests and every member's. No `tests/` folder has an
+`__init__.py`, and each member's tests may have their own `conftest.py` ([layout.md](layout.md), *Tests across
+members*); `tests/test_workspace_tests.py` proves the run and the collision an `__init__.py` causes.
 
 ## Error paths: three outcomes, never two
 
@@ -90,6 +94,25 @@ bug that only the error path shows.** Each item below is a case a test names; wr
 
 The first version of a tool passes the cases its author thought of; this list is the cases that review has found after that, in
 pull requests 17 to 46 of the template.
+
+## Capturing logs under a tool-root logger
+
+An App that takes *The tool-root pattern* ([python.md](python.md)) sets `propagate=False` on its tool-root logger, so a
+record under it never reaches the root logger, where pytest's `caplog` listens. `caplog` then sees nothing, or sees a
+record only when an earlier test happened to leave the logger propagating. Put this fixture in the App's
+`tests/conftest.py` and use it in place of `caplog` for records under the tool-root logger:
+
+```python
+@pytest.fixture
+def tool_root_caplog(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogCaptureFixture]:
+    """caplog's handler on the tool-root logger, for one test: the records under it are seen whatever ran first."""
+    root = logging.getLogger("your_project_name")
+    root.addHandler(caplog.handler)
+    yield caplog
+    root.removeHandler(caplog.handler)
+```
+
+A test never switches `propagate` on to see a record: the isolation is what is under test.
 
 ## Gates
 

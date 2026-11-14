@@ -56,12 +56,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import framework_config as fc
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_hygiene"
-__version__ = "0.3.0"
-__updated__ = "2026-10-12"
+__version__ = "0.3.1"
+__updated__ = "2026-11-07"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: Always allowed: the file that holds the identifiers.
@@ -99,11 +100,12 @@ def build_pattern(identifiers: tuple[str, ...]) -> re.Pattern[str]:
     return re.compile("|".join(part for part in parts if part))
 
 
-def candidate_paths(root: Path) -> tuple[list[str], str]:
+def candidate_paths(root: Path, unlisted: list[Finding] | None = None) -> tuple[list[str], str]:
     """The files to scan as sorted relative POSIX paths, and where the list came from (``git`` or ``walk``).
 
     When git is missing or fails, the walk is used and a warning says why; "this is not a git repository" is the
-    expected case of a tree before ``git init`` and is only information.
+    expected case of a tree before ``git init`` and is only information. A folder the walk cannot list is appended to
+    ``unlisted`` as a finding: its files were not scanned, and a scan that could not see must not pass.
     """
     reason = ""
     try:
@@ -124,9 +126,34 @@ def candidate_paths(root: Path) -> tuple[list[str], str]:
     log = _LOGGER.info if "not a git repository" in reason else _LOGGER.warning
     log(f"{reason}; scanning every file under {root} instead, except {', '.join(sorted(WALK_SKIP))}")
     found: list[str] = []
-    for current, dirs, files in os.walk(root):
-        dirs[:] = sorted(d for d in dirs if d not in WALK_SKIP)
-        found += [(Path(current) / name).relative_to(root).as_posix() for name in files]
+
+    def record(error: OSError) -> None:
+        where = Path(str(error.filename)) if error.filename else root
+        try:
+            rel = where.relative_to(root).as_posix()
+        except ValueError:
+            rel = where.as_posix()
+        if unlisted is not None:
+            unlisted.append(Finding(rel, 0, f"not scanned: cannot be listed: {type(error).__name__}: {error}"))
+
+    for current, dirs, files in os.walk(root, onerror=record):
+        # a linked folder (a junction too) is not entered, as git does not enter it: it is a path of its own, whose
+        # link text is checked as git's blob for it would be
+        # a skipped folder is skipped whether or not it is a link (a linked .venv is no path of the repository's)
+        dirs[:] = [d for d in dirs if d not in WALK_SKIP]
+        linked: list[str] = []
+        unread: list[str] = []
+        for d in dirs:
+            try:
+                if fc.is_link(Path(current) / d):
+                    linked.append(d)
+            except OSError as e:  # its kind cannot be read: not entered, and said so
+                unread.append(d)
+                if unlisted is not None:
+                    rel = (Path(current) / d).relative_to(root).as_posix()
+                    unlisted.append(Finding(rel, 0, f"not scanned: cannot be read: {type(e).__name__}: {e}"))
+        dirs[:] = sorted(d for d in dirs if d not in linked and d not in unread)
+        found += [(Path(current) / name).relative_to(root).as_posix() for name in [*files, *linked]]
     return sorted(found), "walk"
 
 
@@ -204,12 +231,12 @@ def scan(
         return [], []
     pattern = build_pattern(identifiers)
     allowed = (*ALWAYS_ALLOWED, *(a.path for a in allow))
-    paths, source = candidate_paths(root)
+    findings: list[Finding] = []
+    paths, source = candidate_paths(root, findings)
     lfs = lfs_paths(root, paths) if source == "git" else set()
     _LOGGER.info(
         f"scanning {len(paths)} file(s) under {root} (list from {source}) for {len(identifiers)} identifier(s)"
     )
-    findings: list[Finding] = []
     used: set[str] = set()
     for rel in paths:
         entry = _allowed_by(rel, allowed)
@@ -217,7 +244,15 @@ def scan(
         carried = bool(pattern.search(_normal(rel)))
         if carried and entry is None:
             findings.append(Finding(rel, 0, "the file name contains an identifier"))
-        if full.is_symlink():  # not followed: git stores the link text, and a target outside the root is not ours
+        try:
+            link: bool | None = fc.is_link(full)
+        except OSError as e:  # cannot be shown not to carry one, as an unreadable file (_scan_file)
+            link, carried = None, True
+            if entry is None:
+                findings.append(Finding(rel, 0, f"not scanned: {type(e).__name__}: {e}"))
+        if link is None:
+            pass
+        elif link:  # not followed: git stores the link text, and a target outside the root is not ours
             if pattern.search(_normal(os.readlink(full))):
                 carried = True
                 if entry is None:
@@ -275,7 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(args) > 1 or any(a.startswith("-") for a in args):
         print("usage: check_hygiene.py [-v] [root]", file=sys.stderr)
         return 2
-    _logging.basicConfig(level=_logging.INFO if verbose else _logging.WARNING, format="%(message)s", stream=sys.stderr)
+    log_setup.configure(verbose)
     root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
     if not root.is_dir():
         print(f"hygiene check: cannot run: {root} is not a directory", file=sys.stderr)

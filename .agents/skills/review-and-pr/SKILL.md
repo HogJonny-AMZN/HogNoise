@@ -31,7 +31,10 @@ find the repository's default branch.
    names it, or `git symbolic-ref refs/remotes/origin/HEAD`, or `gh repo view --json defaultBranchRef`). Give the body from
    `.github/pull_request_template.md` filled in, not typed over it: `gh pr create --base <default> --title "..."
    --body-file <file>`. Every two-way-door decision goes in *Decisions* (at most eight), what was verified, what is still open;
-   an open gate is stated, never implied.
+   an open gate is stated, never implied. **An issue the pull request fixes is named with `Closes #N`**, one line per
+   issue, so the merge closes it; "answers #N" leaves it open after the fix lands. **Every number and every "cannot" in
+   the body comes from a command run on the commit it names**, pasted, not recalled; read them again after each fix
+   commit (framework 46).
 6. **Read CI** on the pull request after pushing (`gh pr checks <n> --watch`): a claim of green comes after the run.
 
 ## Assessing an automated review
@@ -61,7 +64,9 @@ gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"<thread i
 ```
 
 A reply states what was done, or why not, and names the commit only after the commit exists. A claim in a reply is made after
-the evidence exists. Update the pull request body (the test count, the *Review* section, any decision you added), and wait for
+the evidence exists. **Every thread gets a reply before the merge**, a wrong finding as much as a valid one: list the
+threads again after the last push (`gh api graphql` with `reviewThreads { isResolved }`) and answer any left open. An
+unanswered thread is a finding nobody decided. Update the pull request body (the test count, the *Review* section, any decision you added), and wait for
 CI on the fix commit. A CI failure the reviewer did not mention is still yours.
 
 Before merging, or asking a person to merge, a pull request that others are stacked on, retarget the stack to the default

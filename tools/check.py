@@ -10,7 +10,8 @@ one-line dispatcher to it (``Docs/standards/tooling.md``). A machine without mak
 apart.
 A stage belongs to a module of ``framework.toml`` and is in the list only while that module is ``on``: the hygiene check
 runs when ``hygiene`` is on, the log-format check and the tests when ``python-uv`` is, the graph check when ``graph``
-is, the adapters check when ``harness-adapters`` is. The sync check belongs to the core.
+is, the process map's check when ``process-map`` is, the adapters check when ``harness-adapters`` is. The sync check
+belongs to the core.
 
 Every stage runs even after one fails (a run that stops at the first failure hides the others and turns one
 fix-and-rerun
@@ -39,12 +40,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import framework_config as fc
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check"
-__version__ = "0.1.0"
-__updated__ = "2026-10-13"
+__version__ = "0.2.0"
+__updated__ = "2026-11-01"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: The repository root: the parent of the folder this file is in.
@@ -102,6 +104,12 @@ ALL_STAGES: tuple[Stage, ...] = (
         ("uv", "run", "python", "tools/render_framework_graph.py", "--check"),
         "The framework graph is well formed and its page is current",
         "graph",
+    ),
+    Stage(
+        "process-map",
+        ("uv", "run", "python", "tools/render_process_map.py", "--check"),
+        "The process map's data is well formed and its page is current",
+        "process-map",
     ),
     Stage(
         "adapters",
@@ -199,9 +207,7 @@ def _run(argv: list[str] | None) -> int:
     parser.add_argument("--root", type=Path, default=ROOT, help="the repository to check (default: this one)")
     parser.add_argument("-v", "--verbose", action="store_true", help="log what was decided to standard error")
     args = parser.parse_args(argv)
-    _logging.basicConfig(
-        level=_logging.INFO if args.verbose else _logging.WARNING, format="%(message)s", stream=sys.stderr
-    )
+    log_setup.configure(args.verbose)
     root = args.root.resolve()
     if not root.is_dir():
         print(f"check: cannot run: {root} is not a directory", file=sys.stderr)

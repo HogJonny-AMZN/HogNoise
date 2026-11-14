@@ -21,6 +21,17 @@ sign-off of its own. Run standalone (exit code 0 accepted, 1 rejected with the r
 ``project.json`` or ``framework.toml`` is unusable)::
 
     uv run python tools/check_commit_msg.py [-v] [--root PATH] MESSAGE_FILE
+
+**The range mode**, CI's ``commits`` job on a pull request (``Docs/standards/ci.md``): every commit in ``BASE..HEAD``
+is checked the same way, so ``--no-verify`` is caught at the pull request. Each rejected commit is named by its short
+sha and subject, and the run ends with a count (exit 2 also when the range cannot be read)::
+
+    uv run python tools/check_commit_msg.py [-v] [--root PATH] --range BASE..HEAD [--opened-by LOGIN]
+
+``--opened-by`` is the pull request's opener as GitHub recorded it. A commit gets one more accepted sign-off, a bot's
+own, only when the opener is one of ``BOTS``, the commit's author is that bot, and its sign-off names it: Dependabot
+signs off as itself, which no roster can hold. A commit's author and sign-off are text anyone can write, which is why
+the opener is required; the attribution rule applies to every commit regardless.
 """
 
 from __future__ import annotations
@@ -28,16 +39,18 @@ from __future__ import annotations
 import argparse
 import logging as _logging
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 import framework_config as fc
+import log_setup
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_commit_msg"
-__version__ = "0.2.0"
-__updated__ = "2026-10-29"
+__version__ = "0.3.0"
+__updated__ = "2026-11-06"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,6 +96,19 @@ _SIGNOFF_EXEMPT = (
 )
 
 
+#: Bots whose own sign-off the range mode accepts on a pull request GitHub records them as opening. A floor: the one bot
+#: the template configures (``.github/dependabot.yml``). Any other bot, an AI coding agent's included, is held to the
+#: roster like a person.
+BOTS = ("dependabot[bot]",)
+#: Seconds a git call may take before the range counts as unreadable.
+GIT_TIMEOUT = 60
+_SHA_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+class RangeError(Exception):
+    """The commit range cannot be read."""
+
+
 def _first_line(message: str) -> str:
     return next((line.strip() for line in message.splitlines() if line.strip()), "")
 
@@ -105,12 +131,19 @@ def accepted_identities(project: fc.ProjectConfig, people: tuple[fc.Person, ...]
     return identities
 
 
-def check_message(message: str, project: fc.ProjectConfig, people: tuple[fc.Person, ...] = ()) -> list[str]:
+def check_message(
+    message: str,
+    project: fc.ProjectConfig,
+    people: tuple[fc.Person, ...] = (),
+    extra: tuple[tuple[str, str], ...] = (),
+) -> list[str]:
     """The reasons ``message`` must be rejected, empty when it is accepted.
 
     :param message: The commit message text.
     :param project: The project's identity and whether it requires a sign-off.
     :param people: The roster whose members may sign as themselves; empty where the repository has none.
+    :param extra: ``(name, email)`` identities accepted for the sign-off alone, beyond the owner and the roster: the
+        range mode's bot sign-off. The hook passes none.
     """
     found: list[str] = []
     lines = message.splitlines()
@@ -122,7 +155,7 @@ def check_message(message: str, project: fc.ProjectConfig, people: tuple[fc.Pers
         elif generated and _AI_RE.search(line[generated.end() :]):
             found.append(f"a 'Generated with/by' footer naming an AI is not allowed: {line.strip()!r}")
     if project.signoff and not _first_line(message).lower().startswith(_SIGNOFF_EXEMPT):
-        identities = accepted_identities(project, people)
+        identities = accepted_identities(project, people) + [(n, e, "the pull request's opener") for n, e in extra]
         signed = any(
             (m := _SIGNOFF_RE.match(line))
             and any(m.group(1) == name and m.group(2).casefold() == email.casefold() for name, email, _ in identities)
@@ -153,18 +186,131 @@ def _roster(root: Path) -> tuple[fc.Person, ...]:
     return fc.load_framework(path).people
 
 
+def _git(root: Path, *args: str) -> str:
+    """Run git under ``root`` with no input and a timeout; its standard output, or ``RangeError`` naming the failure."""
+    argv = ["git", "-C", str(root), *args]
+    try:
+        done = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            timeout=GIT_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RangeError(f"git {args[0]} took longer than {GIT_TIMEOUT}s") from e
+    if done.returncode != 0:
+        words = done.stderr.strip().splitlines()
+        raise RangeError(f"git {args[0]} failed: {words[0] if words else f'exit {done.returncode}'}")
+    return done.stdout
+
+
+def _parse_range(revision_range: str) -> tuple[str, str]:
+    """``BASE..HEAD`` split in two; ``RangeError`` unless it is exactly two revisions, neither of which git could read
+    as an option (``-x``) or a third dot."""
+    parts = revision_range.split("..")
+    if len(parts) != 2 or any(not p or p[0] in "-." or any(c.isspace() for c in p) for p in parts):
+        raise RangeError(
+            f"--range must be BASE..HEAD, two revisions neither starting with '-' or '.': {revision_range!r}"
+        )
+    return parts[0], parts[1]
+
+
+def commits(root: Path, revision_range: str) -> list[tuple[str, str, str]]:
+    """The ``(sha, author name, message)`` of each commit in ``revision_range``, oldest first.
+
+    Each commit is read by its sha, one ``git show`` at a time, with the author and the message split on a NUL (which
+    an author name cannot hold and git ends a message at). So no character a message contains can make it read as
+    more than one commit, or hide part of itself from the check.
+
+    :param root: The repository.
+    :param revision_range: ``BASE..HEAD``.
+    :raises RangeError: The range is not two revisions, or git cannot read it.
+    """
+    base, head = _parse_range(revision_range)
+    shas = _git(root, "rev-list", "--reverse", "--end-of-options", f"{base}..{head}", "--").split()
+    found = []
+    for sha in shas:
+        if not _SHA_RE.fullmatch(sha):
+            raise RangeError(f"git rev-list gave {sha!r}, which is not a commit id")
+        author, separator, message = _git(
+            root, "show", "-s", "--no-show-signature", "--format=%an%x00%B", sha, "--"
+        ).partition("\x00")
+        if not separator:
+            raise RangeError(f"git show {sha[:7]} gave no author/message separator")
+        found.append((sha, author, message))
+    return found
+
+
+def bot_signoff(author: str, message: str, opened_by: str | None) -> tuple[tuple[str, str], ...]:
+    """The bot identity a commit may sign as: the opener's own sign-off, when the opener is one of ``BOTS`` and is the
+    commit's author; otherwise none.
+
+    :param author: The commit's author name.
+    :param message: The commit message.
+    :param opened_by: The pull request's opener as GitHub recorded it, or ``None`` outside a pull request.
+    :return: ``((name, email),)`` from the bot's own sign-off line, or ``()``.
+    """
+    if opened_by not in BOTS or author != opened_by:
+        return ()
+    for line in message.splitlines():
+        match = _SIGNOFF_RE.match(line)
+        if match and match.group(1) == opened_by:
+            return ((match.group(1), match.group(2)),)
+    return ()
+
+
+def _check_range(
+    root: Path,
+    revision_range: str,
+    opened_by: str | None,
+    project: fc.ProjectConfig,
+    people: tuple[fc.Person, ...],
+) -> int:
+    """The range mode: every commit checked, each rejection named by sha and subject, then a count.
+
+    :return: 0 every commit accepted, 1 any rejected, 2 the range cannot be read.
+    """
+    try:
+        found = commits(root, revision_range)
+    except (RangeError, OSError) as e:
+        print(f"commit-msg: cannot run: {e}", file=sys.stderr)
+        return 2
+    _LOGGER.info(
+        f"read {revision_range} under {root}: {len(found)} commit(s); opened by {opened_by}; "
+        f"accepted identities: {len(accepted_identities(project, people))}"
+    )
+    rejected = 0
+    for sha, author, message in found:
+        bot = bot_signoff(author, message, opened_by)
+        if bot:
+            _LOGGER.info(f"{sha[:7]}: accepted {bot[0][0]}'s own sign-off (the pull request's opener and the author)")
+        reasons = check_message(message, project, people, bot)
+        for reason in reasons:
+            print(f"[commit-msg] {sha[:7]} {_first_line(message)}: {reason}", file=sys.stderr)
+        rejected += bool(reasons)
+    print(f"commit-msg: {len(found)} commit(s) checked, {rejected} rejected")
+    return 1 if rejected else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("message_file", type=Path, help="the commit message file git hands the hook")
+    which = parser.add_mutually_exclusive_group(required=True)
+    which.add_argument("message_file", type=Path, nargs="?", help="the commit message file git hands the hook")
+    which.add_argument("--range", dest="revision_range", help="BASE..HEAD: every commit a pull request brings")
+    parser.add_argument("--opened-by", help="the pull request's opener, as GitHub recorded it (the range mode)")
     parser.add_argument("--root", type=Path, default=ROOT, help="the repository whose project.json and roster apply")
     parser.add_argument("-v", "--verbose", action="store_true", help="log what was read to standard error")
     args = parser.parse_args(argv)
-    _logging.basicConfig(
-        level=_logging.INFO if args.verbose else _logging.WARNING, format="%(message)s", stream=sys.stderr
-    )
+    log_setup.configure(args.verbose)
     try:
         project = fc.load_project(args.root / "project.json")
         people = _roster(args.root)
+        if args.revision_range is not None:
+            return _check_range(args.root, args.revision_range, args.opened_by, project, people)
         message = args.message_file.read_text(encoding="utf-8", errors="replace")
     except (fc.ConfigError, OSError) as e:
         print(f"commit-msg: cannot run: {e}", file=sys.stderr)

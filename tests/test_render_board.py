@@ -88,7 +88,11 @@ def corpus() -> dict[str, str]:
         ),
         "Docs/journal/2026-10-11-session-01.md": "# Session 01\n\nWork.\n",
         "Docs/decisions/README.md": "# Decisions\n\n| ADR | Title |\n| --- | --- |\n",
-        "Docs/design/x.md": "# A design\n\n**Status:** Accepted.\n\nText.\n\n## Terms introduced\n\nNone.\n",
+        "Docs/design/x.md": (
+            "# A design\n\n**Status:** Accepted.\n"
+            "**Board:** [`2026-10-02-build-it`](../plan/board/2026-10-02-build-it.md)\n\n"
+            "Text.\n\n## Terms introduced\n\nNone.\n"
+        ),
         **rows(),
     }
 
@@ -126,6 +130,15 @@ def test_open_rows_come_first_newest_first_and_done_rows_are_struck_after_them(t
     newer, build, done = (now.index(s) for s in ("[Newer]", "[Build it]", "~~[Done thing]"))
     assert newer < build < done
     assert "~~[Done thing](board/2026-09-30-done-thing.md)~~ | @ada | Landed 2026-10-01 as #12" in now
+
+
+def test_a_done_row_newer_than_every_open_row_still_comes_after_them(tmp_path: Path) -> None:
+    files = corpus()
+    files[f"{BOARD_DIR}/2026-10-09-landed-late.md"] = row("now", "Landed late", "@ada", "Landed 2026-10-09 as #13")
+    _, text = render_in(make_repo(tmp_path, files))
+    now = text.split("## Now", 1)[1].split("## Next", 1)[0]
+    newer, build, late, done = (now.index(s) for s in ("[Newer]", "[Build it]", "~~[Landed late]", "~~[Done thing]"))
+    assert newer < build < late < done  # open rows first, then the done rows, each group newest first
 
 
 def test_the_icebox_table_carries_cost_and_verdict_and_the_owner_none(tmp_path: Path) -> None:
@@ -243,10 +256,39 @@ def test_a_hand_kept_board_has_nothing_to_render_and_exits_two(tmp_path: Path, c
     assert "hand-kept" in capsys.readouterr().err
 
 
-def test_a_missing_board_directory_and_a_bad_root_exit_two(tmp_path: Path) -> None:
+def test_a_missing_board_directory_and_a_bad_root_exit_two(tmp_path: Path, capsys) -> None:
     files = {k: v for k, v in corpus().items() if not k.startswith(BOARD_DIR)}
     assert rb.main([], root=make_repo(tmp_path, files)) == 2
+    err = capsys.readouterr().err
+    # no board directory is the usual hand-kept board: the same message as an empty one, not a traceback's words
+    assert "hand-kept" in err and "FileNotFoundError" not in err, err
     assert rb.main([], root=tmp_path / "nowhere") == 2
+
+
+def test_a_board_directory_that_cannot_be_listed_is_unreadable_not_hand_kept(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """Missing is hand-kept; a directory that is there and cannot be read is an error that says so (ledger P-16)."""
+    repo = make_repo(tmp_path, corpus())
+    real_iterdir = Path.iterdir
+
+    def refuse(self: Path):  # noqa: ANN202 - Path.iterdir's own shape
+        if self.name == Path(BOARD_DIR).name:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", refuse)
+    assert rb.main([], root=repo) == 2
+    err = capsys.readouterr().err
+    assert "cannot list the board directory" in err and "PermissionError" in err and "hand-kept" not in err, err
+
+
+def test_a_board_path_that_is_a_file_is_not_a_hand_kept_board(tmp_path: Path, capsys) -> None:
+    files = {k: v for k, v in corpus().items() if not k.startswith(BOARD_DIR)}
+    files[BOARD_DIR] = "a file where the board directory goes\n"
+    assert rb.main([], root=make_repo(tmp_path, files)) == 2
+    err = capsys.readouterr().err
+    assert "cannot list the board directory" in err and "hand-kept" not in err, err
 
 
 def test_a_row_file_that_cannot_be_read_exits_two_and_writes_nothing(tmp_path: Path, capsys) -> None:
@@ -254,6 +296,15 @@ def test_a_row_file_that_cannot_be_read_exits_two_and_writes_nothing(tmp_path: P
     (root / BOARD_DIR / "2026-10-08-bytes.md").write_bytes(b"\xff\xfe not utf-8")
     assert rb.main([], root=root) == 2 and not (root / PAGE).exists()
     assert "cannot read" in capsys.readouterr().err
+
+
+def test_a_document_that_cannot_be_read_exits_two_and_writes_no_partial_page(tmp_path: Path, capsys) -> None:
+    """The docs check records an undecodable document instead of raising; the page would silently miss its row."""
+    root = make_repo(tmp_path, corpus())
+    (root / "Docs/design/y.md").write_bytes(b"# Y\n\n\xff\xfe not utf-8\n")
+    assert rb.main([], root=root) == 2 and not (root / PAGE).exists()
+    err = capsys.readouterr().err
+    assert "cannot read Docs/design/y.md" in err, err
 
 
 def test_a_page_that_cannot_be_written_exits_two_and_leaves_nothing_behind(tmp_path: Path, capsys) -> None:
@@ -284,3 +335,66 @@ def test_the_docs_check_passes_with_the_page_absent_rendered_and_hand_edited(tmp
     page.write_text("# The Board\n\n**Status:** Living.\n\n## Gates\n\nNone.\n", encoding="utf-8")
     found = cd.run(cd.load_context(root))
     assert [f.check for f in found] == ["board"] and "two trackers" in found[0].detail
+
+
+# --------------------------------------------------------------------------- each row's artifacts
+BUILD = "2026-10-02-build-it"
+
+
+def _board_line(prefix: str) -> str:
+    return f"**Board:** [`{BUILD}`]({prefix}plan/board/{BUILD}.md)"
+
+
+def test_each_row_lists_the_files_that_name_it_one_of_each_kind(tmp_path: Path) -> None:
+    files = corpus()
+    files["Docs/superpowers/specs/s.md"] = (
+        f"# S\n\n**Status:** Accepted.\n{_board_line('../../')}\n\n## Terms introduced\n\nNone.\n"
+    )
+    files["Docs/superpowers/plans/p.md"] = (
+        f"# P\n\n**Status:** Accepted.\n{_board_line('../../')}\n\n## Terms introduced\n\nNone.\n"
+    )
+    files["Docs/decisions/ADR-001-one.md"] = f"# ADR\n\n**Status:** Accepted.\n{_board_line('../')}\n\nText.\n"
+    files["Docs/journal/2026-10-11-session-01.md"] = (
+        f"# Session 01\n\n### Work\n**By:** @ada · **Agent:** none\n{_board_line('../')}\n\nWork.\n"
+    )
+    code, text = render_in(make_repo(tmp_path, files))
+    assert code == 0
+    section = text.split("## Artifacts", 1)[1]
+    assert section.startswith("\n\n### [Build it](board/2026-10-02-build-it.md)\n")
+    for rel in (
+        "Docs/decisions/ADR-001-one.md",
+        "Docs/design/x.md",
+        "Docs/journal/2026-10-11-session-01.md",
+        "Docs/superpowers/plans/p.md",
+        "Docs/superpowers/specs/s.md",
+    ):
+        assert f"- [`{rel}`](../{Path(rel).relative_to('Docs').as_posix()})" in section, section
+    listed = [line for line in section.splitlines() if line.startswith("- ")]
+    assert listed == sorted(listed) and len(listed) == 5
+
+
+def test_an_artifact_link_is_percent_encoded_and_still_resolves(tmp_path: Path, capsys) -> None:
+    """A space in a file name breaks the link, and a ``#`` becomes a fragment."""
+    files = corpus()
+    files["Docs/superpowers/specs/my spec #1.md"] = (
+        f"# S\n\n**Status:** Accepted.\n{_board_line('../../')}\n\n## Terms introduced\n\nNone.\n"
+    )
+    repo = make_repo(tmp_path, files)
+    code, text = render_in(repo)
+    assert code == 0
+    assert "(../superpowers/specs/my%20spec%20%231.md)" in text, text
+    capsys.readouterr()
+    cd.main([str(repo)], env={}, git=lambda argv: (128, "", "fatal: not a git repository"))
+    assert "BOARD.md" not in capsys.readouterr().out
+
+
+def test_a_board_line_in_a_body_is_not_an_artifact_and_a_row_named_nowhere_is_not_listed(tmp_path: Path) -> None:
+    files = corpus()
+    files["Docs/design/x.md"] = (
+        "# A design\n\n**Status:** Accepted.\n**Board:** none (a test)\n\n## Body\n\n"
+        f"{_board_line('../')}\n\n## Terms introduced\n\nNone.\n"
+    )
+    code, text = render_in(make_repo(tmp_path, files))
+    assert code == 0
+    assert text.split("## Artifacts", 1)[1].strip().startswith("None.")
+    assert "### [Then this]" not in text

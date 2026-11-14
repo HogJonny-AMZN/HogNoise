@@ -211,6 +211,105 @@ def test_a_directory_that_cannot_be_listed_is_a_finding(tmp_path: Path, monkeypa
     assert finding.path == "locked" and "cannot be listed" in finding.reason
 
 
+def _link(link: Path, target: Path) -> None:
+    """``link`` made a symlink to the folder ``target``, or the test skipped where this account cannot make one."""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this account cannot create a symlink")
+
+
+def test_a_symlinked_folder_is_a_finding_not_a_clean_pass(tmp_path: Path) -> None:
+    """``os.walk`` lists a linked folder and never enters it: its calls are unchecked, and the report says so (#78)."""
+    root, elsewhere = tmp_path / "repo", tmp_path / "elsewhere"
+    _write(root, "ok.py", "x = 1\n")
+    _write(elsewhere, "hidden.py", '_LOGGER.info("x %s", y)\n')
+    _link(root / "linked", elsewhere)
+    (finding,) = clf.check_tree(root)
+    assert finding.path == "linked" and "outside the root" in finding.reason, finding
+
+
+def test_a_link_to_a_folder_inside_the_root_is_read_where_it_points_not_reported(tmp_path: Path) -> None:
+    """A venv's ``lib64 -> lib``, or a monorepo's link to a shared folder: its files are read at their target, so the
+    link is not source unseen (the deliberate review of the fix for #78)."""
+    _write(tmp_path, "pkg/lib/a.py", '_LOGGER.info("x %s", y)\n')
+    _link(tmp_path / "pkg" / "lib64", tmp_path / "pkg" / "lib")
+    assert [(f.path, f.line) for f in clf.check_tree(tmp_path)] == [("pkg/lib/a.py", 1)]
+
+
+def _junction(link: Path, target: Path) -> None:
+    """``link`` made a Windows junction to ``target``, or the test skipped off Windows or before Python 3.12."""
+    if sys.platform != "win32" or not hasattr(Path, "is_junction"):
+        pytest.skip("a junction is a Windows folder link, recognised from Python 3.12")
+    import _winapi  # noqa: PLC0415 - Windows only
+
+    _winapi.CreateJunction(str(target), str(link))
+
+
+def test_a_junction_loop_is_one_finding_not_a_walk_round_it(tmp_path: Path) -> None:
+    """``os.walk`` follows a junction: a loop would recurse until the path is too long, each file scanned each time."""
+    _write(tmp_path, "pkg/a.py", "x = 1\n")
+    _junction(tmp_path / "pkg" / "j", tmp_path / "pkg")
+    assert clf.check_tree(tmp_path) == []  # the junction leads back inside the root: read where it points
+
+
+def test_a_junction_out_of_the_root_is_reported_not_followed(tmp_path: Path) -> None:
+    root, elsewhere = tmp_path / "repo", tmp_path / "elsewhere"
+    _write(root, "ok.py", "x = 1\n")
+    _write(elsewhere, "hidden.py", '_LOGGER.info("x %s", y)\n')
+    _junction(root / "j", elsewhere)
+    (finding,) = clf.check_tree(root)
+    assert finding.path == "j" and "outside the root" in finding.reason, finding
+
+
+def test_a_symlink_loop_is_a_finding(tmp_path: Path) -> None:
+    _write(tmp_path, "ok.py", "x = 1\n")
+    _link(tmp_path / "loop", tmp_path / "loop")
+    (finding,) = clf.check_tree(tmp_path)
+    assert finding.path == "loop" and "cannot be read" in finding.reason, finding
+
+
+def test_a_link_to_a_folder_the_walk_skips_is_reported_not_passed(tmp_path: Path) -> None:
+    """Inside the root is not enough: a link to ``build/gen`` points where the walk does not go, so its calls were not
+    seen by another path (Copilot on #144)."""
+    _write(tmp_path, "build/gen/a.py", '_LOGGER.info("x %s", y)\n')
+    _write(tmp_path, "pkg/ok.py", "x = 1\n")
+    _link(tmp_path / "pkg" / "gen", tmp_path / "build" / "gen")
+    (finding,) = clf.check_tree(tmp_path)
+    assert finding.path == "pkg/gen" and "a folder the walk skips" in finding.reason, finding
+
+
+def _refuse_lstat(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
+    """``Path.lstat`` of ``target`` refused, as a folder that can be listed but not searched refuses it on POSIX."""
+    real = Path.lstat
+
+    def lstat(self: Path) -> object:
+        if self == target:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real(self)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+
+
+def test_a_folder_whose_kind_cannot_be_read_is_a_finding_not_a_crash(tmp_path: Path, monkeypatch) -> None:
+    """Whether an entry is a link is read with ``lstat``, which can be refused: a finding, and not entered (Copilot on
+    #144; ledger P-16)."""
+    _write(tmp_path, "ok.py", "x = 1\n")
+    _write(tmp_path, "pkg/a.py", '_LOGGER.info("x %s", y)\n')
+    _refuse_lstat(monkeypatch, tmp_path / "pkg")
+    (finding,) = clf.check_tree(tmp_path)
+    assert finding.path == "pkg" and "cannot be read" in finding.reason, finding
+
+
+def test_a_dangling_link_and_a_skipped_linked_folder_are_nothing(tmp_path: Path) -> None:
+    """The negative control: a link to nothing holds no calls, and a link where the tree is skipped is skipped."""
+    _write(tmp_path, "ok.py", "x = 1\n")
+    _link(tmp_path / "gone", tmp_path / "nowhere")
+    _write(tmp_path / "outside", "x.py", '_LOGGER.info("x %s", y)\n')
+    _link(tmp_path / "node_modules", tmp_path / "outside")
+    assert [f for f in clf.check_tree(tmp_path) if f.path != "outside/x.py"] == []
+
+
 # ---- the command line
 def test_main_exits_one_on_a_finding_zero_when_clean_and_two_when_it_cannot_run(tmp_path: Path, capsys) -> None:
     bad = tmp_path / "bad.py"
@@ -432,3 +531,12 @@ def test_a_bare_marker_on_a_lazy_call_is_reported_once() -> None:
 
 def test_a_marker_with_a_measurement_on_a_compliant_call_is_harmless() -> None:
     assert _check('_LOGGER.info(f"x {x}")  # lazy-log: not needed any more') == []
+
+
+def test_a_v_run_logs_with_the_tools_prefix(tmp_path: Path) -> None:
+    """Every tool logs through log_setup: the time, the level and the module, at INFO with -v (logging in tiers)."""
+    from test_log_setup import PROBE_LINE, tool_log_line
+
+    line, level = tool_log_line("check_log_format", [a.replace("{empty}", str(tmp_path)) for a in ["-v", "{empty}"]])
+    assert PROBE_LINE.fullmatch(line), line
+    assert level == 20

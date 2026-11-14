@@ -2,6 +2,7 @@
 
 **Status:** Accepted 2026-11-11 (the owner: "lock it"). The owner, 2026-11-02: build it before the GPU port ("do it"), check ports against both reference sets,
 and keep the vectors in the repository with `check` taking a path. Decisions 3 to 7 were proposed here and locked as written.
+**Board:** [`2026-11-01-conformance-harness-and-portable-vectors`](../plan/board/2026-11-01-conformance-harness-and-portable-vectors.md)
 
 ## Intent
 

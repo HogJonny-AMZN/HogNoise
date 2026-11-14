@@ -4,7 +4,7 @@ Branch: type/<slug> (feat, fix, docs, chore). A person on the roster merges and 
 Delete any section that has nothing in it.
 -->
 
-**Board:** <!-- the row in Docs/plan/BOARD.md this lands, closes or adds; "none" is an answer, an omission is not -->
+**Board:** <!-- the row this lands, closes or adds, by its id: [`<row id>`](Docs/plan/board/<row id>.md); "none (reason)" is an answer, an omission is not -->
 
 ## What changed
 
@@ -66,4 +66,7 @@ session ends): name its number.
       the ledger if the process failed
 - [ ] Review: the deliberate review run and its findings answered above, **or** this increment is not significant under the
       rule, and *Review* says why
+- [ ] Error paths: code here that reads the filesystem, runs a subprocess, calls the network or parses text it did
+      not write has a test for each case of `Docs/standards/testing.md`'s *Error paths* that applies, or *Verified*
+      names the case and why not (the review's *Error paths* table, where it ran)
 - [ ] Every two-way-door decision is in *Decisions*, and there are no more than 8

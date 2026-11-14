@@ -1,6 +1,6 @@
 """
 HogNoise: the conformance harness, on small vectors built here and on the committed ones.
-Package: tests/test_hog_noise/test_conformance
+Package: packages/python/hog-noise/tests/test_conformance
 """
 
 import hashlib
@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from hog_noise_repo import VECTORS as VECTORS_ROOT
 
 from hog_noise import conformance
 from hog_noise.conformance import Bound
@@ -274,7 +275,7 @@ def test_the_command_line_exits_one_on_a_failure(tmp_path):
 
 # -------------------------------------------------------------------------
 # on the committed vectors: acceptance 3, 4 and 5
-REAL = Path(__file__).resolve().parents[2] / "vectors"
+REAL = VECTORS_ROOT
 
 
 @pytest.fixture(scope="module")

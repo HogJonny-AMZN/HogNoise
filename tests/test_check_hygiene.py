@@ -299,7 +299,7 @@ def test_a_large_file_that_is_allowed_is_not_a_finding_and_not_stale(tmp_path: P
 
 def test_a_scan_of_nothing_is_a_finding_not_a_pass(tmp_path: Path, capsys, monkeypatch) -> None:
     root = make_repo(tmp_path, {"a.txt": "x\n"}, ["zqsample-internal"])
-    monkeypatch.setattr(ch, "candidate_paths", lambda _root: ([], "git"))
+    monkeypatch.setattr(ch, "candidate_paths", lambda _root, _unlisted=None: ([], "git"))
     code, out, _ = run(root, capsys)
     assert code == 1 and "no files to scan" in out
 
@@ -605,6 +605,82 @@ def test_a_missing_git_is_a_warning_on_stderr_without_asking_for_a_verbose_run(t
     assert "git could not be run" in result.stderr and "scanning every file" in result.stderr
 
 
+def test_a_folder_the_walk_cannot_list_is_a_finding_not_a_clean_pass(tmp_path: Path, monkeypatch) -> None:
+    """Without git, the walk is the list: a folder it cannot list is files unscanned, and the report says so (the scan
+    of #86 to #139, item 6; ledger P-16)."""
+    root = make_repo(tmp_path, {"a.txt": "fine\n"}, [ID], git=False)
+    real_walk = ch.os.walk
+
+    def denying_walk(top, onerror=None, **kwargs):  # noqa: ANN001, ANN202 - os.walk's own shape
+        if onerror is not None:
+            onerror(PermissionError(13, "Permission denied", str(Path(top) / "locked")))
+        yield from real_walk(top, **kwargs)
+
+    monkeypatch.setattr(ch.os, "walk", denying_walk)
+    findings, _ = ch.scan(root, (ID,), ())
+    assert [f.path for f in findings] == ["locked"] and "cannot be listed" in findings[0].detail, findings
+
+
+def test_a_linked_folder_in_the_walk_has_its_link_text_checked_as_git_would(tmp_path: Path) -> None:
+    """Without git, a linked folder is a path of its own whose target text is checked, as git's blob for it is; it is
+    not entered (the deliberate review of the class A sweep)."""
+    root = make_repo(tmp_path / "repo", {"a.txt": "fine\n"}, [ID], git=False)
+    outside = tmp_path / f"{ID}-out"
+    outside.mkdir()
+    try:
+        (root / "linked").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this account cannot create a symlink")
+    paths, source = ch.candidate_paths(root)
+    assert source == "walk" and "linked" in paths, paths
+    findings, _ = ch.scan(root, (ID,), ())
+    assert [(f.path, f.detail) for f in findings] == [("linked", "the link target contains an identifier")]
+
+
+def test_a_linked_folder_the_walk_skips_is_skipped_like_the_folder(tmp_path: Path) -> None:
+    """A linked ``.venv`` is skipped as an ordinary one is; its link text is not checked (Copilot on #144)."""
+    root = make_repo(tmp_path / "repo", {"a.txt": "fine\n"}, [ID], git=False)
+    outside = tmp_path / f"{ID}-venv"
+    outside.mkdir()
+    try:
+        (root / ".venv").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this account cannot create a symlink")
+    paths, _ = ch.candidate_paths(root)
+    assert ".venv" not in paths, paths
+    assert ch.scan(root, (ID,), ())[0] == []
+
+
+def _refuse_lstat(monkeypatch: pytest.MonkeyPatch, target: Path) -> None:
+    """``Path.lstat`` of ``target`` refused, as a folder that can be listed but not searched refuses it on POSIX."""
+    real = Path.lstat
+
+    def lstat(self: Path) -> object:
+        if self == target:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real(self)
+
+    monkeypatch.setattr(Path, "lstat", lstat)
+
+
+def test_a_folder_whose_kind_the_walk_cannot_read_is_a_finding_not_a_crash(tmp_path: Path, monkeypatch) -> None:
+    """Whether a folder is a link is read with ``lstat``, which can be refused: a finding, not entered (Copilot on
+    #144; ledger P-16)."""
+    root = make_repo(tmp_path, {"a.txt": "fine\n", "sub/b.txt": "fine\n"}, [ID], git=False)
+    _refuse_lstat(monkeypatch, root / "sub")
+    findings, _ = ch.scan(root, (ID,), ())
+    assert [f.path for f in findings] == ["sub"] and "cannot be read" in findings[0].detail, findings
+
+
+def test_a_listed_path_whose_kind_cannot_be_read_is_a_finding_not_a_crash(tmp_path: Path, monkeypatch) -> None:
+    root = make_repo(tmp_path, {"a.txt": "fine\n"}, [ID], git=False)
+    out = subprocess.CompletedProcess([], 0, b"a.txt\0", b"")
+    monkeypatch.setattr(ch.subprocess, "run", lambda *_a, **_k: out)
+    _refuse_lstat(monkeypatch, root / "a.txt")
+    findings, _ = ch.scan(root, (ID,), ())
+    assert [f.path for f in findings] == ["a.txt"] and "not scanned" in findings[0].detail, findings
+
+
 # --------------------------------------------------------------------------- Copilot's review
 def test_a_git_path_that_is_not_utf8_keeps_its_bytes_instead_of_being_replaced(monkeypatch) -> None:
     """Git prints names as raw bytes. Replacing a bad byte made ``root / name`` miss the real file."""
@@ -632,3 +708,12 @@ def test_an_allowlist_reason_that_names_an_identifier_is_not_printed(tmp_path: P
     assert "[hygiene] framework.toml:" in out  # the identifier in the reason is itself a finding...
     assert ID not in out and "the reason names an identifier" in out  # ...but the report does not copy it
     assert code == 1
+
+
+def test_a_v_run_logs_with_the_tools_prefix(tmp_path: Path) -> None:
+    """Every tool logs through log_setup: the time, the level and the module, at INFO with -v (logging in tiers)."""
+    from test_log_setup import PROBE_LINE, tool_log_line
+
+    line, level = tool_log_line("check_hygiene", [a.replace("{empty}", str(tmp_path)) for a in ["-v", "{empty}"]])
+    assert PROBE_LINE.fullmatch(line), line
+    assert level == 20

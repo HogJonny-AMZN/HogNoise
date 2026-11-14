@@ -1,9 +1,21 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12'",
     "python_full_version < '3.12'",
+]
+
+[manifest]
+members = [
+    "hog-noise",
+]
+
+[manifest.dependency-groups]
+dev = [
+    { name = "hog-noise", extras = ["fast", "reference", "sheets"], editable = "packages/python/hog-noise" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "ruff", specifier = ">=0.6" },
 ]
 
 [[package]]
@@ -18,7 +30,7 @@ wheels = [
 [[package]]
 name = "hog-noise"
 version = "0.1.0.dev0"
-source = { editable = "." }
+source = { editable = "packages/python/hog-noise" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -45,16 +57,9 @@ test = [
     { name = "pytest" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "hog-noise", extra = ["fast", "reference", "sheets"] },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "hog-noise", extras = ["fast", "reference", "sheets", "test"], marker = "extra == 'dev'" },
+    { name = "hog-noise", extras = ["fast", "reference", "sheets", "test"], marker = "extra == 'dev'", editable = "packages/python/hog-noise" },
     { name = "numba", marker = "extra == 'fast'", specifier = ">=0.61" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "pillow", marker = "extra == 'sheets'", specifier = ">=10.0.0" },
@@ -63,13 +68,6 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
 ]
 provides-extras = ["fast", "reference", "sheets", "test", "dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "hog-noise", extras = ["fast", "reference", "sheets"] },
-    { name = "pytest", specifier = ">=8" },
-    { name = "ruff", specifier = ">=0.6" },
-]
 
 [[package]]
 name = "iniconfig"

@@ -43,6 +43,7 @@ from pathlib import Path
 
 import check_docs as cd
 import framework_config as fc
+import log_setup
 
 _MODULE_NAME = "tools.render_journal_index"
 __version__ = "0.1.0"
@@ -296,8 +297,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
             reconfigure(errors="backslashreplace")
-    if args.verbose:
-        _logging.basicConfig(level=_logging.INFO, format="%(message)s", stream=sys.stderr)
+    log_setup.configure(args.verbose)
     base = args.root if args.root is not None else (root if root is not None else ROOT)
     if not base.is_dir():
         print(f"journal index: cannot run: {base} is not a directory", file=sys.stderr)

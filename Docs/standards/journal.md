@@ -60,6 +60,7 @@ A link across a month is an ordinary relative link: `**Preceded by:**` in `2026-
 ### A heading
 **By:** @login[, @login ...] · **Agent:** the tool and model, or none
 **Said by:** @login[, @login ...]                <- optional; the line directly after the By line
+**Board:** [`<row id>`](../../plan/board/<row id>.md)   <- optional; when the entry is about a board row
 
 Prose. A quote is tagged at the start of its line: @login: "what was said".
 ```
@@ -68,6 +69,9 @@ Prose. A quote is tagged at the start of its line: @login: "what was said".
 - An **entry** is a `###` section. Its first non-blank line is the `By:` line; `·` (U+00B7) separates `By` from `Agent`. `Agent:`
   is free text and may be `none`; it is never read beyond being present. **An agent is a tool, not a person**: it never appears in
   `By:` or `Said by:`.
+- An entry about a board row may name it in a **`Board:`** line in its header (after `By:` and `Said by:`, before
+  the first blank line), as a design does: the row's id as the link's text. The `row-ref` check reads it there, and
+  the board page lists the entry under the row.
 - A pairing session lists both people in `By:`. Several people may write in one file only by editing an entry they author.
 - `@login:` at the start of a line tags a quote; write a doc tag such as `@param:` inside code or not at the start of a line.
 
@@ -82,6 +86,11 @@ name = "The Octocat"
 role = "owner"                 # "owner" or "contributor"; the roster needs at least one owner, and may have several
 emails = ["octocat@example.org"]   # the addresses this person commits with, each on the roster once; none: cannot sign a commit
 ```
+
+**`init new` seeds the owner's row** when its answers carry `owner.login` (the prompt asks for it after the email;
+an empty reply gives no login and no roster): the row above, with the owner's name, `role = "owner"` and the owner's
+email, appended to the `framework.toml` it creates. A `framework.toml` already in the target is kept as it is, and the
+run says no roster was seeded. Everyone else, and a second address, is added by hand.
 
 A repository with **no roster is not checked for authorship**, and nothing else changes for it. With one, the docs check's
 `journal-author` finding names a file whose login, entry authors, `Said by:` logins or `@login:` quote tags are not on it, a

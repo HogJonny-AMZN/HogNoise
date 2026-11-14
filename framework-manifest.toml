@@ -3,9 +3,13 @@
 #
 #   managed        the template owns it; a repository's copy must match
 #   parametrised   the template owns the skeleton; project values are substituted in ({{name}}, {{slug}},
-#                  {{owner_name}}, {{owner_email}}, {{default_branch}}, {{today}}, {{template_version}}; see
-#                  tools/init.py _values). A value is inserted as it is, so put these in prose, not inside a quoted
-#                  string of a structured file. Only {{today}} may appear in a file's path, in the name only
+#                  {{package}}, {{owner_name}}, {{owner_email}}, {{default_branch}}, {{today}}, {{template_version}};
+#                  see tools/init.py _values). A value is inserted as it is, so put these in prose, not inside a
+#                  quoted string of a structured file; except in a .toml file, where a value is escaped for a
+#                  double-quoted string and a token may sit only inside one (tests/test_init.py holds it). In a
+#                  path, {{today}} may appear in the file's name only; the placeholders your-project-name and
+#                  your_project_name (the slug, and its import name) may name any folder or file, and render in
+#                  its text too. No managed file's path carries either
 #   project-owned  seeded once if absent (tokens substituted), never overwritten
 #
 # tests/test_init.py (test_the_real_payload_manifest_...) fails on a payload file no rule matches and on a rule that
@@ -52,6 +56,43 @@ pattern = "Docs/knowledge/ai-first-framework-graph.md"
 module = "graph"
 kind = "managed"
 
+# The process map: the renderer, its tests and the skill (with its mirror, which a repository with the module off
+# must not receive either) are the template's; the production document, its extract and the page are the project's.
+[[rule]]
+pattern = "tools/render_process_map.py"
+module = "process-map"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_render_process_map.py"
+module = "process-map"
+kind = "managed"
+
+[[rule]]
+pattern = ".agents/skills/process-map/*"
+module = "process-map"
+kind = "managed"
+
+[[rule]]
+pattern = ".claude/skills/process-map/*"
+module = "process-map"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/knowledge/production.md"
+module = "process-map"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/knowledge/process-map.json"
+module = "process-map"
+kind = "project-owned"
+
+[[rule]]
+pattern = "Docs/knowledge/process-map.html"
+module = "process-map"
+kind = "project-owned"
+
 [[rule]]
 pattern = "tools/render_journal_index.py"
 module = "journal"
@@ -77,20 +118,36 @@ pattern = "tests/test_boundaries.py"
 module = "python-uv"
 kind = "managed"
 
+[[rule]]
+pattern = "tests/test_workspace_tests.py"
+module = "python-uv"
+kind = "managed"
+
+# The tool-root pattern's reference, which python.md points at and an App copies, and its tests.
+[[rule]]
+pattern = "Docs/standards/examples/*.py"
+module = "python-uv"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_tool_root_logging.py"
+module = "python-uv"
+kind = "managed"
+
 # The mock project: two faux libraries and their tests. Seeds the project replaces, so project-owned; the module that
 # is off leaves none of it behind. The boundary tool and test above are the part that stays.
 [[rule]]
-pattern = "src/*"
+pattern = "apps/*"
 module = "specimens"
 kind = "project-owned"
 
 [[rule]]
-pattern = "tests/test_core_*.py"
+pattern = "packages/*"
 module = "specimens"
 kind = "project-owned"
 
 [[rule]]
-pattern = "tests/test_app_*.py"
+pattern = "launchers/*"
 module = "specimens"
 kind = "project-owned"
 
@@ -185,6 +242,11 @@ kind = "managed"
 
 [[rule]]
 pattern = "Docs/standards/updating.md"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "Docs/standards/layout.md"
 module = "core"
 kind = "managed"
 

@@ -1,0 +1,65 @@
+# The hog-noise library: the workspace member that is the published package (Docs/standards/layout.md).
+[project]
+name = "hog-noise"
+version = "0.1.0.dev0"
+description = "Procedural noise for Python: Perlin, OpenSimplex2, cellular and domain warp; the FastNoiseLite and FastNoiseSIMD algorithms, checked against the originals"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+# A member cannot ship a file outside its folder: these are copies of the repository's own, held level by
+# tests/test_member_files.py (NOTICE carries the FastNoiseLite and FastNoiseSIMD licences, which the MIT terms require).
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+    {name = "HogJonny", email = "hogjonny-github@protonmail.com"},
+]
+# Kept in step with Docs/findability.md: a term names something shipped.
+keywords = [
+    "noise", "procedural-noise", "procedural-generation", "perlin", "simplex", "opensimplex", "opensimplex2",
+    "cellular", "worley", "voronoi", "domain-warp", "fbm", "fractal-noise", "fastnoise", "fastnoiselite",
+    "fastnoisesimd", "terrain", "heightmap", "gamedev", "numba", "numpy",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    # The whole runtime. Every other dependency is an optional extra and every kernel has a numpy base.
+    # Maya 2026 ships numpy 1.x, so the floor stays at 1.26 and CI tests both majors.
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+fast = [
+    # Optional JIT for the kernels (hog_noise.scalar). Never required: every kernel has a numpy base.
+    "numba>=0.61",
+]
+reference = [
+    # The middle rung of the noise ladder and the oracle for its vectors (ADR-007).
+    "pyfastnoiselite>=0.0.7",
+]
+sheets = [
+    # The comparison sheets and the gallery contact sheets.
+    "pillow>=10.0.0",
+]
+test = [
+    "pytest>=7.4.0",
+]
+dev = [
+    "hog-noise[fast,reference,sheets,test]",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.12"]
+build-backend = "uv_build"

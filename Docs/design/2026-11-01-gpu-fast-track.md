@@ -2,6 +2,7 @@
 
 **Status:** Accepted (HogJonny-AMZN, 2026-11-01: "lock it"). The owner's direction the same day: *"fast track ... current
 noise features but also wgpu/wgsl support, stretch other gpu shader languages."* Its four decisions are below.
+**Board:** [`2026-11-01-gpu-fast-track`](../plan/board/2026-11-01-gpu-fast-track.md)
 
 ## Intent
 
@@ -36,7 +37,7 @@ the parameters, exactly as `scalar.py` does on the CPU, and the graph, when it c
 - **naga has back ends for WGSL, HLSL, GLSL, Metal and SPIR-V.** Running the WGSL on wgpu's DirectX 12, Vulkan and Metal back ends
   tests wgpu's own translation at run time, not the files `tools/emit_shaders.py` writes; the two are checked separately (stage 3).
 - **The package rules forbid a graphics stack today.** [python-project.md](../standards/python-project.md) says the package never
-  imports one, and `tests/test_hog_noise/test_package_boundary.py` lists `wgpu` as forbidden. The port amends both, narrowly (stage 2).
+  imports one, and `packages/python/hog-noise/tests/test_package_boundary.py` lists `wgpu` as forbidden. The port amends both, narrowly (stage 2).
 - **CI can run it.** The source project's Windows runner ran wgpu on its software adapter; Ubuntu needs a Vulkan software driver
   or skips with a reason.
 

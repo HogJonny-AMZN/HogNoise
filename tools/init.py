@@ -58,8 +58,8 @@ import framework_config as fc
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.init"
-__version__ = "0.2.0"
-__updated__ = "2026-10-10"
+__version__ = "0.2.1"
+__updated__ = "2026-11-07"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 SOURCE = Path(__file__).resolve().parents[1]
@@ -75,7 +75,9 @@ LINKED_MODULES = (
     "harness-adapters",
 )  # modules whose files the always-seeded documents link to
 EXIT_OK, EXIT_REFUSED, EXIT_FAILED = 0, 1, 2
-_TOKEN_RE = re.compile(r"\{\{(\w+)\}\}|your-project-name")
+_TOKEN_RE = re.compile(r"\{\{(\w+)\}\}|your-project-name|your_project_name")
+#: The placeholders a runnable payload uses for the project's names: the slug, and its import name.
+PLACEHOLDERS = {"your-project-name": "slug", "your_project_name": "package"}
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _PATH_TOKENS = frozenset({"today"})  # the only tokens a payload path may carry, and only in its last component
@@ -125,8 +127,9 @@ class Plan:
     refusals: list[str]
     contents: dict[str, bytes]  # path to the bytes to write, for create and update
     generated: dict[str, str]  # project.json and framework.lock text
-    initialised: str = ""  # the day recorded in the lock (the local date on a first run)
+    initialised: str = ""  # the day recorded in the lock (the UTC day of the first run)
     template: dict[str, bytes] = field(default_factory=dict)  # path to what the template would write, for every file
+    executable: frozenset[str] = frozenset()  # paths whose payload file is executable (a launcher's .sh)
 
 
 # -------------------------------------------------------------------------
@@ -193,7 +196,9 @@ def check_manifest(source: Path) -> list[str]:
 # -------------------------------------------------------------------------
 # content
 def _values(project: fc.ProjectConfig, today: str, template_version: str) -> dict[str, str]:
-    """The ``{{name}}`` tokens; ``your-project-name`` (the slug) keeps a seeded pyproject.toml runnable as it is.
+    """The ``{{name}}`` tokens. The placeholders ``your-project-name`` (the slug) and ``your_project_name`` (its import
+    name, ``{{package}}``) keep a payload file runnable as it is: a package the payload's own tests import, a seeded
+    ``pyproject.toml``.
 
     ``today`` is the day the repository was initialised (kept in the lock, so a re-run on another day does not seed a
     second dated file); it may appear in a file's content and in a file's path.
@@ -201,6 +206,7 @@ def _values(project: fc.ProjectConfig, today: str, template_version: str) -> dic
     return {
         "name": project.name,
         "slug": project.slug,
+        "package": fc.import_name(project.slug),
         "owner_name": project.owner.name,
         "owner_email": project.owner.email,
         "default_branch": project.default_branch,
@@ -226,17 +232,30 @@ def unknown_tokens(raw: bytes, values: dict[str, str]) -> list[str]:
     return sorted({m.group(0) for m in _TOKEN_RE.finditer(text) if m.group(1) and m.group(1) not in values})
 
 
-def _render_text(text: str, values: dict[str, str]) -> str:
-    """Substitute every token in one pass, so a value that looks like a token is never expanded again."""
-    return _TOKEN_RE.sub(lambda m: values[m.group(1)] if m.group(1) else values["slug"], text)
+def _render_text(text: str, values: dict[str, str], *, toml: bool = False, python: bool = False) -> str:
+    """Substitute every token in one pass, so a value that looks like a token is never expanded again.
+
+    With ``toml``, each value is escaped for a double-quoted string, where a payload ``.toml`` file keeps its tokens
+    (``tests/test_init.py`` holds it to that), by the one TOML escaper ``framework_config`` writes with. With
+    ``python``, each value is escaped for a double-quoted Python string, where a payload ``.py`` file keeps its tokens
+    (its module docstring): a backslash in a name would otherwise be an invalid escape (issue #127). The placeholders
+    are escaped like any value; a slug or an import name has nothing to escape."""
+
+    def value(match: re.Match[str]) -> str:
+        found = values[match.group(1) or PLACEHOLDERS[match.group(0)]]
+        if toml:
+            return fc.toml_string(found)[1:-1]
+        return found.replace("\\", "\\\\").replace('"', '\\"') if python else found
+
+    return _TOKEN_RE.sub(value, text)
 
 
-def _render(raw: bytes, values: dict[str, str]) -> bytes:
+def _render(raw: bytes, values: dict[str, str], *, toml: bool = False, python: bool = False) -> bytes:
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         return raw
-    return _render_text(text, values).encode("utf-8")
+    return _render_text(text, values, toml=toml, python=python).encode("utf-8")
 
 
 def _is_day(text: object) -> bool:
@@ -395,13 +414,19 @@ def plan_new(
     project: fc.ProjectConfig,
     today: str | None = None,
     module_states: dict[str, str] | None = None,
+    *,
+    seed_roster: bool = False,
 ) -> Plan:
     """Decide everything ``init new`` would do, writing nothing. Reads the target; raises ConfigError/ManifestError.
 
     ``module_states`` sets module states for a target that has no ``framework.toml`` yet (``init adopt --off``); it is
     ignored when the target has one, which decides for itself.
 
-    ``today`` (a real YYYY-MM-DD day, default the local date, which is not the UTC date the run record's name uses)
+    ``seed_roster`` (``init new`` alone sets it) appends the owner's ``[[people]]`` row to a ``framework.toml`` this run
+    creates, when the answers have a login. A target that has one keeps it, and the plan says no roster was seeded.
+    ``adopt`` and the sync check leave it off, so a login in their answers seeds nothing.
+
+    ``today`` (a real YYYY-MM-DD day, default the UTC day, the zone of every record's date and of the run record's name)
     matters only on a first run: the lock keeps the day it first used. A dated seed (``{{today}}`` in the last
     component of its path) is also skipped when a file of that shape already exists, so a lost or older lock cannot
     seed a second one.
@@ -429,7 +454,7 @@ def plan_new(
         (lock[2] if lock else None)
         or _recovered_day(source, target, rules, on_modules)
         or today
-        or _dt.date.today().isoformat()
+        or _dt.datetime.now(_dt.UTC).date().isoformat()
     )
     values = _values(project, initialised, template.template_version)
     for module in LINKED_MODULES:  # the entry file and the docs map link to these modules' files
@@ -442,6 +467,7 @@ def plan_new(
 
     actions: list[Action] = []
     contents: dict[str, bytes] = {}
+    executable: set[str] = set()
     rendered: dict[str, bytes] = {}
     lock_files: dict[str, str] = {}
     for rel in discover(source):
@@ -456,10 +482,10 @@ def plan_new(
         raw = (source / rel).read_bytes()
         out = rel
         directory, _, name = rel.rpartition("/")
-        in_path = [m.group(1) for m in _TOKEN_RE.finditer(rel)]
+        in_path = [m.group(1) or m.group(0) for m in _TOKEN_RE.finditer(rel)]
         residue = rel.replace("{{today}}", "")  # anything brace-shaped left is a malformed or disallowed token
         if (
-            any(token not in _PATH_TOKENS for token in in_path)
+            any(token not in _PATH_TOKENS and token not in PLACEHOLDERS for token in in_path)
             or "{{" in directory
             or "{{" in residue
             or "}}" in residue
@@ -468,7 +494,8 @@ def plan_new(
         ):
             refusals.append(
                 f"{rel}: only {{{{today}}}} may appear in a payload path, in the file name only, "
-                "and never in a managed file"
+                "and never in a managed file; the placeholders your-project-name and your_project_name may "
+                "name any folder or file that is not managed"
             )
             continue
         if rule.kind != "managed":
@@ -482,7 +509,11 @@ def plan_new(
         if not Path(os.path.normpath(target / out)).is_relative_to(target):
             refusals.append(f"{rel}: renders to {out}, which is outside the target")
             continue
-        data = normalised(raw) if rule.kind == "managed" else normalised(_render(raw, values))
+        data = (
+            normalised(raw)
+            if rule.kind == "managed"
+            else normalised(_render(raw, values, toml=out.endswith(".toml"), python=out.endswith(".py")))
+        )
         dest = target / out
         problem = _placement_problem(target, dest, out)
         if problem is not None:
@@ -509,14 +540,20 @@ def plan_new(
             note = "the repository has a board already (a page or row files), so this board seed is not written"
             actions.append(Action(out, "keep", rule.kind, rule.module, note))
             continue
-        if rule.kind == "project-owned" and in_path and not dest.is_file():
+        if rule.kind == "project-owned" and "{{today}}" in rel and not dest.is_file():
             pattern = name.replace("{{today}}", _DAY_GLOB)
             earlier = sorted(q.name for q in dest.parent.glob(pattern) if q.is_file()) if dest.parent.is_dir() else []
             if earlier:
                 note = f"an earlier dated file exists ({earlier[0]}), so no second one is seeded"
                 actions.append(Action(out, "keep", rule.kind, rule.module, note))
                 continue
+        roster_note = ""
+        if seed_roster and out == "framework.toml":
+            data, roster_note = _seed_roster(data, project, chosen.people if dest.is_file() else None)
         rendered[out] = data
+        # Windows reports a mode by extension (a .cmd is "executable", a .sh never is), so there the suffix decides
+        if out.endswith(".sh") or (os.name != "nt" and (source / rel).stat().st_mode & 0o111):
+            executable.add(out)
         if rule.kind != "project-owned":
             lock_files[out] = file_hash(data)
         try:
@@ -524,6 +561,8 @@ def plan_new(
         except OSError as e:
             refusals.append(f"{out}: cannot be read in the target: {e}")
             continue
+        if roster_note:
+            action = dataclasses.replace(action, note=f"{action.note}; {roster_note}")
         actions.append(action)
         if refusal:
             refusals.append(refusal)
@@ -564,7 +603,29 @@ def plan_new(
     else:
         actions.append(Action("framework.lock", "update" if lock_path.is_file() else "create", "generated", "core"))
         generated["framework.lock"] = lock_text
-    return Plan(actions, refusals, contents, generated, initialised, rendered)
+    return Plan(actions, refusals, contents, generated, initialised, rendered, frozenset(executable))
+
+
+def _seed_roster(data: bytes, project: fc.ProjectConfig, kept: tuple[fc.Person, ...] | None) -> tuple[bytes, str]:
+    """The seeded ``framework.toml`` with the owner's roster row appended, and the plan's note on it.
+
+    ``kept`` is the roster of the target's own ``framework.toml`` (project-owned: never rewritten), or ``None`` when the
+    target has none. With no login, or a kept file, the bytes are as they were and the note says what the repository's
+    roster is: the owner already on it, a roster of its own, or none.
+    """
+    login = project.owner.login
+    if kept:
+        if login is not None and login.lower() in {person.login.lower() for person in kept}:
+            return data, f"framework.toml kept; @{login} is on its roster"
+        missing = "" if login is None else f" (@{login} is not on it: add the owner's row by hand)"
+        return data, f"framework.toml kept; its roster is its own{missing}"
+    if login is None:
+        return data, "no login: no roster"
+    if kept is not None:
+        return data, "framework.toml kept: no roster seeded (add the owner's row by hand)"
+    owner = fc.Person(login, project.owner.name, "owner", (project.owner.email,))
+    text = data.decode("utf-8").rstrip("\n") + "\n\n" + fc.dump_person(owner)
+    return text.encode("utf-8"), f"the owner, @{login}, seeded on the roster"
 
 
 def format_plan(plan: Plan) -> list[str]:
@@ -608,7 +669,9 @@ def prompt_answers(ask: Callable[[str], str], say: Say) -> fc.ProjectConfig:
     answers: dict[str, Any] = copy.deepcopy(_PLACEHOLDER)
 
     def put(field: str, value: Any) -> None:
-        if field.startswith("owner."):
+        if field == "owner.login" and value == "":
+            answers["owner"].pop("login", None)  # empty: no login, so no roster
+        elif field.startswith("owner."):
             answers["owner"][field.split(".", 1)[1]] = value
         else:
             answers[field] = value
@@ -634,6 +697,7 @@ def prompt_answers(ask: Callable[[str], str], say: Say) -> fc.ProjectConfig:
     ask_field("slug", "Slug (lower-case, hyphens)", _slugify(answers["name"]))
     ask_field("owner.name", "Owner name")
     ask_field("owner.email", "Owner email")
+    ask_field("owner.login", "Owner's GitHub login (empty: no roster)")  # no default: a wrong guess is a stranger
     ask_field("default_branch", "Default branch", "main")
     ask_field("signoff", "Require a sign-off on commits (y/n)", "y", _yes_no)
     ask_field("hygiene", "Hygiene identifiers (comma separated, may be empty)", "", identifiers)
@@ -685,11 +749,12 @@ def _publish_new(temp: Path, dest: Path) -> None:
         os.replace(temp, dest)
 
 
-def write_atomic(dest: Path, data: bytes, *, create_only: bool = False) -> None:
+def write_atomic(dest: Path, data: bytes, *, create_only: bool = False, executable: bool = False) -> None:
     """Write to a temporary name and rename, so a failure never leaves a truncated file.
 
-    An existing file keeps its permissions. With ``create_only`` the write is refused (``FileExistsError``) if ``dest``
-    appeared since it was planned (or is a symlink, even to nowhere), so a file made in between is never replaced.
+    An existing file keeps its permissions; a new one is made executable when ``executable`` (the payload's file is).
+    With ``create_only`` the write is refused (``FileExistsError``) if ``dest`` appeared since it was planned (or is a
+    symlink, even to nowhere), so a file made in between is never replaced.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
     descriptor, name = tempfile.mkstemp(
@@ -699,6 +764,8 @@ def write_atomic(dest: Path, data: bytes, *, create_only: bool = False) -> None:
     try:
         with os.fdopen(descriptor, "wb") as handle:
             handle.write(data)
+        if executable:
+            os.chmod(temp, stat.S_IMODE(temp.stat().st_mode) | 0o111)
         if create_only:
             _publish_new(temp, dest)
         else:
@@ -726,7 +793,7 @@ def _apply(plan: Plan, target: Path, lines: list[str]) -> None:
     """Write every create and update, the generated files, and the lock last."""
     writes = {**plan.contents, **{k: v.encode("utf-8") for k, v in plan.generated.items() if k != "framework.lock"}}
     for rel, data in writes.items():
-        write_atomic(target / rel, data)
+        write_atomic(target / rel, data, executable=rel in plan.executable)
         lines.append(f"wrote {rel}")
         _LOGGER.debug(f"wrote {rel} ({len(data)} bytes)")
     if "framework.lock" in plan.generated:
@@ -789,7 +856,7 @@ def run_new(
         else:
             warn("refused: no --answers file and no terminal to ask on")
             return EXIT_REFUSED
-        plan = plan_new(source, target, project, today)
+        plan = plan_new(source, target, project, today, seed_roster=True)
     except fc.ConfigError as e:
         warn(f"refused: {e}")
         return EXIT_REFUSED
@@ -807,7 +874,7 @@ def run_new(
 
     started = _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
     lines = [f"init new, {started}", f"source {source}", f"target {target}", f"project {project.slug} ({project.name})"]
-    lines.append(f"initialised {plan.initialised} (the local date of the first run, kept in framework.lock)")
+    lines.append(f"initialised {plan.initialised} (the UTC day of the first run, kept in framework.lock)")
     lines += ["decisions:", *format_plan(plan)]
     if args.dry_run:
         say(f"init new into {target}: {len(plan.actions)} paths considered")

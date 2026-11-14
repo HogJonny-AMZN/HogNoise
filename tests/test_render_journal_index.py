@@ -624,3 +624,14 @@ def test_the_page_reads_the_month_folders_and_links_into_them(tmp_path: Path) ->
     )
     assert "(2026-11-02-ada-0100.md)" in text and "Not a month folder" not in text
     assert text.index("November.") < text.index("At the top") or text.index("At the top") < text.index("October.")
+
+
+def test_a_v_run_logs_with_the_tools_prefix(tmp_path: Path) -> None:
+    """Every tool logs through log_setup: the time, the level and the module, at INFO with -v (logging in tiers)."""
+    from test_log_setup import PROBE_LINE, tool_log_line
+
+    line, level = tool_log_line(
+        "render_journal_index", [a.replace("{empty}", str(tmp_path)) for a in ["-v", "--print", "--root", "{empty}"]]
+    )
+    assert PROBE_LINE.fullmatch(line), line
+    assert level == 20

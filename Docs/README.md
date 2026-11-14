@@ -20,6 +20,7 @@
 | [standards/failure-modes-project.md](standards/failure-modes-project.md) | this project's ledger: how the process went wrong here (P-1 onwards) |
 | [standards/python-project.md](standards/python-project.md), [testing-project.md](standards/testing-project.md), [definition-of-done-project.md](standards/definition-of-done-project.md) | HogNoise's additions to the template's standards: the package boundary, the vectors as the oracle, claims that follow the vectors |
 | [plan/board/README.md](plan/board/README.md) | how a board row is written |
+| [standards/layout.md](standards/layout.md) | adding an app or a library, or asking where code lives: the workspace members (the library is `packages/python/hog-noise/`) |
 | [standards/compatibility-matrix.md](standards/compatibility-matrix.md) | which coding harnesses the framework supports, and how well |
 | [standards/harness-probes.md](standards/harness-probes.md) | the conformance probe each enabled harness must pass |
 | [knowledge/ai-first-framework-graph.md](knowledge/ai-first-framework-graph.md) | the framework's documents and checks, as a graph |

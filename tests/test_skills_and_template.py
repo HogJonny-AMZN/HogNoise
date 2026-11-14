@@ -208,10 +208,11 @@ def test_the_pull_request_template_has_every_section_and_the_checks_the_definiti
         assert re.search(rf"^## {section}\s*$", text, re.MULTILINE), section
     assert "| Decision | Alternative | Why | Reverse cost |" in text
     assert "**Board:**" in text and "MORE THAN 8" in text
-    assert len(re.findall(r"^- \[ \] (.+)$", text, re.MULTILINE)) == 6
+    assert len(re.findall(r"^- \[ \] (.+)$", text, re.MULTILINE)) == 7
     flat = " ".join(text.split())
     for phrase in (
         "`make check` passes locally, **run unpiped**",
+        "Error paths:",
         "New terms:",
         "Docs match reality, as the definition of done lists them",
         "there are no more than 8",

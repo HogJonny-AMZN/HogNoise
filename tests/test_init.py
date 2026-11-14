@@ -5,9 +5,17 @@ Package: tests/test_init
 
 from __future__ import annotations
 
+import ast
+import datetime
 import hashlib
+import io
 import json
+import re
+import subprocess
 import sys
+import tokenize
+import types
+import warnings
 from pathlib import Path
 
 import pytest
@@ -532,13 +540,31 @@ def test_today_is_a_token_in_content_and_in_paths_and_the_lock_keeps_it(
     assert not (target / "journal" / "2026-11-02-session-01.md").exists()
 
 
-def test_the_default_day_is_the_local_date_and_a_bad_recorded_day_is_a_corrupt_lock(
-    source: Path, answers: Path, tmp_path: Path, capsys
+class _LocalBehindUtc(datetime.datetime):
+    """A clock at 2026-01-02 01:00 UTC whose local date is still 2026-01-01 (an evening in the Americas)."""
+
+    @classmethod
+    def now(cls, tz=None):  # noqa: ANN001, ANN206 - the signature datetime.now has
+        return cls(2026, 1, 2, 1, 0, tzinfo=tz) if tz is not None else cls(2026, 1, 1, 19, 0)
+
+
+class _LocalDate(datetime.date):
+    @classmethod
+    def today(cls):  # noqa: ANN206 - the signature date.today has
+        return cls(2026, 1, 1)
+
+
+def test_the_default_day_is_the_utc_day_and_a_bad_recorded_day_is_a_corrupt_lock(
+    source: Path, answers: Path, tmp_path: Path, capsys, monkeypatch
 ) -> None:
+    """Every record date is the UTC day (ADR-004, ledger P-11; issue #119), never the machine's local date."""
+    clock = types.SimpleNamespace(date=_LocalDate, datetime=_LocalBehindUtc, UTC=datetime.UTC)
+    monkeypatch.setattr(ini, "_dt", clock)
     target = tmp_path / "proj"
     assert _run(source, target, answers) == 0
     lock = json.loads((target / "framework.lock").read_text(encoding="utf-8"))
-    assert lock["initialised"] == ini._dt.date.today().isoformat()
+    assert lock["initialised"] == "2026-01-02"
+    monkeypatch.undo()
     lock["initialised"] = "yesterday"
     (target / "framework.lock").write_text(json.dumps(lock), encoding="utf-8")
     assert _run(source, target, answers) == 1
@@ -660,7 +686,7 @@ def test_the_template_version_is_a_token_and_the_record_names_the_day(
     target = tmp_path / "proj"
     assert _run(source, target, answers) == 0
     assert (target / "README.md").read_text(encoding="utf-8").endswith("Made from template 0.1.0.\n")
-    assert f"initialised {ini._dt.date.today().isoformat()}" in _last_record(target)
+    assert f"initialised {ini._dt.datetime.now(ini._dt.UTC).date().isoformat()}" in _last_record(target)
 
 
 def test_init_new_needs_the_journal_when_the_payload_seeds_one(
@@ -731,11 +757,11 @@ def test_a_failure_while_writing_exits_two_leaves_a_record_and_no_lock_and_a_rer
     real = ini.write_atomic
     calls = {"n": 0}
 
-    def flaky(dest: Path, data: bytes) -> None:
+    def flaky(dest: Path, data: bytes, **kwargs) -> None:
         calls["n"] += 1
         if calls["n"] == 3:
             raise PermissionError("denied")
-        real(dest, data)
+        real(dest, data, **kwargs)
 
     monkeypatch.setattr(ini, "write_atomic", flaky)
     assert _run(source, target, answers) == 2
@@ -832,9 +858,110 @@ def test_an_atomic_write_leaves_no_temporary_file_and_replaces_in_place(tmp_path
     assert dest.read_bytes() == b"two" and not list(tmp_path.rglob("*.init-tmp"))
 
 
+# --------------------------------------------------------------------------- the owner's login and the roster
+def _with_login(tmp_path: Path, login: str = "ada") -> Path:
+    path = tmp_path / "answers-login.json"
+    path.write_text(json.dumps({**ANSWERS, "owner": {**ANSWERS["owner"], "login": login}}), encoding="utf-8")
+    return path
+
+
+def test_a_login_seeds_the_owner_on_the_roster_of_a_new_framework_toml(source: Path, tmp_path: Path) -> None:
+    target = tmp_path / "made"
+    assert _run(source, target, _with_login(tmp_path)) == 0
+    text = (target / "framework.toml").read_text(encoding="utf-8")
+    assert text.endswith(
+        '\n[[people]]\nlogin = "ada"\nname = "Ada Example"\nrole = "owner"\nemails = ["ada@example.org"]\n'
+    )
+    config = fc.load_framework(target / "framework.toml")
+    assert [(p.login, p.name, p.role, p.emails) for p in config.people] == [
+        ("ada", "Ada Example", "owner", ("ada@example.org",))
+    ]
+    assert json.loads((target / "project.json").read_text(encoding="utf-8"))["owner"]["login"] == "ada"
+    assert "framework.toml" not in json.loads((target / "framework.lock").read_text(encoding="utf-8"))["files"]
+    record = next((target / "logs").glob("init-*.log")).read_text(encoding="utf-8")
+    assert "the owner, @ada, seeded on the roster" in record
+
+
+def test_without_a_login_there_is_no_roster_and_the_record_says_so(source: Path, answers: Path, tmp_path: Path) -> None:
+    target = tmp_path / "made"
+    assert _run(source, target, answers) == 0
+    assert "[[people]]" not in (target / "framework.toml").read_text(encoding="utf-8")
+    assert "login" not in json.loads((target / "project.json").read_text(encoding="utf-8"))["owner"]
+    record = next((target / "logs").glob("init-*.log")).read_text(encoding="utf-8")
+    assert "no login: no roster" in record
+
+
+def test_an_existing_framework_toml_is_kept_and_no_roster_is_seeded(source: Path, tmp_path: Path) -> None:
+    target = tmp_path / "made"
+    target.mkdir()
+    (target / "framework.toml").write_text(_framework_text(), encoding="utf-8")
+    before = (target / "framework.toml").read_bytes()
+    assert _run(source, target, _with_login(tmp_path)) == 0
+    assert (target / "framework.toml").read_bytes() == before
+    record = next((target / "logs").glob("init-*.log")).read_text(encoding="utf-8")
+    assert "keep" in record and "no roster seeded (add the owner's row by hand)" in record
+
+
+def test_a_rerun_with_a_login_changes_nothing(source: Path, tmp_path: Path) -> None:
+    target, answers = tmp_path / "made", _with_login(tmp_path)
+    assert _run(source, target, answers) == 0
+    before = _snapshot(target)
+    assert _run(source, target, answers) == 0
+    assert _snapshot(target) == before
+    record = _last_record(target)
+    assert "framework.toml kept; @ada is on its roster" in record
+    assert "by hand" not in record  # the row is there: nothing to add
+
+
+def _last_record(target: Path) -> str:
+    return sorted((target / "logs").glob("init-*.log"))[-1].read_text(encoding="utf-8")
+
+
+def _with_roster(*logins: str) -> str:
+    rows = [fc.dump_person(fc.Person(login, login.title(), "owner", ())) for login in logins]
+    return _framework_text() + "".join("\n" + row for row in rows)
+
+
+@pytest.mark.parametrize(
+    ("answers_login", "roster", "expected"),
+    [
+        (None, ("bob",), "framework.toml kept; its roster is its own"),
+        (
+            "ada",
+            ("bob",),
+            "framework.toml kept; its roster is its own (@ada is not on it: add the owner's row by hand)",
+        ),
+        ("ada", ("Ada", "bob"), "framework.toml kept; @ada is on its roster"),  # logins compare ignoring case
+        (None, (), "no login: no roster"),
+    ],
+)
+def test_a_kept_framework_toml_is_described_by_its_own_roster(
+    source: Path, answers: Path, tmp_path: Path, answers_login, roster, expected: str
+) -> None:
+    target = tmp_path / "made"
+    target.mkdir()
+    (target / "framework.toml").write_text(_with_roster(*roster), encoding="utf-8")
+    before = (target / "framework.toml").read_bytes()
+    assert _run(source, target, _with_login(tmp_path, answers_login) if answers_login else answers) == 0
+    assert (target / "framework.toml").read_bytes() == before
+    record = _last_record(target)
+    assert expected in record
+    if roster:
+        assert "no login: no roster" not in record  # a roster is there, login or not
+
+
+def test_the_plan_seeds_no_roster_unless_asked(source: Path, tmp_path: Path) -> None:
+    """``adopt`` and the sync check call ``plan_new`` without asking: a login in their answers seeds nothing."""
+    project = fc.load_answers(_with_login(tmp_path))
+    plan = ini.plan_new(source, tmp_path / "made", project, "2026-10-16")
+    assert b"[[people]]" not in plan.contents["framework.toml"]
+    seeded = ini.plan_new(source, tmp_path / "made", project, "2026-10-16", seed_roster=True)
+    assert b"[[people]]" in seeded.contents["framework.toml"]
+
+
 # --------------------------------------------------------------------------- prompts
 def test_prompts_build_the_answers_with_defaults() -> None:
-    replies = iter(["Example Project", "", "Ada Example", "ada@example.org", "", "", "acme, internal"])
+    replies = iter(["Example Project", "", "Ada Example", "ada@example.org", "", "", "", "acme, internal"])
     asked: list[str] = []
 
     def ask(prompt: str) -> str:
@@ -844,19 +971,25 @@ def test_prompts_build_the_answers_with_defaults() -> None:
     project = ini.prompt_answers(ask, lambda text: None)
     assert project.slug == "example-project" and project.default_branch == "main" and project.signoff is True
     assert project.hygiene == ("acme", "internal")
-    assert len(asked) == 7
+    assert project.owner.login is None  # empty: no login, no roster
+    assert len(asked) == 8
+    assert asked[4] == "Owner's GitHub login (empty: no roster): "  # after the email, with no default
 
 
 def test_a_prompt_reasks_until_the_answer_is_valid() -> None:
-    replies = iter(["Example", "Bad Slug", "example", "Ada", "not-an-email", "ada@example.org", "", "n", ""])
+    replies = iter(
+        ["Example", "Bad Slug", "example", "Ada", "not-an-email", "ada@example.org", "-bad-", "ada", "", "n", ""]
+    )
     said: list[str] = []
     project = ini.prompt_answers(lambda prompt: next(replies), said.append)
     assert project.slug == "example" and project.owner.email == "ada@example.org" and project.signoff is False
+    assert project.owner.login == "ada"
     assert any("slug" in line for line in said) and any("owner.email" in line for line in said)
+    assert any("owner.login" in line for line in said)
 
 
 def test_a_mistyped_signoff_answer_is_reasked_not_read_as_no() -> None:
-    replies = iter(["Example", "", "Ada", "ada@example.org", "", "yse", "Y", ""])
+    replies = iter(["Example", "", "Ada", "ada@example.org", "", "", "yse", "Y", ""])
     said: list[str] = []
     project = ini.prompt_answers(lambda prompt: next(replies), said.append)
     assert project.signoff is True and any("answer y or n" in line for line in said)
@@ -905,10 +1038,204 @@ def test_the_real_payload_initialises_a_repository_and_is_stable(answers: Path, 
     target = tmp_path / "proj"
     assert _run(ROOT, target, answers) == 0
     snap = _snapshot(target)
-    assert b'name = "example-project"' in snap["pyproject.toml"]
+    root_lines = snap["pyproject.toml"].decode("utf-8").splitlines()
+    assert "[tool.uv.workspace]" in root_lines and "[project]" not in root_lines  # a virtual root
+    app = "apps/example-project"
+    assert b'name = "example-project"' in snap[f"{app}/pyproject.toml"]
+    assert b'example-project = "example_project.cli:main"' in snap[f"{app}/pyproject.toml"]
+    assert f"{app}/src/example_project/cli.py" in snap
+    assert "packages/python/example-project-core/src/example_project_core/__init__.py" in snap
+    assert b'"example_project_core", "example_project"' in snap["framework.toml"]  # [layers] names the real packages
+    assert "launchers/example-project.sh" in snap and "launchers/example-project.cmd" in snap
+    assert "src/core/__init__.py" not in snap  # no root src/
+    rules = ini.load_manifest(ROOT / ini.MANIFEST_NAME)
+    for rel, data in snap.items():  # acceptance 3: no placeholder left in a path, or in a file init renders
+        assert "your-project-name" not in rel and "your_project_name" not in rel, rel
+        rule = ini.classify(rules, rel)
+        if rule is not None and rule.kind != "managed":  # a managed file is copied as it is, and may name them
+            assert b"your-project-name" not in data and b"your_project_name" not in data, rel
     assert "tools/init.py" in snap and "tools/framework_config.py" in snap and "tests/test_init.py" in snap
     assert _run(ROOT, target, answers) == 0
     assert _snapshot(target) == snap
+
+
+@only_in_the_template
+def test_the_made_members_name_the_owner_as_their_author_and_pass_the_boundary_check(
+    answers: Path, tmp_path: Path
+) -> None:
+    import boundaries as bd
+
+    target = tmp_path / "proj"
+    assert _run(ROOT, target, answers) == 0
+    members = fc.workspace_members(target)
+    assert [m.path for m in members] == ["apps/example-project", "packages/python/example-project-core"]
+    assert all(m.authors == (fc.Author("Ada Example", "ada@example.org"),) for m in members)
+    assert [str(f) for f in bd.scan_workspace(target, fc.load_framework(target / "framework.toml").layers)] == []
+
+
+@only_in_the_template
+def test_an_owner_name_with_a_quote_and_a_backslash_gives_manifests_that_load(tmp_path: Path) -> None:
+    name = 'Ada "A" Back\\slash'
+    path = tmp_path / "answers-quoted.json"
+    path.write_text(json.dumps({**ANSWERS, "owner": {**ANSWERS["owner"], "name": name}}), encoding="utf-8")
+    target = tmp_path / "proj"
+    assert _run(ROOT, target, path) == 0
+    for member in fc.workspace_members(target):  # each manifest parsed as TOML: a raw quote would not load
+        assert member.authors == (fc.Author(name, "ada@example.org"),), member.path
+
+
+def test_the_toml_render_escapes_a_token_for_a_double_quoted_string() -> None:
+    values = {"owner_name": 'A "q" \\ b', "slug": "acme", "package": "acme"}
+    rendered = ini._render_text('name = "{{owner_name}}"\nyour-project-name = 1\n', values, toml=True)
+    assert rendered == 'name = "A \\"q\\" \\\\ b"\nacme = 1\n'
+    assert ini._render_text('"{{owner_name}}"', values, python=True) == '"A \\"q\\" \\\\ b"'  # a .py string
+    assert ini._render_text('"{{owner_name}}"', values) == '"A "q" \\ b"'  # elsewhere: as it is
+
+
+def _misplaced_tokens(text: str) -> list[str]:
+    """The ``{{token}}``s of a TOML text that are outside a double-quoted (basic) string and outside a comment.
+
+    A small scanner over the whole text, so a string that spans lines keeps its state (issue #141). A basic string,
+    one-line or multi-line (three double quotes), honours its backslash escapes and is where the escape ``init``
+    applies is right. A literal string, one-line or multi-line (three single quotes), has no escapes, so a token in
+    one is misplaced. A ``#`` outside a string starts a comment, which is prose, to the end of its line."""
+    token = re.compile(r"\{\{\w+\}\}")
+    misplaced: list[str] = []
+    index, state = 0, "code"  # code | comment | basic | ml_basic | literal | ml_literal
+    closers = {"basic": '"', "ml_basic": '"""', "literal": "'", "ml_literal": "'''"}
+    while index < len(text):
+        if state == "comment":
+            index = text.find("\n", index)
+            if index < 0:
+                break
+            state = "code"
+            continue
+        if state in ("basic", "ml_basic") and text[index] == "\\":
+            index += 2
+            continue
+        if state != "code" and text.startswith(closers[state], index):
+            index += len(closers[state])
+            if state in ("ml_basic", "ml_literal"):  # up to two more quotes are content, not a new string's opening
+                for _ in range(2):
+                    if text.startswith(closers[state][0], index):
+                        index += 1
+            state = "code"
+            continue
+        found = token.match(text, index)
+        if found:
+            if state not in ("basic", "ml_basic"):
+                misplaced.append(found.group(0))
+            index = found.end()
+            continue
+        if state == "code":
+            for opener, inside in (('"""', "ml_basic"), ("'''", "ml_literal"), ('"', "basic"), ("'", "literal")):
+                if text.startswith(opener, index):
+                    state = inside
+                    index += len(opener)
+                    break
+            else:
+                state = "comment" if text[index] == "#" else "code"
+                index += 1
+            continue
+        index += 1
+    return misplaced
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('name = "{{owner_name}}"', []),
+        ('authors = [{ name = "{{owner_name}}", email = "{{owner_email}}" }]', []),
+        ("# the tokens: {{slug}}, {{owner_name}}", []),
+        ('x = "a" # {{slug}}', []),
+        ("x = {{slug}}", ["{{slug}}"]),
+        ("x = '{{owner_name}}'", ["{{owner_name}}"]),  # a literal string: the escape would be wrong there
+        ('x = "a \\" b" {{slug}}', ["{{slug}}"]),  # an escaped quote does not end the string
+        ("your-project-name = 1", []),  # a placeholder may be a bare key
+        # issue #141: a multi-line literal, and a token on a later line of a multi-line string
+        ("x = '''don't \"{{owner_name}}\"'''", ["{{owner_name}}"]),
+        ("x = '''\nfirst\n{{owner_name}}\n'''", ["{{owner_name}}"]),
+        ('x = """\nfirst\n{{owner_name}}\n"""', []),  # a multi-line basic string escapes like a one-line one
+        ('x = """a\nb"""\ny = {{slug}}', ["{{slug}}"]),  # the string ended; the next line is code again
+        ("# a comment\nx = {{slug}}", ["{{slug}}"]),  # a comment ends at its line
+        ('x = """a""""\ny = {{slug}}', ["{{slug}}"]),  # a quote before the closing three is content
+        ('x = """a"""""\ny = "{{slug}}"', []),  # two quotes before it, then a basic string
+    ],
+)
+def test_the_placement_scanner_reads_toml_strings_and_comments(text: str, expected: list[str]) -> None:
+    assert _misplaced_tokens(text) == expected
+
+
+def _misplaced_python_tokens(text: str) -> list[str]:
+    """The ``{{token}}``s of a Python text that are outside a double-quoted, non-raw string literal, read with Python's
+    own tokenizer: only there is the escape ``init`` applies to a ``.py`` file right (issue #127)."""
+    token = re.compile(r"\{\{\w+\}\}")
+    placed: list[tuple[int, int, int, int]] = []
+    for item in tokenize.generate_tokens(io.StringIO(text).readline):
+        prefix = re.match(r"[A-Za-z]*", item.string).group(0).lower()
+        # an ordinary str only: raw keeps the escape, bytes take ASCII only, an f-string reads a brace as a field
+        if item.type == tokenize.STRING and prefix in ("", "u") and item.string[len(prefix)] == '"':
+            placed.append((*item.start, *item.end))
+    lines = text.splitlines(keepends=True)
+    misplaced = []
+    for number, line in enumerate(lines, start=1):
+        for found in token.finditer(line):
+            at = (number, found.start())
+            inside = any((r0, c0) <= at and (number, found.end()) <= (r1, c1) for r0, c0, r1, c1 in placed)
+            if not inside:
+                misplaced.append(found.group(0))
+    return misplaced
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('"""{{name}}: the command line.\n"""\n', []),
+        ('x = "{{name}}"\n', []),
+        ("x = '{{name}}'\n", ["{{name}}"]),  # single quotes: the escape adds \" that a '-string does not need
+        ('x = r"{{name}}"\n', ["{{name}}"]),  # raw: the escape would be kept literally
+        ("# {{name}}\n", ["{{name}}"]),  # a comment: the escape would show
+        ('"""first\n{{name}}\n"""\n', []),  # a later line of a docstring
+        # Copilot on #144: a bytes literal takes ASCII only (Cafe with an accent is a SyntaxError there), and an
+        # f-string reads a brace in the name as a field
+        ('x = b"{{name}}"\n', ["{{name}}"]),
+        ('x = f"{{name}}"\n', ["{{name}}"]),
+        ('x = u"{{name}}"\n', []),
+    ],
+)
+def test_the_python_placement_scanner_reads_string_literals(text: str, expected: list[str]) -> None:
+    assert _misplaced_python_tokens(text) == expected
+
+
+@only_in_the_template
+def test_a_token_in_a_payload_python_file_sits_inside_a_double_quoted_string() -> None:
+    """A ``.py`` file ``init`` renders (every kind but managed) keeps its tokens where the escape is right."""
+    rules = ini.load_manifest(ROOT / ini.MANIFEST_NAME)
+    misplaced = []
+    for py_file in sorted(ROOT.rglob("*.py")):
+        rel = py_file.relative_to(ROOT).as_posix()
+        if any(part in (".venv", "node_modules") or part.startswith(".") for part in rel.split("/")):
+            continue
+        rule = ini.classify(rules, rel)
+        if rule is None or rule.kind == "managed":
+            continue
+        found = _misplaced_python_tokens(py_file.read_text(encoding="utf-8"))
+        if found:
+            misplaced.append(f"{rel}: {', '.join(found)}")
+    assert misplaced == []
+
+
+@only_in_the_template
+def test_a_token_in_a_payload_toml_file_sits_inside_a_double_quoted_string() -> None:
+    """The escape is right only there; comments are prose, and the placeholders may be bare keys."""
+    misplaced = []
+    for toml_file in sorted(ROOT.rglob("*.toml")):
+        if any(part in (".venv", "node_modules") or part.startswith(".") for part in toml_file.relative_to(ROOT).parts):
+            continue
+        found = _misplaced_tokens(toml_file.read_text(encoding="utf-8"))
+        if found:
+            misplaced.append(f"{toml_file.relative_to(ROOT).as_posix()}: {', '.join(found)}")
+    assert misplaced == []
 
 
 def test_init_new_also_needs_the_python_uv_module_the_entry_file_links_to(
@@ -1109,3 +1436,148 @@ def test_a_target_that_keeps_its_rows_elsewhere_is_still_seeded_no_board_rows(
     _write(target, "Docs/rows/2026-01-01-mine.md", "# Mine\n\n**Section:** now\n**Owner:** @ada\n**State:** Open\n")
     assert _run(board_source, target, answers) == 0
     assert not (target / "Docs/plan/board").exists()
+
+
+# --------------------------------------------------------------------------- the layout's placeholders
+def _member_payload(source: Path) -> None:
+    """A project-owned member whose folders and text carry both placeholders."""
+    rule = (
+        '\n[[rule]]\npattern = "apps/*"\nmodule = "core"\nkind = "project-owned"\n'
+        '\n[[rule]]\npattern = "packages/*"\nmodule = "core"\nkind = "project-owned"\n'
+    )
+    _write(source, "framework-manifest.toml", MANIFEST + rule)
+    _write(
+        source,
+        "apps/your-project-name/pyproject.toml",
+        '[project]\nname = "your-project-name"\ndependencies = ["your-project-name-core"]\n'
+        '[project.scripts]\nyour-project-name = "your_project_name.cli:main"\n',
+    )
+    _write(
+        source,
+        "apps/your-project-name/src/your_project_name/cli.py",
+        '"""{{name}}: the command line.\nPackage: your_project_name/cli\n"""\n\n'
+        'from your_project_name_core import Task\n\n_MODULE_NAME = "your_project_name.cli"\n',
+    )
+    _write(source, "packages/python/your-project-name-core/src/your_project_name_core/__init__.py", "x = 1\n")
+
+
+def test_the_placeholders_name_folders_and_files_and_render_in_text(
+    source: Path, answers: Path, tmp_path: Path
+) -> None:
+    _member_payload(source)
+    target = tmp_path / "proj"
+    assert _run(source, target, answers) == 0
+    app = target / "apps" / "example-project"
+    assert (app / "src" / "example_project" / "cli.py").is_file()
+    assert (target / "packages/python/example-project-core/src/example_project_core/__init__.py").is_file()
+    cli = (app / "src" / "example_project" / "cli.py").read_text(encoding="utf-8")
+    assert "from example_project_core import Task" in cli and '_MODULE_NAME = "example_project.cli"' in cli
+    assert "Package: example_project/cli" in cli and cli.startswith('"""Example Project: the command line.')
+    manifest = (app / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'name = "example-project"' in manifest and '"example-project-core"' in manifest
+    assert 'example-project = "example_project.cli:main"' in manifest
+
+
+@pytest.mark.parametrize("name", ["Back\\ Slash", 'Say "hi"', 'Ends in a quote"', "Two \\\\ and \\n"])
+def test_a_python_seed_escapes_a_token_for_the_string_it_sits_in(source: Path, tmp_path: Path, name: str) -> None:
+    """A name with a backslash or a quote renders into a docstring that compiles without a warning and reads back as
+    the name (issue #127): the value is escaped for a double-quoted string, as in a ``.toml`` file."""
+    _member_payload(source)
+    path = tmp_path / "answers.json"
+    path.write_text(json.dumps(dict(ANSWERS, name=name)), encoding="utf-8")
+    target = tmp_path / "proj"
+    assert _run(source, target, path) == 0
+    cli = target / "apps" / "example-project" / "src" / "example_project" / "cli.py"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # an invalid escape is a SyntaxWarning today and an error later
+        tree = ast.parse(cli.read_text(encoding="utf-8"), filename=str(cli))
+    assert ast.get_docstring(tree, clean=False) == f"{name}: the command line.\nPackage: example_project/cli\n"
+
+
+def test_no_placeholder_is_left_in_any_path_or_file(source: Path, answers: Path, tmp_path: Path) -> None:
+    _member_payload(source)
+    target = tmp_path / "proj"
+    assert _run(source, target, answers) == 0
+    for rel, data in _snapshot(target).items():
+        for placeholder in ("your-project-name", "your_project_name"):
+            assert placeholder not in rel, rel
+            assert placeholder.encode() not in data, rel
+
+
+def test_the_package_token_is_the_slugs_import_name(source: Path, answers: Path, tmp_path: Path) -> None:
+    _write(source, "README.md", "# {{name}}\n\nimport {{package}}\n")
+    target = tmp_path / "proj"
+    assert _run(source, target, answers) == 0
+    assert "import example_project" in (target / "README.md").read_text(encoding="utf-8")
+
+
+def test_a_placeholder_in_a_managed_files_path_is_refused(source: Path, answers: Path, tmp_path: Path, capsys) -> None:
+    _write(source, "tools/your_project_name.py", "x = 1\n")  # managed by the tools/*.py rule
+    assert _run(source, tmp_path / "proj", answers) == 1
+    assert "never in a managed file" in capsys.readouterr().err
+
+
+def test_a_slug_whose_import_name_is_a_keyword_is_refused(source: Path, tmp_path: Path, capsys) -> None:
+    path = tmp_path / "answers.json"
+    path.write_text(json.dumps(dict(ANSWERS, slug="class")), encoding="utf-8")
+    assert _run(source, tmp_path / "proj", path) == 1
+    assert "slug" in capsys.readouterr().err and not (tmp_path / "proj").exists()
+
+
+@only_in_the_template
+@pytest.mark.parametrize("slug", ["a", "a-very-long-project-slug-for-a-check"])
+def test_the_specimens_are_formatted_whatever_the_slugs_length(slug: str, tmp_path: Path) -> None:
+    """The formatter wraps by length, and the placeholders are longer or shorter than a real slug: a line it wrapped in
+    the payload must stay wrapped (or stay joined) when rendered, or a new repository fails its own format check."""
+    package = fc.import_name(slug)
+    for top in ("apps", "packages"):
+        for source in sorted((ROOT / top).rglob("*.py")):
+            if "__pycache__" in source.parts:
+                continue
+            rel = source.relative_to(ROOT).as_posix().replace("your-project-name", slug)
+            out = tmp_path / rel.replace("your_project_name", package)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            body = source.read_text(encoding="utf-8").replace("your-project-name", slug)
+            out.write_text(body.replace("your_project_name", package), encoding="utf-8")
+    ran = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--check", "--config", str(ROOT / "pyproject.toml"), str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert ran.returncode == 0, ran.stdout + ran.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="an executable bit is a POSIX file mode")
+def test_a_payload_file_that_is_executable_is_written_executable(source: Path, answers: Path, tmp_path: Path) -> None:
+    _write(source, "README.md", "# {{name}}\n")
+    (source / "README.md").chmod(0o755)  # as a launcher's .sh is in the payload's git index
+    target = tmp_path / "proj"
+    assert _run(source, target, answers) == 0
+    assert (target / "README.md").stat().st_mode & 0o111, "the executable bit was lost"
+    assert not (target / "AGENTS.md").stat().st_mode & 0o111  # a file that is not executable stays so
+
+
+def test_write_atomic_sets_the_executable_bit_only_when_asked(tmp_path: Path) -> None:
+    ini.write_atomic(tmp_path / "run.sh", b"exec true\n", executable=True)
+    ini.write_atomic(tmp_path / "notes.md", b"x\n")
+    if sys.platform != "win32":
+        assert (tmp_path / "run.sh").stat().st_mode & 0o111 and not (tmp_path / "notes.md").stat().st_mode & 0o111
+    assert (tmp_path / "run.sh").read_bytes() == b"exec true\n"
+
+
+def test_a_launchers_sh_is_planned_executable_even_from_a_checkout_without_modes(
+    source: Path, answers: Path, tmp_path: Path
+) -> None:
+    _write(
+        source,
+        "framework-manifest.toml",
+        MANIFEST + '\n[[rule]]\npattern = "launchers/*"\nmodule = "core"\nkind = "project-owned"\n',
+    )
+    _write(source, "launchers/your-project-name.sh", 'exec uv run your-project-name "$@"\n')
+    (source / "launchers/your-project-name.sh").chmod(0o644)  # as a Windows checkout reports it
+    _write(source, "launchers/your-project-name.cmd", "uv run your-project-name %*\n")
+    project = fc.load_answers(answers)
+    plan = ini.plan_new(source, tmp_path / "proj", project, today="2026-11-04")
+    assert "launchers/example-project.sh" in plan.executable
+    assert "launchers/example-project.cmd" not in plan.executable

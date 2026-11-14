@@ -24,6 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import log_setup
+
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.install_hooks"
@@ -102,9 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=ROOT, help="the repository (default: this one)")
     parser.add_argument("-v", "--verbose", action="store_true", help="log what was done to standard error")
     args = parser.parse_args(argv)
-    _logging.basicConfig(
-        level=_logging.INFO if args.verbose else _logging.WARNING, format="%(message)s", stream=sys.stderr
-    )
+    log_setup.configure(args.verbose)
     root = args.root.resolve()
     try:
         if args.check:
