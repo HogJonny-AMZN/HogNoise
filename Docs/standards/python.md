@@ -41,7 +41,9 @@ _LOGGER = _logging.getLogger(_MODULE_NAME)
 - `from __future__ import annotations` in every module, with `X | None` and `list[...]` in signatures; never
   `typing.Optional`, `List` or `Dict`.
 - `Package:` and `_MODULE_NAME` are the module's import path (`acme_tools.store`), not its folder: in a workspace member
-  the folder starts `apps/` or `packages/`, and the import path starts with the member's package.
+  the folder starts `apps/` or `packages/`, and the import path starts with the member's package. A test file has no
+  import path: its `Package:` line is its path from the repository's root without `.py`
+  (`packages/python/acme-tools-core/tests/test_store`, `tests/test_check`).
 - `_LOGGER` from `_MODULE_NAME`, never `__name__`. A module that never logs still declares it (the convention is uniform).
   In an App that takes *The tool-root pattern* (below), a module with user-facing output also declares `_TOOL_LOGGER`,
   the same instance under a second name. Neither configures a handler. Logging is configured only from an entry point's

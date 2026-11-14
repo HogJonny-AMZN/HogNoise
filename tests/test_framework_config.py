@@ -182,8 +182,8 @@ def test_a_newer_module_present_with_a_bad_state_is_still_refused(framework_data
         _refused(fc.parse_framework, data, "modules.process-map")
 
 
-def test_only_the_modules_newer_than_0_4_0_are_optional() -> None:
-    assert fc.OPTIONAL_MODULES == ("process-map",)
+def test_only_the_modules_newer_than_0_4_0_and_the_template_s_own_are_optional() -> None:
+    assert fc.OPTIONAL_MODULES == ("process-map", "payload-suite")
     assert set(fc.OPTIONAL_MODULES) <= set(fc.MODULES)
     for name in fc.MODULES:
         if name not in fc.OPTIONAL_MODULES:

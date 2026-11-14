@@ -1281,3 +1281,45 @@ def test_another_case_only_clash_is_still_a_refusal(
     _write(target, {"Docs/decisions/ADR-001-mine.md": "# Mine\n", "tools/New.py": "print(1)\n"})  # payload: new.py
     code, out, _ = _adopt(decisions_source, target, answers, "--apply", "-v", capsys=capsys)
     assert code == 1 and "capitalisation" in out
+
+
+@pytest.mark.parametrize("apply", [False, True], ids=["dry-run", "apply"])
+def test_an_unreadable_src_is_a_refusal_naming_the_folder_not_a_traceback(
+    source: Path, target: Path, answers: Path, monkeypatch, capsys, apply: bool
+) -> None:
+    """The layout-debt scan lists ``src/`` on every run: a folder it cannot list is a refusal, and nothing is written
+    (#209; ledger P-16)."""
+    real = Path.iterdir
+    denied = target / "src"
+
+    def iterdir(self: Path):  # noqa: ANN202 - Path.iterdir's own shape
+        if self == denied:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real(self)
+
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+    before = _snapshot(target)
+    code, _, err = _adopt(source, target, answers, *(["--apply"] if apply else []), capsys=capsys)
+    assert code == ini.EXIT_REFUSED and "refused:" in err and "src" in err, err
+    assert _snapshot(target) == before
+
+
+def test_a_package_under_src_that_cannot_be_searched_is_a_refusal(
+    source: Path, target: Path, answers: Path, monkeypatch, capsys
+) -> None:
+    """Denied where the listing really fails, ``os.scandir``: ``Path.rglob`` swallows that error, and the scan would go
+    on with a package left out (Copilot on #214)."""
+    _write(target, {"src/zeta/inner/__init__.py": ""})
+    real = os.scandir
+    denied = target / "src" / "zeta" / "inner"
+
+    def scandir(path="."):  # noqa: ANN001, ANN202 - os.scandir's own shape
+        if Path(path) == denied:
+            raise PermissionError(13, "Permission denied", str(path))
+        return real(path)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+    before = _snapshot(target)
+    code, _, err = _adopt(source, target, answers, capsys=capsys)
+    assert code == ini.EXIT_REFUSED and "inner" in err, err
+    assert _snapshot(target) == before

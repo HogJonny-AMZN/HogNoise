@@ -61,8 +61,8 @@ import log_setup
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_hygiene"
-__version__ = "0.3.1"
-__updated__ = "2026-11-07"
+__version__ = "0.3.2"
+__updated__ = "2026-11-14"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: Always allowed: the file that holds the identifiers.
@@ -232,12 +232,20 @@ def scan(
     pattern = build_pattern(identifiers)
     allowed = (*ALWAYS_ALLOWED, *(a.path for a in allow))
     findings: list[Finding] = []
-    paths, source = candidate_paths(root, findings)
+    unlisted: list[Finding] = []
+    paths, source = candidate_paths(root, unlisted)
     lfs = lfs_paths(root, paths) if source == "git" else set()
     _LOGGER.info(
         f"scanning {len(paths)} file(s) under {root} (list from {source}) for {len(identifiers)} identifier(s)"
     )
     used: set[str] = set()
+    for miss in unlisted:  # a folder not scanned cannot be shown to carry nothing, as an unreadable file (#208)
+        used.update(a for a in allowed if miss.path == "." or a.startswith(miss.path + "/"))  # entries beneath it
+        entry = _allowed_by(miss.path, allowed)
+        if entry is None:
+            findings.append(miss)
+        else:
+            used.add(entry)
     for rel in paths:
         entry = _allowed_by(rel, allowed)
         full = root / rel
