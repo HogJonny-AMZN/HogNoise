@@ -106,6 +106,31 @@ merged within the hour, so the review's findings (an unrecoverable regeneration,
 parameter conversion) landed as a follow-up instead of before the merge. Not mechanised: nothing stops a merge on green
 CI, and the rule is the order of the steps.
 
+### P-9 · A command that writes to the forge, built to try something out
+
+**Trigger:** you are about to run a `gh` command that posts, replies, edits, resolves, creates or closes, and its text,
+target or arguments are not yet final: a placeholder body, a guessed id, a dry run of the shape.
+**Do:** never run it to see what happens. Check the command's shape without the forge (print it, or write the body to a
+file and read it back), and run the writing command once, when posting that exact text to that exact target is the
+intent. A wrong post is fixed by editing it, and said so in the reply to the owner.
+**Because:** on [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18) a command meant as a placeholder posted a real
+reply to a Copilot thread (comment 4566206935, 2026-11-13) that linked the wrong issue: ai-first-template #209 instead of
+#208. It was edited to the right link at 2026-11-14 00:56Z. A post is public the moment it lands, and notifications go
+out before an edit. Not mechanised: whether a command's text is final is not something a check can see.
+
+### P-10 · A count in a spec that no command produced
+
+**Trigger:** a spec, design or plan states a number about the repository's data: features, cases, files, functions,
+callers.
+**Do:** produce it with a command or script run on the code and data at the commit the document cites, and keep the
+command beside the number or in the pull request's *Verified*. A count derived from another count ("48 features lack X,
+so 48 new cases") is re-derived from the data, not the arithmetic.
+**Because:** the GPU port's spec ([PR #20](https://github.com/HogJonny-AMZN/HogNoise/pull/20)) said the hog set had 95
+features and that it would grow by 50 cases. A script run while writing the plan found 114 features, and found that two of
+the 48 FastNoiseSIMD features without a 2D case are grids, so the cases were 48. Both were corrected before the merge.
+Copilot also found the spec naming one caller of `renderings()` where there are 13. P-6 covers behaviour; this covers
+numbers. Not mechanised.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
