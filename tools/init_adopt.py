@@ -60,6 +60,7 @@ import difflib
 import json
 import keyword
 import logging as _logging
+import os
 import re
 import sys
 from collections.abc import Callable
@@ -73,8 +74,8 @@ import init as ini
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.init_adopt"
-__version__ = "0.2.0"
-__updated__ = "2026-10-16"
+__version__ = "0.2.1"
+__updated__ = "2026-11-14"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 #: The ADR the payload seeds, and the index whose seed links it. A repository that already has an ADR number 1 is not
 #: seeded a second one (two files with one id fail the ``adr-duplicate`` docs check); a seeded index gets no row for it.
@@ -336,20 +337,34 @@ def diff_text(adopt: AdoptPlan, target: Path, path: str) -> str:
     return "".join(difflib.unified_diff(old, new, f"{path} (this repository)", f"{path} (the template)"))
 
 
+def _has_python(folder: Path) -> bool:
+    """Whether any file under ``folder`` is a ``.py``. A folder that cannot be listed raises: ``Path.rglob`` would skip
+    it silently, and a package left out of the layout scan is a report that is wrong (Copilot on #214)."""
+
+    def fail(error: OSError) -> None:
+        raise error
+
+    return any(any(name.endswith(".py") for name in files) for _, _, files in os.walk(folder, onerror=fail))
+
+
 def _src_packages(target: Path) -> list[str]:
     """The top-level packages and modules of the target's ``src/`` that can be named in a ``[layers]`` table."""
     src = target / "src"
     if not src.is_dir():
         return []
     names = set()
-    for entry in src.iterdir():
-        name = entry.stem if entry.is_file() else entry.name
-        if entry.name.startswith(".") or entry.name == "__pycache__" or entry.name.endswith(".egg-info"):
-            continue
-        if (entry.is_dir() and any(entry.rglob("*.py"))) or (
-            entry.is_file() and entry.suffix == ".py" and name != "__init__"
-        ):
-            names.add(name)
+    try:
+        for entry in src.iterdir():
+            name = entry.stem if entry.is_file() else entry.name
+            if entry.name.startswith(".") or entry.name == "__pycache__" or entry.name.endswith(".egg-info"):
+                continue
+            if (entry.is_dir() and _has_python(entry)) or (
+                entry.is_file() and entry.suffix == ".py" and name != "__init__"
+            ):
+                names.add(name)
+    except OSError as e:  # a refusal naming the folder, never a traceback (#209; ledger P-16)
+        where = e.filename or src
+        raise AdoptRefused(f"{where} could not be read for src/'s packages: {type(e).__name__}: {e}") from e
     return sorted(n for n in names if _PACKAGE_RE.fullmatch(n) and not keyword.iskeyword(n))
 
 

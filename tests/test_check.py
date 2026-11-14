@@ -112,6 +112,20 @@ def test_a_framework_toml_that_does_not_name_the_process_map_runs_without_its_st
     assert [s.name for s in check.stages(root)] == ALL_NAMES
 
 
+def test_the_payload_stage_is_the_template_s_own_last_and_never_fast(tmp_path: Path) -> None:
+    """The template's root runs the payload's own suite (ledger P-22); a repository made from it never names the
+    module, so it reads as off there and the stage list is unchanged."""
+    root = _repo(tmp_path)
+    assert "payload-suite" not in (root / "framework.toml").read_text(encoding="utf-8")
+    assert [s.name for s in check.stages(root)] == ALL_NAMES
+    text = (root / "framework.toml").read_text(encoding="utf-8")
+    (root / "framework.toml").write_text(text.replace("[harnesses]", 'payload-suite = "on"\n\n[harnesses]'), "utf-8")
+    assert [s.name for s in check.stages(root)] == [*ALL_NAMES, "payload"]
+    stage = next(s for s in check.ALL_STAGES if s.name == "payload")
+    assert stage.module == "payload-suite" and not stage.fast
+    assert "payload" not in [s.name for s in check.stages(root, fast=True)]
+
+
 def test_a_module_that_is_planned_runs_nothing(tmp_path: Path) -> None:
     assert "graph" not in [s.name for s in check.stages(_repo(tmp_path, graph="planned"))]
 

@@ -21,13 +21,19 @@ find the repository's default branch.
 2. **Docs in the same pull request**, the ones [the definition of done](../../../Docs/standards/definition-of-done.md) lists
    (the board, the plan task ticked with its verification, the spec, the journal, the handoff, the ledger if the process
    failed). Do not keep a second list here.
-3. **The deliberate review** for a significant increment: run the `local-review` skill and paste its table into the pull
+3. **A pull request that lands a board row opens first, as a draft.** The row's `State: Landed` names the pull request
+   (`landed-rows`, which the pre-commit hook runs), and the number exists only once it is open: commit the work with
+   the row still in flight, push, `gh pr create --draft`, then mark the row landed with the number, run the review,
+   and `gh pr ready` after it. A later commit is staged and committed as step 5 says and pushed; the pull request
+   already exists, so its description is brought up to date with `gh pr edit <n> --body-file <file>` rather than
+   created again, and its checks are read (step 7) before `gh pr ready`.
+4. **The deliberate review** for a significant increment: run the `local-review` skill and paste its table into the pull
    request's *Review* section.
-4. **Stage named paths**, not `git add -A`, and read `git status` first: a generated file or an unrelated reformat does not
+5. **Stage named paths**, not `git add -A`, and read `git status` first: a generated file or an unrelated reformat does not
    belong in the commit. **Commit with a person's identity, never an agent's**: `git commit -s` when `project.json` has `signoff` true, no
    attribution line for an AI. Write the commit message to a file in its own command, not chained to an assertion that could
    abort before writing it, or the commit reads a missing file.
-5. **Push, then open the pull request** against the repository's own default branch (read it; do not assume it: `AGENTS.md`
+6. **Push, then open the pull request** against the repository's own default branch (read it; do not assume it: `AGENTS.md`
    names it, or `git symbolic-ref refs/remotes/origin/HEAD`, or `gh repo view --json defaultBranchRef`). Give the body from
    `.github/pull_request_template.md` filled in, not typed over it: `gh pr create --base <default> --title "..."
    --body-file <file>`. Every two-way-door decision goes in *Decisions* (at most eight), what was verified, what is still open;
@@ -35,7 +41,7 @@ find the repository's default branch.
    issue, so the merge closes it; "answers #N" leaves it open after the fix lands. **Every number and every "cannot" in
    the body comes from a command run on the commit it names**, pasted, not recalled; read them again after each fix
    commit (framework 46).
-6. **Read CI** on the pull request after pushing (`gh pr checks <n> --watch`): a claim of green comes after the run.
+7. **Read CI** on the pull request after pushing (`gh pr checks <n> --watch`): a claim of green comes after the run.
 
 ## Assessing an automated review
 

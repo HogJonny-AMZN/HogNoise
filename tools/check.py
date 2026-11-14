@@ -22,9 +22,8 @@ Run standalone (exit code 0 every stage passed, 1 a stage failed, 2 the argument
 
     uv run python tools/check.py [--fast] [--only NAME ...] [--list] [-v] [--root PATH]
 
-``--fast`` runs only the stages cheap enough for a pre-commit hook (everything but the tests); ``--list`` prints the
-stage
-names and commands and runs nothing; ``--only`` runs the named stages.
+``--fast`` runs only the stages cheap enough for a pre-commit hook (everything but the tests, and the template's
+``payload``); ``--list`` prints the stage names and commands and runs nothing; ``--only`` runs the named stages.
 """
 
 from __future__ import annotations
@@ -45,8 +44,8 @@ import log_setup
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check"
-__version__ = "0.2.0"
-__updated__ = "2026-11-01"
+__version__ = "0.2.1"
+__updated__ = "2026-11-12"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: The repository root: the parent of the folder this file is in.
@@ -61,7 +60,7 @@ class Stage:
     :param argv: The command, as an argv and never a shell string, so that no platform disagrees about quoting.
     :param why: One line saying what a failure of this stage means.
     :param module: The ``framework.toml`` module that must be ``on`` for the stage to run.
-    :param fast: Whether a pre-commit hook may run it (the tests are the one stage that is not).
+    :param fast: Whether a pre-commit hook may run it (the tests, and the template's ``payload`` stage, are not).
     """
 
     name: str
@@ -128,6 +127,13 @@ ALL_STAGES: tuple[Stage, ...] = (
         ("uv", "run", "pytest", "-q"),
         "Behaviour. Hardware the runner lacks is skipped with a reason, never silently",
         "python-uv",
+        fast=False,
+    ),
+    Stage(
+        "payload",
+        ("uv", "run", "python", "scripts/check_payload.py"),
+        "The template's own: the payload's lint and suite, when payload/ differs from main (ledger P-22)",
+        "payload-suite",
         fast=False,
     ),
 )

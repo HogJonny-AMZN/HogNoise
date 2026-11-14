@@ -1,5 +1,5 @@
 [framework]
-template_version = "0.9.4"
+template_version = "0.10.1"
 upstream = "HogJonny-AMZN/ai-first-template"
 
 [modules]

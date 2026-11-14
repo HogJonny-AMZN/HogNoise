@@ -84,8 +84,8 @@ import log_setup
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.framework_sync"
-__version__ = "0.1.0"
-__updated__ = "2026-10-15"
+__version__ = "0.1.1"
+__updated__ = "2026-11-13"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -526,8 +526,14 @@ def _upstream(
     return 0, lines
 
 
-def main(argv: list[str] | None = None, *, gh: GhRunner = run_gh, today: datetime.date | None = None) -> int:
-    """Run the sync check; returns 0 clean, 1 findings, 2 unusable."""
+def main(
+    argv: list[str] | None = None,
+    *,
+    gh: GhRunner = run_gh,
+    today: datetime.date | None = None,
+    which: Callable[[str], str | None] = shutil.which,
+) -> int:
+    """Run the sync check; returns 0 clean, 1 findings, 2 unusable. ``which`` finds ``gh`` for ``--upstream``."""
     for stream in (sys.stdout, sys.stderr):  # a finding naming a non-ASCII file must not crash the report
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
@@ -545,7 +551,7 @@ def main(argv: list[str] | None = None, *, gh: GhRunner = run_gh, today: datetim
         print(f"sync check: cannot run: {root} is not a directory")
         return 2
     if args.upstream:
-        code, lines = upstream_report(root, gh=gh, today=today)
+        code, lines = upstream_report(root, gh=gh, today=today, which=which)
         for line in lines:
             print(line)
         return code

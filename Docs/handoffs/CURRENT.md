@@ -3,10 +3,12 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-13: the conformance harness has landed ([PR #16](https://github.com/HogJonny-AMZN/HogNoise/pull/16), [PR #17](https://github.com/HogJonny-AMZN/HogNoise/pull/17)); ai-first-template 0.9.4 and its
-workspace layout are in review ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)); the GPU port's spec is next. Published
-2026-11-01 at [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template`
-0.9.4 (from 0.4.0, in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)) with no overrides ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2, locking the
+**Last updated:** 2026-11-14: ai-first-template 0.9.4 and its workspace layout have landed
+([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)); 0.10.1, which answers that update's findings, is in review;
+the GPU port's spec is next. Published 2026-11-01 at
+[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.10.1
+(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1) with no overrides
+([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2, locking the
 [north-star roadmap](../design/2026-11-01-north-star-roadmap.md), waits on the owner and blocks neither.
 
 A new session reads this, then [../plan/BOARD.md](../plan/BOARD.md) (gates first), then the newest file in
@@ -32,7 +34,8 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 | Item | State | Waiting on |
 | --- | --- | --- |
 | **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port, next: its spec, then checked by the harness (`python -m hog_noise.conformance`) | The owner's go on the spec |
-| **ai-first-template 0.9.4 and the workspace layout** ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)) | Built: the library is the member `packages/python/hog-noise/`; review findings fixed | The owner, to merge; and to keep or change the author email the member's manifest now names (the boundary check requires one; it is the address `project.json` already makes public) |
+| **ai-first-template 0.10.1** (0.10.0 and 0.10.1 in one render) | Built: 19 managed files and the lock; no hand step had work to do here | The owner, to merge |
+| The member's author email ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), merged) | The manifest names the address `project.json` already makes public, because the boundary check's `no-authors` requires an email | The owner, to keep or change it |
 | The north-star roadmap (gate G2) | Proposed | The owner, to lock its three remaining decisions |
 | PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL | The owner's go, then; needs the owner's PyPI credentials |
 

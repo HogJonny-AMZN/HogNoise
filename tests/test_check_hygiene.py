@@ -672,6 +672,46 @@ def test_a_folder_whose_kind_the_walk_cannot_read_is_a_finding_not_a_crash(tmp_p
     assert [f.path for f in findings] == ["sub"] and "cannot be read" in findings[0].detail, findings
 
 
+def _deny_listing(monkeypatch: pytest.MonkeyPatch, folder: str) -> None:
+    """The walk reports ``folder`` as one it cannot list, as ``os.walk`` does through ``onerror``."""
+    real_walk = ch.os.walk
+
+    def denying_walk(top, onerror=None, **kwargs):  # noqa: ANN001, ANN202 - os.walk's own shape
+        if onerror is not None:
+            onerror(PermissionError(13, "Permission denied", str(Path(top) / folder)))
+        yield from real_walk(top, **kwargs)
+
+    monkeypatch.setattr(ch.os, "walk", denying_walk)
+
+
+def test_a_folder_the_walk_cannot_list_that_the_allowlist_covers_is_neither_a_finding_nor_stale(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An allowed folder that cannot be listed cannot be shown to carry nothing, as an unreadable file cannot (#208):
+    no finding for it, and its entry is not called stale."""
+    root = make_repo(tmp_path, {"a.txt": "fine\n"}, [ID], git=False)
+    _deny_listing(monkeypatch, "vendor")
+    findings, used = ch.scan(root, (ID,), (fc.HygieneAllow("vendor", "a vendored tree"),))
+    assert findings == [] and "vendor" in used, findings
+
+
+def test_a_folder_whose_kind_cannot_be_read_that_the_allowlist_covers_is_neither_a_finding_nor_stale(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root = make_repo(tmp_path, {"a.txt": "fine\n", "vendor/b.txt": "fine\n"}, [ID], git=False)
+    _refuse_lstat(monkeypatch, root / "vendor")
+    findings, used = ch.scan(root, (ID,), (fc.HygieneAllow("vendor/b.txt", "inside an unreadable folder"),))
+    assert [f.path for f in findings] == ["vendor"] and "vendor/b.txt" in used, findings  # #208, an entry beneath
+
+
+def test_an_entry_beneath_a_folder_the_walk_cannot_list_is_not_stale(tmp_path: Path, monkeypatch) -> None:
+    """The folder is still a finding (nothing covers it), but the entry inside it cannot be shown to carry nothing."""
+    root = make_repo(tmp_path, {"a.txt": "fine\n"}, [ID], git=False)
+    _deny_listing(monkeypatch, "locked")
+    findings, _ = ch.scan(root, (ID,), (fc.HygieneAllow("locked/x.txt", "a file in a locked folder"),))
+    assert [(f.path, "cannot be listed" in f.detail) for f in findings] == [("locked", True)], findings
+
+
 def test_a_listed_path_whose_kind_cannot_be_read_is_a_finding_not_a_crash(tmp_path: Path, monkeypatch) -> None:
     root = make_repo(tmp_path, {"a.txt": "fine\n"}, [ID], git=False)
     out = subprocess.CompletedProcess([], 0, b"a.txt\0", b"")
