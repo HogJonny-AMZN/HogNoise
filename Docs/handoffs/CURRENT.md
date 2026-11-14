@@ -5,7 +5,7 @@ preference worth carrying forward.
 
 **Last updated:** 2026-11-14: ai-first-template 0.9.4 and its workspace layout have landed
 ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)), and 0.10.1, which answers that update's findings
-([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)); the GPU port's spec is Proposed, for the owner to accept.
+([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)); the GPU port's spec is Accepted, and its plan is next.
 Published 2026-11-01 at
 [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.10.1
 (0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1) with no overrides
@@ -34,7 +34,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 
 | Item | State | Waiting on |
 | --- | --- | --- |
-| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port: [its spec](../superpowers/specs/2026-11-14-gpu-port.md) Proposed 2026-11-14 (a `wgpu` rung, one WGSL shader, a tolerance file per rendering, CI on software adapters), then the plan | The owner, to accept the spec and its six decisions |
+| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port: [its spec](../superpowers/specs/2026-11-14-gpu-port.md) Accepted 2026-11-14 with its six decisions as recommended (a `wgpu` rung, one WGSL shader, a tolerance file per rendering, CI on software adapters); the plan is next, its first task the CI adapter probe | The plan, then the build |
 | The member's author email ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), merged) | The manifest names the address `project.json` already makes public, because the boundary check's `no-authors` requires an email | The owner, to keep or change it |
 | The north-star roadmap (gate G2) | Proposed | The owner, to lock its three remaining decisions |
 | PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL | The owner's go, then; needs the owner's PyPI credentials |
@@ -57,6 +57,10 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
   float32 plus one manifest and nothing else, parameters in HogNoise's names, `sample` (and an optional `warp`) as the
   entry points, a per-point bound, and each case compared by points, shape or advisory. Its spec is accepted
   (2026-11-12, "accept").
+- **The GPU port's spec is accepted** (2026-11-14, "first assess the copilot review, otherwise agreed and you can
+  proceed"): its six decisions as recommended, a tolerance file per rendering with one rule per feature and output, the
+  discrete rule for flips, a 2x margin to a 1-2-5 step, 50 hog-only cases, two software-adapter CI legs with `dev`
+  excluding `gpu`, and a 32-octave cap on the GPU rung reported as *unsupported*.
 - **PyPI waits until the core is complete** (2026-11-13): "PyPi is indefinitely delayed until I want to go public";
   "I would probably go public when everything is complete and I can deploy the core including Numpy, WGSL and at
   least HLSL, maybe GLSL as well". The repository is already public; this is the package release. So the release
