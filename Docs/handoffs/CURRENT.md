@@ -59,7 +59,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
   (2026-11-12, "accept").
 - **The GPU port's spec is accepted** (2026-11-14, "first assess the copilot review, otherwise agreed and you can
   proceed"): its six decisions as recommended, a tolerance file per rendering with one rule per feature and output, the
-  discrete rule for flips, a 2x margin to a 1-2-5 step, 50 hog-only cases, two software-adapter CI legs with `dev`
+  discrete rule for flips, a 2x margin to a 1-2-5 step, 48 hog-only cases (46 FastNoiseSIMD in 2D, 2 grids), two software-adapter CI legs with `dev`
   excluding `gpu`, and a 32-octave cap on the GPU rung reported as *unsupported*.
 - **PyPI waits until the core is complete** (2026-11-13): "PyPi is indefinitely delayed until I want to go public";
   "I would probably go public when everything is complete and I can deploy the core including Numpy, WGSL and at
