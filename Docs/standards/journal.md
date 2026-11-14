@@ -23,6 +23,10 @@ Makefile is the project's own file, so a repository that predates the target add
 
 ## What goes in it
 
+- **The session's story, for a person.** Say what the developer is actually doing and the outcome they are driving
+  towards, and why it matters now; then what moved towards it, and what the person decided. Someone who was not there
+  should be able to follow it and care how it ends. Detail serves the story: the file, the finding or the commit
+  belongs where it explains a turn in it, and an entry that is only a list of what was fixed is a log, not a journal.
 - **Continuous, not retrospective.** At least one file per calendar day, and one per session. Batch at natural breakpoints: the
   test is whether someone reading it later could reconstruct *why*, not just *what*.
 - **Beliefs that changed** are the most valuable content: what was believed, what contradicted it, what is true now.
@@ -30,6 +34,11 @@ Makefile is the project's own file, so a repository that predates the target add
 - A session that crosses midnight closes its file with `**Continued in:**` and opens the next day's with `**Preceded by:**`. The
   split is never retroactive: entries are not moved between files. Two sessions on one day carry `**Ran in parallel with:**`.
 - The journal is history: nothing in it is rewritten to match what is true now. A later file corrects an earlier one.
+- **Two pull requests open at once from one session** both append to its file, and the second to merge conflicts.
+  Stack the second on the first's branch, and say in its description that the first merges first. Work that must merge
+  *before* a long-running branch (a template update, a fix the branch needs) does not stack on it: it goes off the
+  default branch, and the long branch takes it by merging the default branch in, keeping both sides' journal entries
+  and rows.
 
 ## A session file
 
@@ -94,7 +103,8 @@ run says no roster was seeded. Everyone else, and a second address, is added by 
 
 A repository with **no roster is not checked for authorship**, and nothing else changes for it. With one, the docs check's
 `journal-author` finding names a file whose login, entry authors, `Said by:` logins or `@login:` quote tags are not on it, a
-file with no usable `Summary:`, or an entry without its `By:` and `Agent:` line. Logins compare ignoring case, as GitHub does.
+file with no usable `Summary:`, an entry without its `By:` and `Agent:` line, or a `##` heading (an entry is a `###`
+heading, and what follows a `##` one would be checked by nothing). Logins compare ignoring case, as GitHub does.
 
 The roster also decides **who may commit**. The `commit-msg` hook accepts a `Signed-off-by` from the owner in `project.json`
 or from a person on the roster with their `name` and one of their `emails`; a person with no address cannot sign. So adding a

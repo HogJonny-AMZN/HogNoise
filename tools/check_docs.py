@@ -32,7 +32,7 @@ Checks, in the order they run:
   finding); the day the handoff was last updated has a journal file of that date
   or later, and the day a per-login handoff was last updated has a new-form journal file of that login
 - **journal-author**: with a ``[[people]]`` roster, every new-form session file has a summary and every entry names
-  its author, and every login named is on the roster
+  its author, and every login named is on the roster; an entry is a ``###`` heading, so a ``##`` one is reported
 - **adr-index**: every ``ADR-NNN-*.md`` or ``ADR-YYYY-MM-DD-<slug>.md`` is a row in the decisions index and every
   indexed one exists
 - **adr-duplicate**: two ADR files with one ADR id (a number, or a date and slug); a dated name with an unreal day, no
@@ -1335,6 +1335,7 @@ _QUOTE_TAG_RE = re.compile(
     rf"(?:(?:[-*+]|[0-9]+[.)])[ \t]+)?@({fc.LOGIN_PATTERN}):"
 )  # on a line with its indent removed
 SUMMARY_MAX = 200
+_CLOSING_HASHES_RE = re.compile(r"(?:^|[ \t])#+$")  # a heading's optional closing sequence (CommonMark)
 
 
 def _entry_title(line: str) -> str | None:
@@ -1343,6 +1344,21 @@ def _entry_title(line: str) -> str | None:
     if len(line) - len(bare) > 3 or not bare.startswith(("### ", "###\t")):
         return None
     return bare[4:].strip().rstrip("#").strip() or bare[4:].strip()
+
+
+def _level_two_title(line: str) -> str | None:
+    """The title of a ``##`` heading (up to three spaces of indent), else ``None``. In a session file it is never an
+    entry: ``journal-author`` reads ``###`` entries only, so what follows one would escape its checks (#180, #181).
+
+    As CommonMark reads it: a bare ``##`` is a heading with an empty title, and a closing run of ``#`` counts only after
+    a space (``## A ##`` is titled ``A``, ``## C#`` is titled ``C#``, ``## ##`` is empty)."""
+    bare = line.lstrip(" ")
+    rest = bare[2:]
+    if len(line) - len(bare) > 3 or not bare.startswith("##") or (rest and rest[0] not in " \t"):
+        return None
+    title = rest.strip()
+    closing = _CLOSING_HASHES_RE.search(title)
+    return title[: closing.start()].strip() if closing else title
 
 
 def _after(prefix: str, line: str) -> str | None:
@@ -1415,6 +1431,11 @@ def _journal_author_findings(rel: str, text: str, roster: frozenset[str]) -> lis
                 said
             )  # the whole value: the login pattern is linear, a cut would hide a login
         problems += [f"entry '{title}': '@{n}' is not on the roster" for n in named if n.lower() not in roster]
+    problems += [
+        f"'{f'## {title}' if title else '##'}' is not an entry heading: an entry is a ### heading"
+        for title in map(_level_two_title, lines)
+        if title is not None
+    ]
     for line in lines:
         tag = _QUOTE_TAG_RE.match(line.lstrip(" \t"))
         if tag is not None and tag.group(1).lower() not in roster:

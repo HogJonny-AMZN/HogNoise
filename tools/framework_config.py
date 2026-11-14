@@ -47,8 +47,8 @@ from typing import Any
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.framework_config"
-__version__ = "0.6.1"
-__updated__ = "2026-11-07"
+__version__ = "0.6.2"
+__updated__ = "2026-11-12"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 MODULES = (
@@ -65,10 +65,12 @@ MODULES = (
     "branch-ownership",
     "devblog",
     "process-map",
+    "payload-suite",
 )
-#: Modules added after 0.4.0. A ``framework.toml`` written before a module existed does not name it, so an absent one
-#: reads as ``off``; a present one is validated like every other. The modules of 0.4.0 stay required.
-OPTIONAL_MODULES = ("process-map",)
+#: Modules a ``framework.toml`` may leave out, which then read as ``off``; a present one is validated like every other.
+#: ``process-map`` came after 0.4.0, so an older file does not name it; ``payload-suite`` is the template's own, and
+#: a repository made from it never names it. The modules of 0.4.0 stay required.
+OPTIONAL_MODULES = ("process-map", "payload-suite")
 MODULE_STATES = ("on", "off", "planned")
 HARNESSES = ("claude", "gemini", "copilot", "codex", "cursor")
 DEFAULT_HANDOFF_MAX_LINES = 150

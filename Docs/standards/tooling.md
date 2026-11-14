@@ -48,6 +48,7 @@ pass).
 | `adapters` | `uv run python tools/sync_adapters.py --check` | harness-adapters | yes | An adapter or skills mirror is not the generated one, an enabled harness has no passing probe, or a managed document names a harness |
 | `sync` | `uv run python tools/framework_sync.py --check` | core | yes | A managed file differs from the lock without an override in `framework.toml`, or is missing, or the lock cannot be read |
 | `tests` | `uv run pytest -q` | python-uv | no | Behaviour is broken |
+| `payload` | `uv run python scripts/check_payload.py` | payload-suite | no | The template's own: the payload's lint or suite fails, for a change under `payload/` (nothing differing there is a skip, and says so) |
 
 The `sync` stage needs `framework.lock`: a repository without one fails it with a `corpus` finding, so the pre-commit hook
 refuses commits in a repository that is mid-adoption until the lock exists (`init adopt --apply` writes it). It holds a

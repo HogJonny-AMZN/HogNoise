@@ -15,3 +15,7 @@ launcher runs them. The template's 0.7.0 steps say nothing about a project's own
 The move: an app, `apps/hog-noise-tools/`, depending on the `hog-noise` member, with launchers for the generator and the
 gallery. Not now: the 0.9.4 update is already a large pull request, nothing is broken by the tools' place, and the
 template may answer its finding first. Good, because the GPU port will add a shader emitter that belongs with them.
+
+The template answered in 0.10.1 ([ai-first-template #207](https://github.com/HogJonny-AMZN/ai-first-template/issues/207),
+item 3): `updating.md`'s *0.7.0* now says a project's own tools are an app, or wait with a board row as this one does. So
+the row stands as written; the move is the template's answer, taken when the GPU port's emitter needs a home.

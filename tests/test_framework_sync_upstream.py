@@ -632,9 +632,23 @@ def test_the_command_line_runs_upstream_and_returns_its_code(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     gh = FakeGh({"v0.2.0": _day_iso()}, _upstream_v2(tmp_path))
-    code = fs.main(["--upstream", "--root", str(repo)], gh=gh, today=TAG_DATE + datetime.timedelta(days=20))
+    code = fs.main(
+        ["--upstream", "--root", str(repo)],
+        gh=gh,
+        today=TAG_DATE + datetime.timedelta(days=20),
+        which=lambda tool: "/bin/gh",
+    )
     assert code == 1
     assert "lock is behind" in capsys.readouterr().out
+
+
+def test_the_command_line_hands_its_which_to_upstream_so_a_machine_without_gh_is_not_needed(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A real gh on the path must not matter either way: the command line passes the one it is given (#200).
+    code = fs.main(["--upstream", "--root", str(repo)], gh=FakeGh({}), which=lambda tool: None)
+    assert code == 2
+    assert "gh is not on the path" in capsys.readouterr().out
 
 
 def test_check_and_upstream_are_exclusive(capsys: pytest.CaptureFixture[str]) -> None:

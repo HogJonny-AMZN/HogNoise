@@ -2344,6 +2344,11 @@ def test_an_old_form_file_is_never_checked_for_authorship(tmp_path: Path) -> Non
         (GOOD_SESSION.replace("**Said by:** @Bo-B", "**Said by:** @zed"), AUTHORED, "'@zed' is not on the roster"),
         (GOOD_SESSION.replace('@bo-b: "a quote"', '@zed: "a quote"'), AUTHORED, "'@zed:' tags a quote"),
         (GOOD_SESSION.replace('@bo-b: "a quote"', '- @zed: "a quote"'), AUTHORED, "'@zed:' tags a quote"),
+        (GOOD_SESSION.replace("### A pairing", "## A pairing"), AUTHORED, "'## A pairing' is not an entry heading"),
+        (GOOD_SESSION.replace("### A pairing", "  ## A pairing ##"), AUTHORED, "'## A pairing' is not an entry"),
+        (GOOD_SESSION.replace("### A pairing", "##"), AUTHORED, "'##' is not an entry heading"),  # an empty heading
+        (GOOD_SESSION.replace("### A pairing", "   ##  "), AUTHORED, "'##' is not an entry heading"),
+        (GOOD_SESSION.replace("### A pairing", " ## ##"), AUTHORED, "'##' is not an entry heading"),
     ],
 )
 def test_each_journal_author_finding_fires_alone(tmp_path: Path, session: str, name: str, detail: str) -> None:
@@ -2365,8 +2370,25 @@ def test_a_login_is_compared_ignoring_case_and_a_file_may_have_no_entries(tmp_pa
 
 
 def test_a_login_in_a_code_fence_or_an_at_sign_in_prose_is_not_read(tmp_path: Path) -> None:
-    session = GOOD_SESSION + "\n```\n### Not an entry\n@zed: nope\n```\n\nSee @types/node: and @param: here.\n"
+    fence = "\n```\n### Not an entry\n## Nor this\n@zed: nope\n```\n"
+    session = GOOD_SESSION + fence + "\nSee @types/node: and @param: here.\n"
     ours, _ = author_findings(tmp_path, session)
+    assert ours == []
+
+
+def test_a_file_whose_entries_are_all_under_a_level_two_heading_is_a_finding(tmp_path: Path) -> None:
+    """#180 and #181 each wrote an entry under ``##``: with no ``###`` entry the file has no entry to check at all, and
+    the gate passed it. A ``####`` inside an entry is the entry's own section, and is not one."""
+    header = "# Session\n\n**Status:** Living.\n**Summary:** One thing.\n\n"
+    ours, _ = author_findings(tmp_path / "two", header + "## An entry\nNo author line, @zed named.\n")
+    assert [f.detail for f in ours] == ["'## An entry' is not an entry heading: an entry is a ### heading"]
+    ours, _ = author_findings(tmp_path / "empty", header + "##\nNo author line, @zed named.\n")
+    assert [f.detail for f in ours] == ["'##' is not an entry heading: an entry is a ### heading"]
+    not_headings = header + "    ##\n\n##x\n"  # four spaces is a code block; no space after the marks is text
+    ours, _ = author_findings(tmp_path / "text", not_headings)
+    assert ours == []
+    deeper = GOOD_SESSION.replace("Prose.\n", "Prose.\n\n#### A part of the entry\n\nMore.\n")
+    ours, _ = author_findings(tmp_path / "four", deeper)
     assert ours == []
 
 

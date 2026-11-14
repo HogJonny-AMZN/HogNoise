@@ -86,7 +86,11 @@ happens, so that the template is fixed for the next one: the log is how a reposi
      states (a new board field, a new ledger entry): carry each such rule into the kept file, and say so in the
      override's reason. A kept `failure-modes.md` never receives the release's new framework entries, while the
      managed files that cite them by number (the definition of done, the skills) do: the release notes list the
-     entries added, so carry them in, or cite them as the template's entries. An extension (`python-project.md` beside `python.md`, `project.md` in a skill's folder) is never
+     entries added, so carry them in, or cite them as the template's entries. When the release changed only text the
+     kept file never had (a row the repository's copy left out), and no tool ported in the update enforces a rule from
+     it here (its check is off, or needs what the repository does not have), there is nothing to carry: keep the
+     override as it is, and say so in the pull request
+     ([#213](https://github.com/HogJonny-AMZN/ai-first-template/issues/213)). An extension (`python-project.md` beside `python.md`, `project.md` in a skill's folder) is never
      touched by an update: it is the project's, and no release ships one.
    - A *skills mirror* or a generated adapter is not ported by hand: port the canonical `.agents/skills/` file, then
      `uv run python tools/sync_adapters.py --write`.
@@ -143,6 +147,24 @@ the repository. The release locked must be one that ships the module; take that 
 Missing the next release costs more than this one: `--upstream` exits 1 when a lock has been behind for longer than
 `max_age_days` (default 14, under `[framework]` in `framework.toml`), so the procedure is best run when it is first reported.
 
+## 0.6.0: board rows stay true
+
+0.6.0 adds two docs-check findings for a board kept as row files, `board-state` and `waits-on`, and framework ledger
+entries 33 and 34. It was released with its steps in [its notes](https://github.com/HogJonny-AMZN/ai-first-template/releases/tag/v0.6.0)
+only; this section is them, so a repository taking several releases by this guide does not miss them
+([#207](https://github.com/HogJonny-AMZN/ai-first-template/issues/207)).
+
+1. **Take 0.6.0**, by the steps above.
+2. **The board README and the glossary are the repository's own**, so the update does not change them. Copy from the
+   release's seeds: into `Docs/plan/board/README.md`, the `Waits on` line in the example, `Verdict` on any row but a
+   gate, the *Moving a row* and *A wait on other work* paragraphs, and the rule that a row is work in this repository;
+   into `Docs/glossary.md`, a **Waits on** row, and the **Row file** row naming its new line.
+3. **Tidy what `make check` finds.** A landed row in *Next*: its `Section` becomes `now`. A queued row in *Now*: `next`.
+   An Icebox row saying it was pulled forward beside its *Now* row: delete it (the *Now* row keeps the history). A
+   verdict that waits on other work in prose ("after X lands"): a `Waits on` line linking X's row, and if X has
+   landed, the row decided again. A row moved off the Icebox to *Now* also needs an `Owner`.
+4. **Check it.** `make check` passes.
+
 ## 0.7.0: the repository layout
 
 0.7.0 moves a repository's code into workspace members ([layout.md](layout.md)), from a root `src/` or from a package
@@ -169,8 +191,9 @@ findings log (above) through it.
 
    **Move each package**, with `git mv` so its history follows: `git mv src/<package> apps/<app>/src/<package>`, or from
    the root `git mv <package> packages/python/<name>/src/<package>` (or the app's). Write the member's
-   `pyproject.toml`: `[project]` with its name, version, `requires-python`, `authors` (each with a name and an email)
-   and `dependencies` (each member it imports, with `[tool.uv.sources] <name> = { workspace = true }`),
+   `pyproject.toml`: `[project]` with its name, version, `requires-python`, `authors` (each with a name and an email:
+   `no-authors` refuses either missing; a project that deliberately named no address takes the owner's from
+   `project.json`, which its signed-off commits already carry) and `dependencies` (each member it imports, with `[tool.uv.sources] <name> = { workspace = true }`),
    `[project.scripts]` for an app's entry points, and `[build-system]` (`requires = ["uv_build>=0.9,<0.12"]`,
    `build-backend = "uv_build"`). `uv_build` looks for the package under the distribution's name with underscores
    (`src/acme_tools_core/`): a package that keeps another import name (`core`) says so, with
@@ -181,7 +204,14 @@ findings log (above) through it.
    - **Data files** under the package (a schema, a template) are packed by `uv_build` as they are; setuptools
      `package-data` has no counterpart to write.
    - **The license** is an SPDX string (`license = "Apache-2.0"`): a member cannot ship a file outside its folder, so
-     `license = { file = "LICENSE" }` at the root does not carry over.
+     `license = { file = "LICENSE" }` at the root does not carry over. A file the licence's terms require to travel
+     with the code (the `LICENSE` text, a `NOTICE`) is copied into the member and named in
+     `license-files = ["LICENSE", "NOTICE"]`; a test that compares each copy with the root's keeps them level.
+
+   **A project's own scripts in `tools/`** (with their tests in the root `tests/`) are launchable units, so they are
+   an app: `tools/` and the root `tests/` hold only the framework's files ([layout.md](layout.md)). Move them as a
+   package is moved; when that is too much for this update, leave them, and say so in the pull request's *Decisions*
+   with a board row for the move.
 
    Move its tests to the member's `tests/` with `git mv`, and remove every `tests/__init__.py`, the root's included. A test
    that added `src/` to `sys.path` stops doing so: the member is installed. A test that imports a helper beside it by bare
@@ -195,7 +225,8 @@ findings log (above) through it.
    `["tools", "tests", "apps/*/src", "packages/*/*/src"]`, and pytest's `testpaths` to
    `["tests", "apps/*/tests", "packages/*/*/tests"]` with `addopts = "--import-mode=importlib"` and
    `pythonpath = ["tests"]`. A member nested one level deeper (`apps/<app>/<part>/`) is named in all three
-   ([layout.md](layout.md), *Workspace members*). Then `uv sync` (it installs every member) and `uv run pytest`:
+   ([layout.md](layout.md), *Workspace members*). List both families in all three even before the first app: a glob
+   that matches nothing is accepted, and the first app then needs no edit. Then `uv sync` (it installs every member) and `uv run pytest`:
    every test is collected. The virtual root builds nothing: a test or script that ran `uv build` at the root builds a
    member, `uv build --package <member>`.
 5. **`[layers]`.** Name the import packages in `framework.toml`, lowest first. Run `uv run python tools/boundaries.py` and
@@ -203,7 +234,8 @@ findings log (above) through it.
    are code to move into a package; `unreached` is a member folder to add to the members list; `cycle` is modules that
    import each other in a ring, which the code may never have been checked for. A late import counts, one under
    `if __name__ == "__main__":` included: move what both sides need into a module of its own.
-6. **The rest of the repository.** Each module's `Package:` line and `_MODULE_NAME` become its import path. A launcher in
+6. **The rest of the repository.** Each module's `Package:` line and `_MODULE_NAME` become its import path; a test
+   file's `Package:` line becomes its path from the root without `.py` ([python.md](python.md)). A launcher in
    `launchers/` for each entry point, a `.cmd` and a `.sh` that pass on their arguments ([layout.md](layout.md),
    *Launchers*); on Windows, `git add --chmod=+x launchers/*.sh`.
    - **The documents that name the old path** (`src/`, or the package's old folder at the root). Rewrite the living ones:
@@ -218,7 +250,11 @@ findings log (above) through it.
      for [layout.md](layout.md) ("adding an app or a library, or asking where code lives"). The glossary,
      `Docs/glossary.md`, gets the five words *layout.md* uses (**Workspace member**, **App root**, **Package root**,
      **Launcher**, **Experiment**), and adds or amends its **Layer** and **Boundary test** rows to say members, not
-     `src/`, as the template's seed does; a **Mock project** row only where the repository has one.
+     `src/`, as the template's seed does; the **Mock project** and **Faux library** rows (the second is defined by the
+     first) only where the repository has the mock project.
+   - **Install lines that name the repository.** A `pip install "<dist> @ git+<url>"` in the README or the docs now
+     meets a virtual root that builds nothing: it needs `#subdirectory=packages/python/<name>` (or the app's folder).
+     Nothing in the gate runs these lines: run one.
 7. **Check it.** `make check` passes, with no `legacy-src` and no `legacy-root`; each launcher's `--help` prints its
    tool's usage; a job ran where step 6 found another importer. Commit it on a branch and open one pull request that names
    this section and carries *Template findings*.
@@ -397,3 +433,49 @@ then this.
 
    The reference's tests, `tests/test_tool_root_logging.py`, show the case.
 3. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.9.4 locked`.
+
+## 0.10.0: a `##` in a session file, and the journal's story
+
+0.10.0 adds a `journal-author` finding, gives the template's own gate a stage, and fixes a test that needed the GitHub
+CLI ([#200](https://github.com/HogJonny-AMZN/ai-first-template/issues/200)). It changes no contract a repository acts on
+and adds no framework ledger entry. A repository on 0.9.3 takes *0.9.4* first, then this.
+
+1. **Take 0.10.0**, by the steps above.
+2. **A `##` heading in a session file** (with a `[[people]]` roster): `make check` reports it as `journal-author`,
+   "'## Title' is not an entry heading: an entry is a ### heading". The checks read `###` entries only, so what followed
+   a `##` was checked by nothing. Make it a `###` entry with its `**By:**` line, or plain text if it was never an entry.
+   The words stay as they were written; only the heading changes.
+3. **The new stage, `payload`**, belongs to the `payload-suite` module, the template's own. Your `framework.toml` does
+   not name it, and an absent module reads as off: there is nothing to add.
+4. **`journal.md`** arrives with two rules: an entry tells the session's story for a person (what the developer is
+   doing, the outcome they drive towards and why), and two pull requests open at once from one session stack the second
+   on the first, since both append to its file.
+5. **A repository that patched `framework_sync.main`** to take `which` (a CI runner without the GitHub CLI fails
+   `test_the_command_line_runs_upstream_and_returns_its_code` otherwise): the release has the fix
+   (`framework_sync.py` `__version__` 0.1.1). Drop your edit and its override.
+6. **The seeded glossary** gains *Payload suite*: copy the row from the release's `payload/Docs/glossary.md` if you
+   want it, or leave it, since your repository has no such module.
+7. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.10.0 locked`.
+
+## 0.10.1: two error paths, and the guide's gaps
+
+0.10.1 answers what two repositories' updates found
+([#207](https://github.com/HogJonny-AMZN/ai-first-template/issues/207) to
+[#209](https://github.com/HogJonny-AMZN/ai-first-template/issues/209),
+[#213](https://github.com/HogJonny-AMZN/ai-first-template/issues/213)). It changes no contract, gains no stage, adds no
+finding name and adds no framework ledger entry. A repository on 0.9.4 takes *0.10.0* first, then this.
+
+1. **Take 0.10.1**, by the steps above. `make check` brings no new finding.
+2. **Two tools behave better where a folder cannot be read.** `check_hygiene.py` (`__version__` 0.3.2), run without
+   git, no longer reports a folder the allowlist covers, nor calls its entry, or one beneath it, stale. `init_adopt.py`
+   (`__version__` 0.2.1) refuses, naming the folder, where `src/` or a package under it cannot be listed, instead of
+   failing with a traceback or leaving the package out.
+3. **The guide and the standards say more.** Nothing to do unless one of these is a decision your repository met:
+   - this guide has a *0.6.0* section, and its *0.7.0* covers install lines, a project's own tools, licence files,
+     authors, the members lists and a test file's `Package:` line; step 4 covers a kept override that never had the
+     changed text;
+   - `journal.md`: work that must merge before a long-running branch goes off the default branch;
+   - `python.md`: a test file's `Package:` line is its path from the root without `.py`;
+   - the `review-and-pr` skill: a pull request that lands a board row opens first, as a draft (its steps are renumbered
+     from 3).
+4. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.10.1 locked`.
