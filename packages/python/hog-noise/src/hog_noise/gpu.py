@@ -144,8 +144,17 @@ _PORTED_NOISE = {
     NoiseType.PERLIN,
     NoiseType.VALUE,
     NoiseType.VALUE_CUBIC,
+    NoiseType.WHITE_NOISE,
+    NoiseType.SIMPLEX_CLASSIC,
 }
-_PORTED_FRACTAL = {FractalType.NONE, FractalType.FBM, FractalType.RIDGED, FractalType.PING_PONG}
+_PORTED_FRACTAL = {
+    FractalType.NONE,
+    FractalType.FBM,
+    FractalType.RIDGED,
+    FractalType.PING_PONG,
+    FractalType.BILLOW,
+    FractalType.RIGID_MULTI,
+}
 
 
 def _check_ported(params: NoiseParams) -> None:

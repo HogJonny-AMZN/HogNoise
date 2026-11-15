@@ -826,8 +826,7 @@ fn _cellular_finish(dist_func : i32, ret_type : i32, distance0_in : f32, distanc
 }
 
 // scalar.py: _lookup_single2 (904). The noise a NoiseLookup cell samples, any type but cellular: it calls the leaf
-// noises directly, never noise_single2, so the call graph has no cycle. White noise and classic Simplex arrive in
-// Task 10 (gpu._check_ported refuses them as the lookup type until then).
+// noises directly, never noise_single2, so the call graph has no cycle.
 fn _lookup_single2(noise_type : i32, seed : i32, x_in : f32, y_in : f32) -> f32 {
     let s = _transform2(noise_type, x_in, y_in);
     let x = s.x;
@@ -848,10 +847,10 @@ fn _lookup_single2(noise_type : i32, seed : i32, x_in : f32, y_in : f32) -> f32 
         return value2(seed, x, y);
     }
     if (noise_type == NOISE_WHITE_NOISE) {
-        return 0.0;  // white_noise2: Task 10
+        return white_noise2(seed, x, y);
     }
     if (noise_type == NOISE_SIMPLEX_CLASSIC) {
-        return 0.0;  // simplex_classic2: Task 10
+        return simplex_classic2(seed, x, y);
     }
     return 0.0;
 }
@@ -883,10 +882,10 @@ fn _lookup_single3(noise_type : i32, seed : i32, x_in : f32, y_in : f32, z_in : 
         return value3(seed, x, y, z);
     }
     if (noise_type == NOISE_WHITE_NOISE) {
-        return 0.0;  // white_noise3: Task 10
+        return white_noise3(seed, x, y, z);
     }
     if (noise_type == NOISE_SIMPLEX_CLASSIC) {
-        return 0.0;  // simplex_classic3: Task 10
+        return simplex_classic3(seed, x, y, z);
     }
     return 0.0;
 }
@@ -1053,6 +1052,134 @@ fn cellular3(
 }
 
 // -------------------------------------------------------------------------
+// white noise: FastNoiseSIMD's WhiteNoiseSingle, a hash of the scaled coordinates' float32 bits
+
+// scalar.py: _fns_val_coord (1067)
+fn _fns_val_coord(seed : i32, xp : i32, yp : i32, zp : i32) -> f32 {
+    var h = seed ^ xp ^ yp ^ zp;
+    h = h * h * FNS_HASH_MUL * h;
+    return f32(h) * FNS_HASH_TO_FLOAT;
+}
+
+// scalar.py: _fns_bits (1074). The int32 bit pattern of v, mixed as the reference mixes it: b ^ (b >> 16), arithmetic.
+fn _fns_bits(v : f32) -> i32 {
+    let b = bitcast<i32>(v);
+    return b ^ (b >> 16u);
+}
+
+// scalar.py: white_noise3 (1081). x, y, z are the frequency-scaled coordinates; their float32 bits are hashed.
+fn white_noise3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
+    return _fns_val_coord(
+        seed, _fns_bits(x) * FNS_PRIME_X, _fns_bits(y) * FNS_PRIME_Y, _fns_bits(z) * FNS_PRIME_Z,
+    );
+}
+
+// scalar.py: white_noise2 (1092). The 3D function at z = 0, whose bits are zero.
+fn white_noise2(seed : i32, x : f32, y : f32) -> f32 {
+    return _fns_val_coord(seed, _fns_bits(x) * FNS_PRIME_X, _fns_bits(y) * FNS_PRIME_Y, 0);
+}
+
+// -------------------------------------------------------------------------
+// classic simplex: FastNoiseSIMD's SimplexSingle with its hash and gradient selection
+
+// scalar.py: _FNS_F3, _FNS_G3, _FNS_G33 (1100-1102)
+const FNS_F3 = 1.0 / 3.0;
+const FNS_G3 = 1.0 / 6.0;
+const FNS_G33 = (3.0 / 6.0) - 1.0;
+
+// scalar.py: _fns_hash (1106)
+fn _fns_hash(seed : i32, xp : i32, yp : i32, zp : i32) -> i32 {
+    var h = seed ^ xp ^ yp ^ zp;
+    h = h * h * FNS_HASH_MUL * h;
+    return (h >> 13u) ^ h;
+}
+
+// scalar.py: _fns_grad_coord (1113). One of twelve edge vectors, as FastNoiseSIMD's SSE/AVX2 GradCoord selects it.
+fn _fns_grad_coord(seed : i32, xp : i32, yp : i32, zp : i32, x : f32, y : f32, z : f32) -> f32 {
+    let h = _fns_hash(seed, xp, yp, zp);
+    let a = h & 13;
+    var u = select(y, x, a < 8);
+    var v = select(select(z, x, a == 12), y, a < 2);
+    if ((h & 1) != 0) {
+        u = -u;
+    }
+    if ((h & 2) != 0) {
+        v = -v;
+    }
+    return u + v;
+}
+
+// scalar.py: simplex_classic3 (1127)
+fn simplex_classic3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
+    let f = FNS_F3 * ((x + y) + z);
+    let xf = floor(x + f);
+    let yf = floor(y + f);
+    let zf = floor(z + f);
+    let i = i32(xf) * FNS_PRIME_X;
+    let j = i32(yf) * FNS_PRIME_Y;
+    let k = i32(zf) * FNS_PRIME_Z;
+    let g = FNS_G3 * ((xf + yf) + zf);
+    let x0 = x - (xf - g);
+    let y0 = y - (yf - g);
+    let z0 = z - (zf - g);
+
+    let x_ge_y = x0 >= y0;
+    let y_ge_z = y0 >= z0;
+    let x_ge_z = x0 >= z0;
+    let i1 = x_ge_y && x_ge_z;
+    let j1 = !x_ge_y && y_ge_z;
+    let k1 = !x_ge_z && !y_ge_z;
+    let i2 = x_ge_y || x_ge_z;
+    let j2 = !x_ge_y || y_ge_z;
+    let k2 = !(x_ge_z && y_ge_z);
+
+    let x1 = select(x0, x0 - 1.0, i1) + FNS_G3;
+    let y1 = select(y0, y0 - 1.0, j1) + FNS_G3;
+    let z1 = select(z0, z0 - 1.0, k1) + FNS_G3;
+    let x2 = select(x0, x0 - 1.0, i2) + FNS_F3;
+    let y2 = select(y0, y0 - 1.0, j2) + FNS_F3;
+    let z2 = select(z0, z0 - 1.0, k2) + FNS_F3;
+    let x3 = x0 + FNS_G33;
+    let y3 = y0 + FNS_G33;
+    let z3 = z0 + FNS_G33;
+
+    var t0 = ((0.6 - x0 * x0) - y0 * y0) - z0 * z0;
+    var t1 = ((0.6 - x1 * x1) - y1 * y1) - z1 * z1;
+    var t2 = ((0.6 - x2 * x2) - y2 * y2) - z2 * z2;
+    var t3 = ((0.6 - x3 * x3) - y3 * y3) - z3 * z3;
+
+    var total = 0.0;
+    if (t3 >= 0.0) {
+        t3 = t3 * t3;
+        total += (t3 * t3) * _fns_grad_coord(seed, i + FNS_PRIME_X, j + FNS_PRIME_Y, k + FNS_PRIME_Z, x3, y3, z3);
+    }
+    if (t2 >= 0.0) {
+        t2 = t2 * t2;
+        total += (t2 * t2) * _fns_grad_coord(
+            seed, select(i, i + FNS_PRIME_X, i2), select(j, j + FNS_PRIME_Y, j2), select(k, k + FNS_PRIME_Z, k2),
+            x2, y2, z2,
+        );
+    }
+    if (t1 >= 0.0) {
+        t1 = t1 * t1;
+        total += (t1 * t1) * _fns_grad_coord(
+            seed, select(i, i + FNS_PRIME_X, i1), select(j, j + FNS_PRIME_Y, j1), select(k, k + FNS_PRIME_Z, k1),
+            x1, y1, z1,
+        );
+    }
+    if (t0 >= 0.0) {
+        t0 = t0 * t0;
+        total += (t0 * t0) * _fns_grad_coord(seed, i, j, k, x0, y0, z0);
+    }
+    return 32.0 * total;
+}
+
+// scalar.py: simplex_classic2 (1200). The retired library was 3D only; its 2D use was z = 0.
+fn simplex_classic2(seed : i32, x : f32, y : f32) -> f32 {
+    return simplex_classic3(seed, x, y, 0.0);
+}
+
+// -------------------------------------------------------------------------
 // dispatch, transforms, fractals
 
 // scalar.py: noise_single2 (1662)
@@ -1077,6 +1204,12 @@ fn noise_single2(
     }
     if (noise_type == NOISE_VALUE) {
         return value2(seed, x, y);
+    }
+    if (noise_type == NOISE_WHITE_NOISE) {
+        return white_noise2(seed, x, y);
+    }
+    if (noise_type == NOISE_SIMPLEX_CLASSIC) {
+        return simplex_classic2(seed, x, y);
     }
     return 0.0;
 }
@@ -1103,6 +1236,12 @@ fn noise_single3(
     }
     if (noise_type == NOISE_VALUE) {
         return value3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_WHITE_NOISE) {
+        return white_noise3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_SIMPLEX_CLASSIC) {
+        return simplex_classic3(seed, x, y, z);
     }
     return 0.0;
 }
@@ -1146,8 +1285,8 @@ fn _transform3(transform : i32, x_in : f32, y_in : f32, z_in : f32) -> vec3<f32>
     return vec3<f32>(x, y, z);
 }
 
-// scalar.py: fractal2 (1737). NONE and FastNoiseLite's FBm, Ridged and PingPong; FastNoiseSIMD's RigidMulti and Billow
-// arrive in Task 10. The 2D FBm clamps n + 1 at 2 (1749); the 3D one does not (1802), as on the CPU.
+// scalar.py: fractal2 (1737). NONE, FastNoiseLite's FBm, Ridged and PingPong, FastNoiseSIMD's RigidMulti and Billow.
+// The 2D FBm clamps n + 1 at 2 (1749); the 3D one does not (1802), as on the CPU.
 fn fractal2(
     noise_type : i32, fractal_type : i32, seed_in : i32, x_in : f32, y_in : f32, octaves : i32, lacunarity : f32,
     gain : f32, weighted : f32, ping_pong : f32, bounding : f32, cd : i32, cr : i32, cj : f32, cl : i32, cf : f32,
@@ -1170,6 +1309,14 @@ fn fractal2(
             n = abs(n);
             total += (n * -2.0 + 1.0) * amp;
             amp *= _lerp(1.0, 1.0 - n, weighted);
+        } else if (fractal_type == FRACTAL_RIGID_MULTI) {
+            // FastNoiseSIMD: 1 - |n|, first added, the rest subtracted, unnormalised
+            n = 1.0 - abs(n);
+            total += select(-n * amp, n * amp, octave == 0);
+        } else if (fractal_type == FRACTAL_BILLOW) {  // FastNoiseSIMD: |n| * 2 - 1 per octave
+            n = abs(n) * 2.0 - 1.0;
+            total += n * amp;
+            amp *= _lerp(1.0, (n + 1.0) * 0.5, weighted);
         } else {  // PING_PONG
             n = _ping_pong((n + 1.0) * ping_pong);
             total += (n - 0.5) * 2.0 * amp;
@@ -1182,8 +1329,7 @@ fn fractal2(
     return total;
 }
 
-// scalar.py: fractal3 (1774). NONE and FastNoiseLite's FBm, Ridged and PingPong; FastNoiseSIMD's RigidMulti and Billow
-// arrive in Task 10.
+// scalar.py: fractal3 (1774). NONE, FastNoiseLite's FBm, Ridged and PingPong, FastNoiseSIMD's RigidMulti and Billow.
 fn fractal3(
     noise_type : i32, fractal_type : i32, seed_in : i32, x_in : f32, y_in : f32, z_in : f32, octaves : i32,
     lacunarity : f32, gain : f32, weighted : f32, ping_pong : f32, bounding : f32, cd : i32, cr : i32, cj : f32,
@@ -1208,6 +1354,14 @@ fn fractal3(
             n = abs(n);
             total += (n * -2.0 + 1.0) * amp;
             amp *= _lerp(1.0, 1.0 - n, weighted);
+        } else if (fractal_type == FRACTAL_RIGID_MULTI) {
+            // FastNoiseSIMD: 1 - |n|, first added, the rest subtracted, unnormalised
+            n = 1.0 - abs(n);
+            total += select(-n * amp, n * amp, octave == 0);
+        } else if (fractal_type == FRACTAL_BILLOW) {  // FastNoiseSIMD: |n| * 2 - 1 per octave
+            n = abs(n) * 2.0 - 1.0;
+            total += n * amp;
+            amp *= _lerp(1.0, (n + 1.0) * 0.5, weighted);
         } else {  // PING_PONG
             n = _ping_pong((n + 1.0) * ping_pong);
             total += (n - 0.5) * 2.0 * amp;

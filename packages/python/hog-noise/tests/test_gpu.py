@@ -184,6 +184,14 @@ def close_to_the_cpu(select: str) -> int:
         "hog/fnl/cubic_*",
         "hog/fnl/cellular_*",
         "hog/fns/cellular_*",
+        "hog/fns/simplex_none/*",
+        "hog/fns/simplex_fbm/*",
+        "hog/fns/simplex_billow/*",
+        "hog/fns/simplex_rigidmulti/*",
+        "hog/fns/perlin_*",
+        "hog/fns/value_*",
+        "hog/fns/cubic_*",
+        "hog/fns/whitenoise_none/*",
     ],
 )
 def test_the_gpu_matches_the_cpu(device, select):
