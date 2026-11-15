@@ -3,8 +3,8 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-15: the GPU port is built and out of draft for the owner to merge
-([PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22)); ai-first-template 0.10.2
+**Last updated:** 2026-11-15: the GPU port has landed
+([PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22), merged 2026-11-15); ai-first-template 0.10.2
 ([PR #23](https://github.com/HogJonny-AMZN/HogNoise/pull/23)) landed first. Before them, 0.9.4 and its workspace layout
 ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)) and 0.10.1
 ([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)) landed; the GPU port's spec is Accepted
@@ -39,7 +39,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 
 | Item | State | Waiting on |
 | --- | --- | --- |
-| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port: [its spec](../superpowers/specs/2026-11-14-gpu-port.md) Accepted 2026-11-14 with its six decisions as recommended (a `wgpu` rung, one WGSL shader, a tolerance file per rendering, CI on software adapters); [the plan](../superpowers/plans/2026-11-14-gpu-port.md) Accepted 2026-11-14 with its seven decisions; **built** in [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22): every feature on wgpu, all 368 hog cases within the measured tolerance on the RTX 5090, two WARP builds and llvmpipe; the owner's two decisions during the build (grids discrete; a derived correlation at most 0.999) are in its *Decisions*. Stage 3, the emitted languages, next | The owner, to merge [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22) |
+| **The GPU fast track** ([design](../design/2026-11-01-gpu-fast-track.md), Accepted 2026-11-01) | Stage 1 done 2026-11-02 ([the spike](../../Spikes/gpu_fast_track/README.md): go, drift within `3e-6 * max(1, abs(coordinate * frequency))`); stage 2, the port: [its spec](../superpowers/specs/2026-11-14-gpu-port.md) Accepted 2026-11-14 with its six decisions as recommended (a `wgpu` rung, one WGSL shader, a tolerance file per rendering, CI on software adapters); [the plan](../superpowers/plans/2026-11-14-gpu-port.md) Accepted 2026-11-14 with its seven decisions; **landed** 2026-11-15 in [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22): every feature on wgpu, all 368 hog cases within the measured tolerance on the RTX 5090, two WARP builds and llvmpipe; the owner's two decisions during the build (grids discrete; a derived correlation at most 0.999) are in its *Decisions*. Stage 3, the emitted languages, not started: its spec is the next step | The owner, to say when stage 3 starts |
 | The member's author email ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), merged) | The manifest names the address `project.json` already makes public, because the boundary check's `no-authors` requires an email | The owner, to keep or change it |
 | The north-star roadmap (gate G2) | Proposed | The owner, to lock its three remaining decisions |
 | PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL | The owner's go, then; needs the owner's PyPI credentials |
