@@ -26,6 +26,10 @@ SRC = MEMBER_ROOT / "src" / "hog_noise"
 #: each imported behind a guard; numpy is the only hard dependency.
 ALLOWED = {"numpy", "numba", "pyfastnoiselite", "PIL", "hog_noise"}
 
+#: Third-party names one module alone may import, on top of ALLOWED: the GPU fast track's wgpu, in gpu.py, behind the
+#: override-only rung and only inside its functions.
+MODULE_ALLOWED = {"gpu.py": {"wgpu"}}
+
 #: Names this package must never reach: where its code came from, and the graphics stacks.
 FORBIDDEN_AT_RUNTIME = (
     "large_worlds",
@@ -50,9 +54,11 @@ def imported_top_levels(source: str) -> set[str]:
     return names
 
 
-def foreign(source: str) -> set[str]:
-    """Imports that are neither standard library nor on the allowed list."""
-    return {n for n in imported_top_levels(source) if n not in sys.stdlib_module_names and n not in ALLOWED}
+def foreign(source: str, allowed: set[str] = frozenset()) -> set[str]:
+    """Imports that are neither standard library nor on the allowed list (plus ``allowed``, a module's own)."""
+    return {
+        n for n in imported_top_levels(source) if n not in sys.stdlib_module_names and n not in ALLOWED | set(allowed)
+    }
 
 
 MODULES = sorted(SRC.glob("*.py"))
@@ -64,7 +70,7 @@ def test_the_package_has_modules_to_scan():
 
 @pytest.mark.parametrize("module", MODULES, ids=lambda p: p.name)
 def test_module_imports_only_the_standard_library_numpy_and_the_extras(module):
-    assert foreign(module.read_text(encoding="utf-8")) == set(), module.name
+    assert foreign(module.read_text(encoding="utf-8"), MODULE_ALLOWED.get(module.name, set())) == set(), module.name
 
 
 def test_the_scan_flags_a_sibling_package_even_inside_a_function():

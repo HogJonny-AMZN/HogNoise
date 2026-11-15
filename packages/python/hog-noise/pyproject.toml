@@ -55,6 +55,10 @@ sheets = [
 test = [
     "pytest>=7.4.0",
 ]
+gpu = [
+    # The override-only wgpu rung (hog_noise.gpu): noise.wgsl on any adapter. Not in dev, so dev installs without a GPU.
+    "wgpu>=0.33,<0.34",
+]
 dev = [
     "hog-noise[fast,reference,sheets,test]",
     "ruff>=0.1.0",

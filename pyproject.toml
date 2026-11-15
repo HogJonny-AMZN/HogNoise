@@ -11,6 +11,8 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
 ]
+# The wgpu rung's extra, for a machine with an adapter: uv run --group gpu pytest.
+gpu = ["hog-noise[gpu]"]
 
 [tool.uv.sources]
 hog-noise = { workspace = true }
