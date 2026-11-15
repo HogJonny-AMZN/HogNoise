@@ -363,6 +363,87 @@ fn simplex2s(seed : i32, x : f32, y : f32) -> f32 {
     return value * 18.24196194486065;
 }
 
+// scalar.py: perlin2 (344)
+fn perlin2(seed : i32, x : f32, y : f32) -> f32 {
+    var x0 = _fast_floor(x);
+    var y0 = _fast_floor(y);
+    let xd0 = x - f32(x0);
+    let yd0 = y - f32(y0);
+    let xd1 = xd0 - 1.0;
+    let yd1 = yd0 - 1.0;
+    let xs = _interp_quintic(xd0);
+    let ys = _interp_quintic(yd0);
+    x0 = x0 * PRIME_X;
+    y0 = y0 * PRIME_Y;
+    let x1 = x0 + PRIME_X;
+    let y1 = y0 + PRIME_Y;
+    let xf0 = _lerp(_grad_coord2(seed, x0, y0, xd0, yd0), _grad_coord2(seed, x1, y0, xd1, yd0), xs);
+    let xf1 = _lerp(_grad_coord2(seed, x0, y1, xd0, yd1), _grad_coord2(seed, x1, y1, xd1, yd1), xs);
+    return _lerp(xf0, xf1, ys) * 1.4247691104677813;
+}
+
+// scalar.py: value2 (363)
+fn value2(seed : i32, x : f32, y : f32) -> f32 {
+    var x0 = _fast_floor(x);
+    var y0 = _fast_floor(y);
+    let xs = _interp_hermite(x - f32(x0));
+    let ys = _interp_hermite(y - f32(y0));
+    x0 = x0 * PRIME_X;
+    y0 = y0 * PRIME_Y;
+    let x1 = x0 + PRIME_X;
+    let y1 = y0 + PRIME_Y;
+    let xf0 = _lerp(_val_coord2(seed, x0, y0), _val_coord2(seed, x1, y0), xs);
+    let xf1 = _lerp(_val_coord2(seed, x0, y1), _val_coord2(seed, x1, y1), xs);
+    return _lerp(xf0, xf1, ys);
+}
+
+// scalar.py: value_cubic2 (378). _wrap32(PRIME_X << 1) is PRIME_X2, and Y likewise (the constants' comment).
+fn value_cubic2(seed : i32, x : f32, y : f32) -> f32 {
+    var x1 = _fast_floor(x);
+    var y1 = _fast_floor(y);
+    let xs = x - f32(x1);
+    let ys = y - f32(y1);
+    x1 = x1 * PRIME_X;
+    y1 = y1 * PRIME_Y;
+    let x0 = x1 - PRIME_X;
+    let y0 = y1 - PRIME_Y;
+    let x2 = x1 + PRIME_X;
+    let y2 = y1 + PRIME_Y;
+    let x3 = x1 + PRIME_X2;
+    let y3 = y1 + PRIME_Y2;
+    return _cubic_lerp(
+        _cubic_lerp(
+            _val_coord2(seed, x0, y0),
+            _val_coord2(seed, x1, y0),
+            _val_coord2(seed, x2, y0),
+            _val_coord2(seed, x3, y0),
+            xs,
+        ),
+        _cubic_lerp(
+            _val_coord2(seed, x0, y1),
+            _val_coord2(seed, x1, y1),
+            _val_coord2(seed, x2, y1),
+            _val_coord2(seed, x3, y1),
+            xs,
+        ),
+        _cubic_lerp(
+            _val_coord2(seed, x0, y2),
+            _val_coord2(seed, x1, y2),
+            _val_coord2(seed, x2, y2),
+            _val_coord2(seed, x3, y2),
+            xs,
+        ),
+        _cubic_lerp(
+            _val_coord2(seed, x0, y3),
+            _val_coord2(seed, x1, y3),
+            _val_coord2(seed, x2, y3),
+            _val_coord2(seed, x3, y3),
+            xs,
+        ),
+        ys,
+    ) * (1.0 / (1.5 * 1.5));
+}
+
 // -------------------------------------------------------------------------
 // single-octave noise, 3D
 
@@ -601,6 +682,112 @@ fn opensimplex2s_3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
     return value * 9.046026385208288;
 }
 
+// scalar.py: perlin3 (776)
+fn perlin3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
+    var x0 = _fast_floor(x);
+    var y0 = _fast_floor(y);
+    var z0 = _fast_floor(z);
+    let xd0 = x - f32(x0);
+    let yd0 = y - f32(y0);
+    let zd0 = z - f32(z0);
+    let xd1 = xd0 - 1.0;
+    let yd1 = yd0 - 1.0;
+    let zd1 = zd0 - 1.0;
+    let xs = _interp_quintic(xd0);
+    let ys = _interp_quintic(yd0);
+    let zs = _interp_quintic(zd0);
+    x0 = x0 * PRIME_X;
+    y0 = y0 * PRIME_Y;
+    z0 = z0 * PRIME_Z;
+    let x1 = x0 + PRIME_X;
+    let y1 = y0 + PRIME_Y;
+    let z1 = z0 + PRIME_Z;
+    let xf00 = _lerp(_grad_coord3(seed, x0, y0, z0, xd0, yd0, zd0), _grad_coord3(seed, x1, y0, z0, xd1, yd0, zd0), xs);
+    let xf10 = _lerp(_grad_coord3(seed, x0, y1, z0, xd0, yd1, zd0), _grad_coord3(seed, x1, y1, z0, xd1, yd1, zd0), xs);
+    let xf01 = _lerp(_grad_coord3(seed, x0, y0, z1, xd0, yd0, zd1), _grad_coord3(seed, x1, y0, z1, xd1, yd0, zd1), xs);
+    let xf11 = _lerp(_grad_coord3(seed, x0, y1, z1, xd0, yd1, zd1), _grad_coord3(seed, x1, y1, z1, xd1, yd1, zd1), xs);
+    let yf0 = _lerp(xf00, xf10, ys);
+    let yf1 = _lerp(xf01, xf11, ys);
+    return _lerp(yf0, yf1, zs) * 0.964921414852142333984375;
+}
+
+// scalar.py: value3 (805)
+fn value3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
+    var x0 = _fast_floor(x);
+    var y0 = _fast_floor(y);
+    var z0 = _fast_floor(z);
+    let xs = _interp_hermite(x - f32(x0));
+    let ys = _interp_hermite(y - f32(y0));
+    let zs = _interp_hermite(z - f32(z0));
+    x0 = x0 * PRIME_X;
+    y0 = y0 * PRIME_Y;
+    z0 = z0 * PRIME_Z;
+    let x1 = x0 + PRIME_X;
+    let y1 = y0 + PRIME_Y;
+    let z1 = z0 + PRIME_Z;
+    let xf00 = _lerp(_val_coord3(seed, x0, y0, z0), _val_coord3(seed, x1, y0, z0), xs);
+    let xf10 = _lerp(_val_coord3(seed, x0, y1, z0), _val_coord3(seed, x1, y1, z0), xs);
+    let xf01 = _lerp(_val_coord3(seed, x0, y0, z1), _val_coord3(seed, x1, y0, z1), xs);
+    let xf11 = _lerp(_val_coord3(seed, x0, y1, z1), _val_coord3(seed, x1, y1, z1), xs);
+    let yf0 = _lerp(xf00, xf10, ys);
+    let yf1 = _lerp(xf01, xf11, ys);
+    return _lerp(yf0, yf1, zs);
+}
+
+// scalar.py: _value_cubic3_row (828)
+fn _value_cubic3_row(seed : i32, x0 : i32, x1 : i32, x2 : i32, x3 : i32, yp : i32, zp : i32, xs : f32) -> f32 {
+    return _cubic_lerp(
+        _val_coord3(seed, x0, yp, zp),
+        _val_coord3(seed, x1, yp, zp),
+        _val_coord3(seed, x2, yp, zp),
+        _val_coord3(seed, x3, yp, zp),
+        xs,
+    );
+}
+
+// scalar.py: _value_cubic3_plane (839)
+fn _value_cubic3_plane(
+    seed : i32, x0 : i32, x1 : i32, x2 : i32, x3 : i32, y0 : i32, y1 : i32, y2 : i32, y3 : i32, zp : i32, xs : f32,
+    ys : f32,
+) -> f32 {
+    return _cubic_lerp(
+        _value_cubic3_row(seed, x0, x1, x2, x3, y0, zp, xs),
+        _value_cubic3_row(seed, x0, x1, x2, x3, y1, zp, xs),
+        _value_cubic3_row(seed, x0, x1, x2, x3, y2, zp, xs),
+        _value_cubic3_row(seed, x0, x1, x2, x3, y3, zp, xs),
+        ys,
+    );
+}
+
+// scalar.py: value_cubic3 (850). _wrap32(PRIME_X << 1) and its Y and Z twins are PRIME_X2, PRIME_Y2, PRIME_Z2.
+fn value_cubic3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
+    var x1 = _fast_floor(x);
+    var y1 = _fast_floor(y);
+    var z1 = _fast_floor(z);
+    let xs = x - f32(x1);
+    let ys = y - f32(y1);
+    let zs = z - f32(z1);
+    x1 = x1 * PRIME_X;
+    y1 = y1 * PRIME_Y;
+    z1 = z1 * PRIME_Z;
+    let x0 = x1 - PRIME_X;
+    let y0 = y1 - PRIME_Y;
+    let z0 = z1 - PRIME_Z;
+    let x2 = x1 + PRIME_X;
+    let y2 = y1 + PRIME_Y;
+    let z2 = z1 + PRIME_Z;
+    let x3 = x1 + PRIME_X2;
+    let y3 = y1 + PRIME_Y2;
+    let z3 = z1 + PRIME_Z2;
+    return _cubic_lerp(
+        _value_cubic3_plane(seed, x0, x1, x2, x3, y0, y1, y2, y3, z0, xs, ys),
+        _value_cubic3_plane(seed, x0, x1, x2, x3, y0, y1, y2, y3, z1, xs, ys),
+        _value_cubic3_plane(seed, x0, x1, x2, x3, y0, y1, y2, y3, z2, xs, ys),
+        _value_cubic3_plane(seed, x0, x1, x2, x3, y0, y1, y2, y3, z3, xs, ys),
+        zs,
+    ) * (1.0 / (1.5 * 1.5 * 1.5));
+}
+
 // -------------------------------------------------------------------------
 // dispatch, transforms, fractals
 
@@ -615,6 +802,15 @@ fn noise_single2(
     if (noise_type == NOISE_OPEN_SIMPLEX2S) {
         return simplex2s(seed, x, y);
     }
+    if (noise_type == NOISE_PERLIN) {
+        return perlin2(seed, x, y);
+    }
+    if (noise_type == NOISE_VALUE_CUBIC) {
+        return value_cubic2(seed, x, y);
+    }
+    if (noise_type == NOISE_VALUE) {
+        return value2(seed, x, y);
+    }
     return 0.0;
 }
 
@@ -628,6 +824,15 @@ fn noise_single3(
     }
     if (noise_type == NOISE_OPEN_SIMPLEX2S) {
         return opensimplex2s_3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_PERLIN) {
+        return perlin3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_VALUE_CUBIC) {
+        return value_cubic3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_VALUE) {
+        return value3(seed, x, y, z);
     }
     return 0.0;
 }

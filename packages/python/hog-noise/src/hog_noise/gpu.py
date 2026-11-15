@@ -137,7 +137,13 @@ def _workgroups(n: int) -> tuple[int, int, int]:
 
 
 #: What noise.wgsl implements so far. Each shader task grows these; Task 13 removes them and `_check_ported`.
-_PORTED_NOISE = {NoiseType.OPEN_SIMPLEX2, NoiseType.OPEN_SIMPLEX2S}
+_PORTED_NOISE = {
+    NoiseType.OPEN_SIMPLEX2,
+    NoiseType.OPEN_SIMPLEX2S,
+    NoiseType.PERLIN,
+    NoiseType.VALUE,
+    NoiseType.VALUE_CUBIC,
+}
 _PORTED_FRACTAL = {FractalType.NONE, FractalType.FBM, FractalType.RIDGED, FractalType.PING_PONG}
 
 
