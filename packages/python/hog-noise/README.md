@@ -1,7 +1,8 @@
 # hog-noise
 
 Procedural noise for Python: Perlin, OpenSimplex2, cellular and domain warp; the FastNoiseLite and FastNoiseSIMD
-algorithms, checked against the originals. numpy is the only runtime dependency.
+algorithms, checked against the originals. numpy is the only runtime dependency. The `gpu` extra adds wgpu and a GPU
+rung, one WGSL shader for every noise, used only when asked for: `make_sampler(params, backend="wgpu")`.
 
 ```python
 import numpy as np

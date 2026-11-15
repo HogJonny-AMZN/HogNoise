@@ -26,7 +26,7 @@ What it adds over the other options is proof: the numbers are compared against t
 pip install "hog-noise[fast] @ git+https://github.com/HogJonny-AMZN/HogNoise#subdirectory=packages/python/hog-noise"
 ```
 
-Python 3.11 to 3.13. The only dependency is numpy (1.26 or newer); `[fast]` adds numba. Leave it off and you get the same numbers, just slower. Not on PyPI yet.
+Python 3.11 to 3.13. The only dependency is numpy (1.26 or newer); `[fast]` adds numba. Leave it off and you get the same numbers, just slower. `[gpu]` adds [wgpu](https://github.com/pygfx/wgpu-py) for the GPU rung (below). Not on PyPI yet.
 
 ## Use it
 
@@ -43,6 +43,19 @@ value = sampler.sample(10.0, 20.0, 0.0)  # one point
 ```
 
 `make_sampler` uses numba when it is installed and numpy when it is not. They give the same numbers bit for bit, so installing numba changes how fast you get your noise, never which noise you get. Batches of scattered points go through `sampler.sample_points(xs, ys, zs, out)`.
+
+### On the GPU
+
+Every noise above also runs as one WGSL compute shader on whatever adapter [wgpu](https://github.com/pygfx/wgpu-py) finds. It has been run on Vulkan and Direct3D 12, hardware and software adapters both; Metal is untested. Install the `[gpu]` extra and ask for it by name; `make_sampler` never chooses it for you, so installing wgpu changes nothing until you do.
+
+```python
+sampler, _ = make_sampler(params, backend="wgpu")  # or set HOG_NOISE_BACKEND_NOISE=wgpu
+height = sampler.sample_grid((0, 0, 0), (256, 1, 256))[:, 0, :]
+```
+
+The sampler has the same calls as the CPU ones. `HOG_NOISE_WGPU_ADAPTER` picks an adapter by part of its name (`"Microsoft Basic Render Driver"` is Windows' software adapter); one device is made per process and kept. Without wgpu or an adapter, asking for the rung raises `BackendUnavailable` saying which. An `octaves` or `perturb_octaves` above 32 is refused on the GPU, since a loop that long can stall the device.
+
+What it claims: it is float32, so it is close to the CPU's numbers, not equal to them. Every feature is held to a bound per feature, measured on four adapters (an RTX 5090, two builds of Windows' WARP and Mesa's llvmpipe) and written down in [a tolerance file](vectors/README.md#tolerance-files), over what the vectors sample: frequency 0.01 and coordinates up to 4,096 units. Nothing is claimed outside that, and nothing about speed: it has not been benchmarked.
 
 ## What's in it
 
@@ -64,11 +77,12 @@ So I ported it, with AI, in days to weeks rather than the weeks to months it wou
 
 - 208 comparisons against the originals: 75 bit-identical, the rest within float32 rounding (largest difference 2.0e-4). They are listed in [the comparison table](vectors/portability.md).
 - A difference never quietly passes or fails: it produces a side-by-side image and waits for a person's verdict.
-- The suite runs on Python 3.11 with numpy 1.26, on 3.13, and with numpy alone.
+- The suite runs on Python 3.11 with numpy 1.26, on 3.13, and with numpy alone; the GPU rung on two software adapters in CI (WARP on Windows, llvmpipe on Ubuntu), against every hog case and its [tolerance file](vectors/tolerance/wgpu.json), with the per-feature numbers in [the GPU table](vectors/portability-gpu.md).
 
 ## Limits
 
-- 2D and 3D only: no 4D, no derivatives, no tileable noise yet. No GPU path yet.
+- 2D and 3D only: no 4D, no derivatives, no tileable noise yet.
+- The GPU rung is float32 and measured only at frequency 0.01 out to 4,096 units; far from the origin it drifts further, and that is a later stage of the roadmap. It is not benchmarked, and it runs WGSL only: no HLSL, GLSL or Metal files yet.
 - Close to, not byte-identical with, the originals: the maths is float64 after the frequency multiply.
 - For now, if you need 4D, a node editor or raw C++ speed, [FastNoise2](https://github.com/Auburn/FastNoise2) is the one to use.
 

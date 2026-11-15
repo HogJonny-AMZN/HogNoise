@@ -16,7 +16,7 @@ authors = [
 keywords = [
     "noise", "procedural-noise", "procedural-generation", "perlin", "simplex", "opensimplex", "opensimplex2",
     "cellular", "worley", "voronoi", "domain-warp", "fbm", "fractal-noise", "fastnoise", "fastnoiselite",
-    "fastnoisesimd", "terrain", "heightmap", "gamedev", "numba", "numpy",
+    "fastnoisesimd", "terrain", "heightmap", "gamedev", "numba", "numpy", "gpu", "wgsl", "webgpu",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
