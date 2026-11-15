@@ -147,6 +147,27 @@ def _positive_int(name: str, value: object, what: str) -> int:
     return value
 
 
+def _origin(name: str, origin: object, count: int) -> Mapping[str, object] | None:
+    """A grid point set's ``from``, checked at load so the grid path never reads a malformed one."""
+    if origin is None:
+        return None
+    if not isinstance(origin, dict):
+        raise ConformanceError(f"point set {name}: from is {origin!r}, not an object")
+    for key, kind in (("start", int), ("shape", int), ("scales", int | float)):
+        value = origin.get(key)
+        if not (
+            isinstance(value, list)
+            and len(value) == 3
+            and all(isinstance(v, kind) and not isinstance(v, bool) for v in value)
+        ):
+            raise ConformanceError(f"point set {name}: from.{key} is {value!r}, not three numbers")
+    if int(np.prod(origin["shape"])) != count:
+        raise ConformanceError(f"point set {name}: from.shape {origin['shape']} is not {count} points")
+    if origin.get("order", "C") not in ("C", "F"):
+        raise ConformanceError(f"point set {name}: from.order is {origin['order']!r}, not 'C' or 'F'")
+    return origin
+
+
 def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> Vectors:
     """
     Read a vectors folder and verify every file it names against the manifest's digests and sizes.
@@ -204,7 +225,7 @@ def load(vectors: str | Path, *, sets: str | tuple[str, ...] | None = None) -> V
         if len(ps["axes"]) != dims:
             raise ConformanceError(f"point set {name}: {len(ps['axes'])} axes for {dims} dims")
         axes = tuple(read(a, count) for a in ps["axes"])
-        point_sets[name] = PointSet(name, dims, count, axes, ps.get("from"))
+        point_sets[name] = PointSet(name, dims, count, axes, _origin(name, ps.get("from"), count))
 
     cases: list[Case] = []
     for c in manifest["cases"]:
@@ -312,6 +333,9 @@ def _case(c: Mapping[str, object], point_sets: Mapping[str, PointSet], read: Cal
 #: ``sample(params, xs, ys, zs)``: N float32 values; ``zs`` is None on a 2D point set. ``warp`` returns N x dims.
 Sample = Callable[[NoiseParams, NDArray, NDArray, NDArray | None], NDArray]
 
+#: ``grid(params, start, shape, scales)``: the rendering's ``sample_grid``, an ``(nx, ny, nz)`` float32 array.
+Grid = Callable[[NoiseParams, tuple[int, int, int], tuple[int, int, int], tuple[float, float, float]], NDArray]
+
 
 @dataclasses.dataclass(frozen=True)
 class CaseResult:
@@ -385,6 +409,7 @@ def check(
     bound: Bound | None = None,
     warp: Sample | None = None,
     select: str | None = None,
+    grid: Grid | None = None,
 ) -> Report:
     """
     Sample every selected case and compare it with its reference.
@@ -396,6 +421,8 @@ def check(
         ``within`` is coordinate-scaled per point, as a bound is, when its rule says ``coordinate_scaled``).
     :param warp: The rendering's warp entry point; without it, warp cases are skipped.
     :param select: An `fnmatch` pattern over case ids.
+    :param grid: The rendering's grid entry point; with it, a case on a point set with ``from`` is sampled through it,
+        so ``sample_grid`` is checked.
     """
     data = vectors if isinstance(vectors, Vectors) else load(vectors)
     sets = {"hog": ("hog",), "original": ("original",), "both": ("hog", "original")}[reference]
@@ -404,7 +431,7 @@ def check(
     for case in data.cases:
         if case.set not in sets or (select is not None and not fnmatch.fnmatchcase(case.id, select)):
             continue
-        results.append(_check_case(case, data.point_sets[case.point_set], sample, warp, bound, verdicts))
+        results.append(_check_case(case, data.point_sets[case.point_set], sample, warp, bound, verdicts, grid))
     report = Report(tuple(results))
     _LOGGER.info(
         f"checked {len(results)} cases against {reference}: {report.count('fail')} failed, "
@@ -414,7 +441,13 @@ def check(
 
 
 def _check_case(
-    case: Case, ps: PointSet, sample: Sample, warp: Sample | None, bound: Bound | None, verdicts: compare.Verdicts
+    case: Case,
+    ps: PointSet,
+    sample: Sample,
+    warp: Sample | None,
+    bound: Bound | None,
+    verdicts: compare.Verdicts,
+    grid: Grid | None = None,
 ) -> CaseResult:
     kind = str(case.compare["kind"])
     fn = warp if case.output == "warp" else sample
@@ -422,7 +455,18 @@ def _check_case(
         return CaseResult(case.id, kind, "skipped", detail="no warp entry point")
     zs = ps.axes[2] if ps.dims == 3 else None
     try:
-        ours = np.asarray(fn(case.params, ps.axes[0], ps.axes[1], zs), dtype=np.float32)
+        if grid is not None and ps.origin is not None and case.output == "noise":
+            o = ps.origin
+            values = np.asarray(
+                grid(case.params, tuple(o["start"]), tuple(o["shape"]), tuple(o["scales"])), dtype=np.float32
+            )
+            if values.shape != tuple(o["shape"]):  # flattening would hide a grid of the wrong shape
+                return CaseResult(
+                    case.id, kind, "fail", detail=f"grid shape {values.shape}, expected {tuple(o['shape'])}"
+                )
+            ours = values.ravel(order=str(o.get("order", "C")))
+        else:
+            ours = np.asarray(fn(case.params, ps.axes[0], ps.axes[1], zs), dtype=np.float32)
     except NotImplementedError as e:
         return CaseResult(case.id, kind, "unsupported", detail=str(e))
     if ours.shape != case.values.shape:
@@ -531,6 +575,23 @@ def renderings(name: str) -> tuple[Sample, Sample]:
     return sample, warp
 
 
+def grid_rendering(name: str) -> Grid:
+    """
+    The ``grid`` callable for one of this package's renderings: its ``sample_grid``, one sampler per distinct parameter
+    record. Kept apart from `renderings`, whose two-value return thirteen callers unpack.
+    """
+    from hog_noise.samplers import make_sampler
+
+    built: dict[NoiseParams, object] = {}
+
+    def grid(params: NoiseParams, start, shape, scales) -> NDArray:
+        if params not in built:
+            built[params] = make_sampler(params, backend=name)[0]
+        return built[params].sample_grid(start, shape, scales)
+
+    return grid
+
+
 def main(argv: list[str] | None = None) -> int:
     """``python -m hog_noise.conformance vectors --rendering numpy``: prints the table; exits 0 when it is ok."""
     import argparse
@@ -559,7 +620,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.exit(2, f"{parser.prog}: error: {e}\n")
     sample, warp = renderings(args.rendering)
     bound = Bound(args.bound, args.coordinate_scaled) if args.bound is not None else None
-    report = check(sample, vectors, reference=args.reference, bound=bound, warp=warp, select=args.select)
+    report = check(
+        sample,
+        vectors,
+        reference=args.reference,
+        bound=bound,
+        warp=warp,
+        select=args.select,
+        grid=grid_rendering(args.rendering),
+    )
     print(report.table())
     return 0 if report.ok else 1
 

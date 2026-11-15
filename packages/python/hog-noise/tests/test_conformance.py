@@ -315,6 +315,100 @@ def test_the_command_line_exits_one_on_a_failure(tmp_path):
     assert run.returncode == 1 and "| hog/t/f/p3 | points | fail |" in run.stdout, run.stderr
 
 
+def _grid_folder(tmp_path: Path):
+    """A hog case on a 3 x 2 x 1 grid point set with a ``from``, its values the numpy rendering's own."""
+    from hog_noise import NoiseParams, NumpySampler
+    from hog_noise.samplers import grid_points
+
+    start, shape, scales = (-1, 0, 2), (3, 2, 1), (1.0, 0.5, 2.0)
+    params = NoiseParams(seed=1, frequency=0.01)
+    ref = NumpySampler(params).sample_grid(start, shape, scales).ravel()
+    root = make_vectors(
+        tmp_path,
+        [a_case("hog/t/g/p3", "h/g.f32", params=params.to_dict())],
+        {"h/g.f32": ref},
+        coords=grid_points(start, shape, scales),
+    )
+    manifest = _manifest(root)
+    manifest["point_sets"]["p3"]["from"] = {
+        "start": list(start),
+        "shape": list(shape),
+        "scales": list(scales),
+        "order": "C",
+    }
+    _rewrite(root, manifest)
+    return root
+
+
+def test_a_grid_point_set_goes_through_grid_when_it_is_given(tmp_path):
+    root = _grid_folder(tmp_path)
+    grid = conformance.grid_rendering("numpy")
+    calls = []
+
+    def counting(params, start, shape, scales):
+        calls.append((start, shape, scales))
+        return grid(params, start, shape, scales)
+
+    def no_points(params, xs, ys, zs):
+        raise AssertionError("a grid point set is sampled through grid when grid is given")
+
+    report = conformance.check(no_points, root, grid=counting)
+    assert report.ok and report.complete, report.table()
+    assert calls == [((-1, 0, 2), (3, 2, 1), (1.0, 0.5, 2.0))]
+
+
+def test_without_grid_a_grid_point_set_is_sampled_point_by_point(tmp_path):
+    sample, _ = conformance.renderings("numpy")
+    assert conformance.check(sample, _grid_folder(tmp_path)).ok
+
+
+def test_the_grid_path_fails_a_transposed_grid(tmp_path):
+    """Acceptance 3: the grid path can say no."""
+    root = _grid_folder(tmp_path)
+    grid = conformance.grid_rendering("numpy")
+    sample, _ = conformance.renderings("numpy")
+
+    def transposed(params, start, shape, scales):
+        return grid(params, start, shape, scales).transpose(1, 0, 2)
+
+    assert not conformance.check(sample, root, grid=transposed).ok
+
+
+def test_the_grid_path_fails_a_grid_of_the_wrong_shape_or_order(tmp_path):
+    """Right values, wrong shape: flattening alone would pass it. Right shape, wrong order: the values catch it."""
+    root = _grid_folder(tmp_path)
+    grid = conformance.grid_rendering("numpy")
+    sample, _ = conformance.renderings("numpy")
+
+    def flat(params, start, shape, scales):
+        return grid(params, start, shape, scales).ravel()
+
+    def flipped(params, start, shape, scales):
+        return grid(params, start, shape, scales)[::-1]
+
+    report = conformance.check(sample, root, grid=flat)
+    assert not report.ok and "grid shape (6,), expected (3, 2, 1)" in report.results[0].detail
+    assert not conformance.check(sample, root, grid=flipped).ok
+
+
+@pytest.mark.parametrize(
+    "origin, says",
+    [
+        ({"start": [0, 0], "shape": [2, 2, 1], "scales": [1, 1, 1], "order": "C"}, "from.start"),
+        ({"start": [0, 0, 0], "shape": [2, 2, 2], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
+        ({"start": [0, 0, 0], "shape": [2, 2, 1], "scales": [1, "1", 1], "order": "C"}, "from.scales"),
+        ({"start": [0, 0, 0], "shape": [2, 2, 1], "scales": [1, 1, 1], "order": "K"}, "from.order"),
+    ],
+)
+def test_a_malformed_from_fails_at_load(tmp_path, origin, says):
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    manifest = _manifest(root)
+    manifest["point_sets"]["p3"]["from"] = origin
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match=says):
+        conformance.load(root)
+
+
 # -------------------------------------------------------------------------
 # on the committed vectors: acceptance 3, 4 and 5
 REAL = VECTORS_ROOT
