@@ -9,6 +9,7 @@ feature, rendered three ways and compared with the same tooling:
 - `scalar.py`: the same algorithms compiled by numba when it is installed; the fast rung.
 - the `pyfastnoiselite` binding: the reference the port was validated against, and the fallback
   on a machine without numba.
+- `gpu.py` and `wgsl/noise.wgsl`: the same algorithms in WGSL on wgpu, override only, chosen by name.
 
 `samplers.py` registers those as the ``"noise"`` capability with `hog_noise.backends`, and
 `make_sampler` is how a caller gets one. `compare.py` is the comparison tooling. Feature scope and
@@ -21,6 +22,7 @@ package imports with no extra cost and the ladder resolves to `pyfastnoiselite` 
 
 import logging as _logging
 
+from hog_noise import gpu as _gpu  # noqa: F401  (registers the override-only wgpu rung; imports no wgpu)
 from hog_noise.families import FAMILIES, all_presets, enum_name
 from hog_noise.params import (
     CELLULAR_DISTANCE_NAMES,

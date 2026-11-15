@@ -199,6 +199,48 @@ def test_min_correlation_and_within_are_checked_too(tmp_path):
     assert conformance.check(_values(two_off), root, reference="original").results[0].status == "fail"  # 50% within
 
 
+def test_a_scaled_within_holds_each_point_to_its_own_allowance(tmp_path):
+    """Acceptance 3: a point above its own allowance but below the set's largest fails, so an allowance applied to the
+    whole set instead of per point is caught. make_vectors' points have max |axis| 10, 1000, 300 and 2000; at f = 0.01
+    a scale of 1e-3 allows 1e-3, 1e-2, 3e-3 and 2e-2."""
+    ref = np.zeros(4, np.float32)
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "within": {"scale": 1e-3, "coordinate_scaled": True, "fraction": 1.0},
+    }
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    above_its_own = np.array([5e-3, 0.0, 0.0, 0.0], np.float32)
+    assert conformance.check(_values(above_its_own), root, reference="original").results[0].status == "fail"
+    each_inside = np.array([5e-4, 9e-3, 2e-3, 1.5e-2], np.float32)
+    assert conformance.check(_values(each_inside), root, reference="original").results[0].status == "pass"
+
+
+def test_an_absolute_within_is_unchanged(tmp_path):
+    ref = np.zeros(4, np.float32)
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "within": {"scale": 1e-3, "fraction": 1.0},
+    }
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    scaled_would_pass = np.array([5e-4, 9e-3, 2e-3, 1.5e-2], np.float32)
+    assert conformance.check(_values(scaled_would_pass), root, reference="original").results[0].status == "fail"
+
+
+def test_a_withins_coordinate_scaled_must_be_true_or_false(tmp_path):
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "within": {"scale": 1e-3, "coordinate_scaled": "yes", "fraction": 1.0},
+    }
+    root = make_vectors(
+        tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": np.zeros(4, np.float32)}
+    )
+    with pytest.raises(conformance.ConformanceError, match="within.coordinate_scaled"):
+        conformance.load(root)
+
+
 def test_shape_checks_range_mean_std_ratio_and_finite(tmp_path):
     ref = np.array([-0.5, 0.0, 0.5, 0.25], np.float32)
     rule = {"kind": "shape", "range": [-1.05, 1.05], "mean_within": 0.2, "std_within": 0.2, "finite": True}
@@ -273,6 +315,102 @@ def test_the_command_line_exits_one_on_a_failure(tmp_path):
     assert run.returncode == 1 and "| hog/t/f/p3 | points | fail |" in run.stdout, run.stderr
 
 
+def _grid_folder(tmp_path: Path):
+    """A hog case on a 3 x 2 x 1 grid point set with a ``from``, its values the numpy rendering's own."""
+    from hog_noise import NoiseParams, NumpySampler
+    from hog_noise.samplers import grid_points
+
+    start, shape, scales = (-1, 0, 2), (3, 2, 1), (1.0, 0.5, 2.0)
+    params = NoiseParams(seed=1, frequency=0.01)
+    ref = NumpySampler(params).sample_grid(start, shape, scales).ravel()
+    root = make_vectors(
+        tmp_path,
+        [a_case("hog/t/g/p3", "h/g.f32", params=params.to_dict())],
+        {"h/g.f32": ref},
+        coords=grid_points(start, shape, scales),
+    )
+    manifest = _manifest(root)
+    manifest["point_sets"]["p3"]["from"] = {
+        "start": list(start),
+        "shape": list(shape),
+        "scales": list(scales),
+        "order": "C",
+    }
+    _rewrite(root, manifest)
+    return root
+
+
+def test_a_grid_point_set_goes_through_grid_when_it_is_given(tmp_path):
+    root = _grid_folder(tmp_path)
+    grid = conformance.grid_rendering("numpy")
+    calls = []
+
+    def counting(params, start, shape, scales):
+        calls.append((start, shape, scales))
+        return grid(params, start, shape, scales)
+
+    def no_points(params, xs, ys, zs):
+        raise AssertionError("a grid point set is sampled through grid when grid is given")
+
+    report = conformance.check(no_points, root, grid=counting)
+    assert report.ok and report.complete, report.table()
+    assert calls == [((-1, 0, 2), (3, 2, 1), (1.0, 0.5, 2.0))]
+
+
+def test_without_grid_a_grid_point_set_is_sampled_point_by_point(tmp_path):
+    sample, _ = conformance.renderings("numpy")
+    assert conformance.check(sample, _grid_folder(tmp_path)).ok
+
+
+def test_the_grid_path_fails_a_transposed_grid(tmp_path):
+    """Acceptance 3: the grid path can say no."""
+    root = _grid_folder(tmp_path)
+    grid = conformance.grid_rendering("numpy")
+    sample, _ = conformance.renderings("numpy")
+
+    def transposed(params, start, shape, scales):
+        return grid(params, start, shape, scales).transpose(1, 0, 2)
+
+    assert not conformance.check(sample, root, grid=transposed).ok
+
+
+def test_the_grid_path_fails_a_grid_of_the_wrong_shape_or_order(tmp_path):
+    """Right values, wrong shape: flattening alone would pass it. Right shape, wrong order: the values catch it."""
+    root = _grid_folder(tmp_path)
+    grid = conformance.grid_rendering("numpy")
+    sample, _ = conformance.renderings("numpy")
+
+    def flat(params, start, shape, scales):
+        return grid(params, start, shape, scales).ravel()
+
+    def flipped(params, start, shape, scales):
+        return grid(params, start, shape, scales)[::-1]
+
+    report = conformance.check(sample, root, grid=flat)
+    assert not report.ok and "grid shape (6,), expected (3, 2, 1)" in report.results[0].detail
+    assert not conformance.check(sample, root, grid=flipped).ok
+
+
+@pytest.mark.parametrize(
+    "origin, says",
+    [
+        ({"start": [0, 0], "shape": [2, 2, 1], "scales": [1, 1, 1], "order": "C"}, "from.start"),
+        ({"start": [0, 0, 0], "shape": [2, 2, 2], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
+        ({"start": [0, 0, 0], "shape": [-1, -4, 1], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
+        ({"start": [0, 0, 0], "shape": [4, 1, 0], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
+        ({"start": [0, 0, 0], "shape": [2, 2, 1], "scales": [1, "1", 1], "order": "C"}, "from.scales"),
+        ({"start": [0, 0, 0], "shape": [2, 2, 1], "scales": [1, 1, 1], "order": "K"}, "from.order"),
+    ],
+)
+def test_a_malformed_from_fails_at_load(tmp_path, origin, says):
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    manifest = _manifest(root)
+    manifest["point_sets"]["p3"]["from"] = origin
+    _rewrite(root, manifest)
+    with pytest.raises(conformance.ConformanceError, match=says):
+        conformance.load(root)
+
+
 # -------------------------------------------------------------------------
 # on the committed vectors: acceptance 3, 4 and 5
 REAL = VECTORS_ROOT
@@ -283,6 +421,17 @@ def real():
     return conformance.load(REAL)
 
 
+def test_the_hog_set_has_the_48_hog_only_cases(real):
+    """The GPU port's spec, *The vectors grow*: 46 FastNoiseSIMD features in 2D and the odd grid twice."""
+    hog_only = [c for c in real.cases if c.source.get("hog_only")]
+    assert sum(c.point_set == "scatter_2d" and c.id.startswith("hog/fns/") for c in hog_only) == 46
+    assert sorted(c.id for c in hog_only if c.point_set == "genasgrid_0.7_1.0_1.3") == [
+        "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+        "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+    ]
+    assert len(hog_only) == 48
+
+
 def test_a_seed_off_by_one_fails_hog(real):
     sample, _ = conformance.renderings("numpy")
 
@@ -290,7 +439,7 @@ def test_a_seed_off_by_one_fails_hog(real):
         return sample(params.replace(seed=params.seed + 1), xs, ys, zs)
 
     report = conformance.check(off, real, select="hog/fns/whitenoise_none/*")
-    assert len(report.results) == 2 and not report.ok
+    assert len(report.results) == 3 and not report.ok
 
 
 def test_one_value_nudged_by_1e_5_fails_the_white_noise_original(real):
@@ -537,3 +686,173 @@ def test_a_shape_rules_finite_must_be_true_or_false(tmp_path, value):
     _rewrite(root, manifest)
     with pytest.raises(conformance.ConformanceError, match="finite"):
         conformance.load(root)
+
+
+def write_tolerance(root: Path, rules: list, /, **top) -> Path:
+    """A tolerance file in ``root``; ``top`` replaces its top-level keys, ``rules`` among them."""
+    data = {
+        "format": 1,
+        "rendering": "test",
+        "range": {"frequency": [0.01], "noise_coordinate_max": 20.0},
+        "rules": rules,
+    }
+    data.update(top)
+    path = root / "tolerance.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+CONTINUOUS = {"feature": "t/f", "kind": "continuous", "bound": {"scale": 1e-3, "coordinate_scaled": True}}
+
+
+def test_a_continuous_rule_judges_its_features_cases_and_names_itself(tmp_path):
+    ref = np.zeros(4, np.float32)
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    v = conformance.load(root)
+    tol = conformance.Tolerance.load(write_tolerance(root, [CONTINUOUS]), v)
+    ok = conformance.check(_values(np.array([5e-4, 9e-3, 2e-3, 1.5e-2], np.float32)), v, tolerance=tol)
+    assert ok.ok and ok.results[0].rule == "continuous", ok.table()
+    assert "| continuous |" in ok.table()
+    bad = conformance.check(_values(np.array([2e-3, 0, 0, 0], np.float32)), v, tolerance=tol)
+    assert not bad.ok
+
+
+def test_a_case_no_rule_covers_fails_with_no_tolerance_rule(tmp_path):
+    """Acceptance 3: a feature with no rule cannot pass by default."""
+    cases = [a_case("hog/t/f/p3", "h/f.f32"), a_case("hog/t/g/p3", "h/g.f32")]
+    root = make_vectors(tmp_path, cases, {"h/f.f32": np.zeros(4, np.float32), "h/g.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    report = conformance.check(
+        _values(np.zeros(4, np.float32)),
+        v,
+        tolerance=conformance.Tolerance.load(write_tolerance(root, [CONTINUOUS]), v),
+    )
+    by_id = {r.id: r for r in report.results}
+    assert by_id["hog/t/f/p3"].status == "pass"
+    assert by_id["hog/t/g/p3"].status == "fail" and by_id["hog/t/g/p3"].detail == "no tolerance rule"
+
+
+def test_a_discrete_rule_counts_flips_against_its_fraction(tmp_path):
+    """Acceptance 3: one point of four flipped; a fraction of 0.75 holds it, one set above what was measured fails."""
+    ref = np.array([0.1, 0.2, 0.3, 0.4], np.float32)
+    flipped = ref + np.array([0.0, 0.0, 0.0, 1.0], np.float32)
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    v = conformance.load(root)
+
+    def rule(fraction):
+        return {
+            "feature": "t/f",
+            "kind": "discrete",
+            "bound": {"scale": 2.0, "coordinate_scaled": False},
+            "within": {"scale": 1e-3, "coordinate_scaled": True, "fraction": fraction},
+            "min_correlation": 0.5,
+        }
+
+    held = conformance.check(
+        _values(flipped), v, tolerance=conformance.Tolerance.load(write_tolerance(root, [rule(0.75)]), v)
+    )
+    assert held.ok and held.results[0].rule == "discrete", held.table()
+    above = conformance.check(
+        _values(flipped), v, tolerance=conformance.Tolerance.load(write_tolerance(root, [rule(0.8)]), v)
+    )
+    assert not above.ok
+
+
+def test_separate_noise_and_warp_rules_load_and_each_judges_its_output(tmp_path):
+    cases = [a_case("hog/t/f/p3", "h/f.f32"), a_case("hog/t/f/p2/warp", "h/w.f32", point_set="p2", output="warp")]
+    root = make_vectors(tmp_path, cases, {"h/f.f32": np.zeros(4, np.float32), "h/w.f32": np.zeros(8, np.float32)})
+    v = conformance.load(root)
+    rules = [
+        dict(CONTINUOUS, output="noise"),
+        {
+            "feature": "t/f",
+            "output": "warp",
+            "kind": "continuous",
+            "bound": {"scale": 1e-3, "coordinate_scaled": False},
+        },
+    ]
+    tol = conformance.Tolerance.load(write_tolerance(root, rules), v)
+    assert tol.rule_for(v.case("hog/t/f/p2/warp"))["bound"]["coordinate_scaled"] is False
+    assert tol.rule_for(v.case("hog/t/f/p3"))["bound"]["coordinate_scaled"] is True
+
+
+@pytest.mark.parametrize(
+    "rules, top, says",
+    [
+        ([dict(CONTINUOUS, feature="t/nope")], {}, "names no hog feature"),
+        ([CONTINUOUS, dict(CONTINUOUS, output="warp")], {}, "already has a rule"),
+        ([CONTINUOUS, CONTINUOUS], {}, "already has a rule"),
+        ([dict(CONTINUOUS, output="both")], {}, "output 'both'"),
+        ([dict(CONTINUOUS, kind="loose")], {}, "kind 'loose'"),
+        ([dict(CONTINUOUS, min_correlation=0.9)], {}, "a continuous rule has a bound and nothing else"),
+        ([dict(CONTINUOUS, kind="discrete")], {}, "a discrete rule needs"),
+        ([dict(CONTINUOUS, bound={"scale": -1.0})], {}, "bound.scale"),
+        (["t/f"], {}, "not an object"),
+        ([CONTINUOUS], {"format": 2}, "tolerance format 2"),
+        ([CONTINUOUS], {"rules": {}}, "a 'rules' list"),
+    ],
+)
+def test_a_malformed_tolerance_fails_at_load_naming_the_part(tmp_path, rules, top, says):
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    with pytest.raises(conformance.ConformanceError, match=says):
+        conformance.Tolerance.load(write_tolerance(root, rules, **top), v)
+
+
+def test_a_tolerance_judges_the_hog_set_alone_and_takes_no_bound(tmp_path):
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    tol = conformance.Tolerance.load(write_tolerance(root, [CONTINUOUS]), v)
+    zero = _values(np.zeros(4, np.float32))
+    with pytest.raises(ValueError, match="hog set alone"):
+        conformance.check(zero, v, reference="both", tolerance=tol)
+    with pytest.raises(ValueError, match="hog set alone"):
+        conformance.check(zero, v, bound=Bound(1.0), tolerance=tol)
+
+
+def test_the_command_line_takes_a_tolerance(tmp_path):
+    from hog_noise import NoiseParams, NumpySampler
+
+    case = a_case("hog/t/f/p3", "h/f.f32")
+    xs, ys, zs = (
+        np.array(v, np.float32) for v in ([10.0, -1000.0, 0.0, 5.0], [0.0, 2.0, 300.0, -1.0], [-3.0, 4.0, 0.5, 2000.0])
+    )
+    ref = NumpySampler(NoiseParams.from_dict(case["params"])).sample_points(xs, ys, zs, np.empty(4, np.float32))
+    root = make_vectors(tmp_path, [case], {"h/f.f32": ref})
+    path = write_tolerance(root, [CONTINUOUS], rendering="numpy")
+    run = subprocess.run(
+        [sys.executable, "-m", "hog_noise.conformance", str(root), "--rendering", "numpy", "--tolerance", str(path)],
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0 and "| continuous |" in run.stdout, run.stderr
+    bad = subprocess.run(
+        [sys.executable, "-m", "hog_noise.conformance", str(root), "--tolerance", str(path), "--bound", "1"],
+        capture_output=True,
+        text=True,
+    )
+    assert bad.returncode == 2 and "hog set alone" in bad.stderr
+
+
+def test_the_command_line_refuses_another_renderings_tolerance(tmp_path, capsys):
+    """``--rendering numpy --tolerance tolerance/wgpu.json`` ran and passed, judging numpy by wgpu's rules."""
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    path = write_tolerance(root, [CONTINUOUS], rendering="wgpu")
+    with pytest.raises(SystemExit) as exit_:
+        conformance.main([str(root), "--rendering", "numpy", "--tolerance", str(path)])
+    assert exit_.value.code == 2
+    assert "is for the 'wgpu' rendering, not 'numpy'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("kind", ["missing", "not json", "a directory"])
+def test_a_tolerance_file_that_cannot_be_read_is_a_conformance_error(tmp_path, kind):
+    """The three ways the file is not there to read: none is an empty tolerance."""
+    root = make_vectors(tmp_path / "v", [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    path = tmp_path / "tolerance.json"
+    if kind == "not json":
+        path.write_text('{"format": 1, "rules": [', encoding="utf-8")
+    elif kind == "a directory":
+        path.mkdir()
+    with pytest.raises(conformance.ConformanceError, match="cannot be read as JSON"):
+        conformance.Tolerance.load(path, v)

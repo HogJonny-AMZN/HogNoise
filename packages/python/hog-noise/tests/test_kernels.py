@@ -471,7 +471,7 @@ def test_the_renderings_pass_every_gating_case_and_the_hog_set(rendering, vector
     """Every hog case at Bound(0) and every gating original, through the harness. Passing hog on numpy is also the
     staleness check: a kernel change that moves a value fails here until `gen_noise_vectors.py --set hog` is rerun."""
     sample, warp = conformance.renderings(rendering)
-    report = conformance.check(sample, vectors, reference="both", warp=warp)
+    report = conformance.check(sample, vectors, reference="both", warp=warp, grid=conformance.grid_rendering(rendering))
     assert report.ok and report.complete, report.table()
 
 

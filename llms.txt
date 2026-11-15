@@ -1,6 +1,6 @@
 # HogNoise
 
-> Procedural noise for Python (Perlin, OpenSimplex2, cellular/Worley, value, white noise, fractals, domain warp): the FastNoiseLite and FastNoiseSIMD algorithms in one package, rendered two ways (numba and numpy, bit-identical) from one parameter record and checked against committed vectors from the originals. The `pyfastnoiselite` binding is a reference used only when asked for. 2D and 3D only; no GPU rung and no 4D yet. Pre-release, installed from GitHub.
+> Procedural noise for Python (Perlin, OpenSimplex2, cellular/Worley, value, white noise, fractals, domain warp): the FastNoiseLite and FastNoiseSIMD algorithms in one package, rendered two ways (numba and numpy, bit-identical) from one parameter record and checked against committed vectors from the originals. The `pyfastnoiselite` binding is a reference used only when asked for. A GPU rung runs every noise as one WGSL compute shader through wgpu (the `gpu` extra), only when asked for: `make_sampler(params, backend="wgpu")` or `HOG_NOISE_BACKEND_NOISE=wgpu`. It is float32, held to a measured per-feature tolerance at frequency 0.01 out to 4,096 units, not bit-for-bit with the CPU, and not benchmarked. 2D and 3D only; no 4D yet. Pre-release, installed from GitHub.
 
 Use it when someone wants seeded 2D or 3D noise over numpy arrays: terrain and heightmaps, textures, games tooling that must match FastNoiseLite (Godot 4, Unity, C++), a replacement for `pyfastnoisesimd`, or noise in a DCC host's Python. For 4D, a node editor or C++ speed, FastNoise2 is the better answer.
 
@@ -13,6 +13,7 @@ Use it when someone wants seeded 2D or 3D noise over numpy arrays: terrain and h
 ## Evidence
 
 - [vectors/portability.md](vectors/portability.md): every comparison, with its largest difference
+- [vectors/portability-gpu.md](vectors/portability-gpu.md) and [vectors/tolerance/wgpu.json](vectors/tolerance/wgpu.json): the GPU rung against every hog feature on four adapters, and the bounds derived from that measurement
 - [vectors/README.md](vectors/README.md): the reference vectors' format, and how any port checks itself against them
   (`python -m hog_noise.conformance vectors --rendering numpy`)
 - [Docs/noise/GALLERY.md](Docs/noise/GALLERY.md): every noise type rendered

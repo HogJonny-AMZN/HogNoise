@@ -22,8 +22,9 @@ Two sets:
     python tools/gen_noise_vectors.py --set original --source fnl
 
 Coordinates are fixed by seed. Scattered samples: 4096 points, x and z in [-4096, 4096], y in [-256, 256]. Grid:
-128 x 128 over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. The two ``genasgrid`` grids are
-``sample_grid((-64, -64, 1), (128, 128, 1), scales)``'s coordinates, written out so no reader rebuilds a grid.
+128 x 128 over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. The two ``genasgrid`` grids, and the
+hog-only one at scales (0.7, 1.0, 1.3), are ``sample_grid((-64, -64, 1), (128, 128, 1), scales)``'s coordinates,
+written out so no reader rebuilds a grid.
 """
 
 import argparse
@@ -40,7 +41,9 @@ from pathlib import Path
 import numpy as np
 
 from hog_noise import (
+    FractalType,
     NoiseParams,
+    NoiseType,
     conformance,
     parse_cellular_distance,
     parse_cellular_return,
@@ -53,7 +56,7 @@ from hog_noise.samplers import grid_points
 
 _MODULE_NAME = "tools.gen_noise_vectors"
 __version__ = "0.1.0"
-__updated__ = "2026-11-13"
+__updated__ = "2026-11-14"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,6 +93,13 @@ def _write(
 # the vectors folder: raw little-endian float32 and one manifest (spec: 2026-11-11-conformance-harness)
 GENASGRID_SCALES = ((1.0, 1.0, 1.0), (1.0, 0.5, 2.0))
 GENASGRID_START, GENASGRID_SHAPE = (-64, -64, 1), (128, 128, 1)
+#: Hog-only (the GPU port's spec, *The vectors grow*): a grid at a scale that is not a power of two, where a float32
+#: grid coordinate computed on the GPU can differ in its last bits from the CPU's float64 product rounded to float32.
+HOG_ONLY_GRID_SCALES = (0.7, 1.0, 1.3)
+HOG_ONLY_GRIDS = (
+    ("fns", NoiseType.SIMPLEX_CLASSIC, "genasgrid_simplex_fbm_scales_0.7_1.0_1.3"),
+    ("fnl", NoiseType.OPEN_SIMPLEX2, "genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3"),
+)
 
 
 def _genasgrid_name(scales) -> str:
@@ -97,7 +107,10 @@ def _genasgrid_name(scales) -> str:
 
 
 def _point_sets() -> dict[str, dict[str, object]]:
-    """Every point set the vectors use, built once: the scatters, the y = 0 grid and the two genAsGrid grids."""
+    """
+    Every point set the vectors use, built once: the scatters, the y = 0 grid, the two genAsGrid grids and the
+    hog-only grid at a scale that is not a power of two.
+    """
     point_sets: dict[str, dict[str, object]] = {
         "scatter_3d": {
             "dims": 3,
@@ -111,7 +124,7 @@ def _point_sets() -> dict[str, dict[str, object]]:
             "axes": ["points/grid_x.f32", "points/grid_y.f32", "points/grid_z.f32"],
         },
     }
-    for scales in GENASGRID_SCALES:
+    for scales in (*GENASGRID_SCALES, HOG_ONLY_GRID_SCALES):
         name = _genasgrid_name(scales)
         point_sets[name] = {
             "dims": 3,
@@ -304,7 +317,7 @@ def _point_arrays(coords: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
         "points/grid_y.f32": np.zeros_like(coords["grid_x"]),
         "points/grid_z.f32": coords["grid_z"],
     }
-    for scales in GENASGRID_SCALES:
+    for scales in (*GENASGRID_SCALES, HOG_ONLY_GRID_SCALES):
         for axis, values in zip("xyz", grid_points(GENASGRID_START, GENASGRID_SHAPE, scales), strict=True):
             arrays[f"points/{_genasgrid_name(scales)}_{axis}.f32"] = values
     return arrays
@@ -400,9 +413,15 @@ def generate_hog(root: Path = OUT) -> list[str]:
     The hog set: for every distinct (parameters, point set, output) among the original cases, the numpy rendering's
     output, compared at Bound(0). Rewritten whole; the first original case (by id) of each key names it.
 
+    Then the hog-only cases, with no original behind them (the GPU port's spec, *The vectors grow*), each marked
+    ``hog_only`` in its source: every FastNoiseSIMD ``scatter_3d`` feature again on ``scatter_2d`` (a parameter record
+    that already has a 2D case gets no second), and classic Simplex and OpenSimplex2 FBm on the grid at scales
+    `HOG_ONLY_GRID_SCALES`, whose axis files this writes if they are missing.
+
     It reads only the original cases, and writes the new files into a staging folder beside ``root`` that replaces
     ``hog/`` only once every case has been rendered, so a failure part way leaves the folder as it was and a rerun
-    works whatever state the hog files are in.
+    works whatever state the hog files are in. A grid axis file this run wrote is removed on failure unless the
+    manifest on disk lists it.
     """
     vectors = conformance.load(root, sets=("original",))  # verifies the originals and the points
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -410,6 +429,8 @@ def generate_hog(root: Path = OUT) -> list[str]:
     sample, warp = conformance.renderings("numpy")
     stage = Path(tempfile.mkdtemp(prefix=f"{root.name}.hog-", dir=root.parent))
     published = False
+    point_sets = dict(manifest["point_sets"])
+    new_point_files: list[Path] = []
     try:
         seen: set[tuple[str, str, str]] = set()
         hog: list[dict[str, object]] = []
@@ -437,9 +458,81 @@ def generate_hog(root: Path = OUT) -> list[str]:
                     source=dict(c["source"], from_case=c["id"]),
                 )
             )
-        _swap_in(root, stage, manifest["point_sets"], originals + hog)
+        # Hog-only, 1: FastNoiseSIMD's features in 2D, from each one's scatter_3d case (their originals were 3D only).
+        # A variant (#shape) gets none, and a parameter record that already has a 2D case gets no second.
+        for c in originals:
+            if c["source"]["library"] != "fns" or c["point_set"] != "scatter_3d" or c["output"] != "noise":
+                continue
+            if "#" in c["id"]:
+                continue
+            key = (json.dumps(c["params"], sort_keys=True), "scatter_2d", "noise")
+            if key in seen:
+                continue
+            seen.add(key)
+            feature = c["source"]["feature"]
+            ps = vectors.point_sets["scatter_2d"]
+            values = sample(NoiseParams.from_dict(c["params"]), ps.axes[0], ps.axes[1], None)
+            file = case_file("hog", "fns", feature, "scatter_2d", "noise")
+            write_f32(stage, file, values)
+            hog.append(
+                dict(
+                    c,
+                    id=case_id("hog", "fns", feature, "scatter_2d", "noise"),
+                    set="hog",
+                    point_set="scatter_2d",
+                    file=file,
+                    compare=_points(0.0),
+                    source=dict(c["source"], array="scatter_2d", from_case=c["id"], hog_only=True),
+                )
+            )
+        # Hog-only, 2: the grid at a scale that is not a power of two, for classic Simplex and OpenSimplex2 FBm
+        grid_name = _genasgrid_name(HOG_ONLY_GRID_SCALES)
+        point_sets[grid_name] = POINT_SETS[grid_name]
+        axes = grid_points(GENASGRID_START, GENASGRID_SHAPE, HOG_ONLY_GRID_SCALES)
+        for rel, values in zip(POINT_SETS[grid_name]["axes"], axes, strict=True):
+            if not (root / rel).exists():
+                new_point_files.append(root / rel)  # tracked first: a write that fails part way leaves a file too
+                write_f32(root, rel, values)
+        for library, noise_type, feature in HOG_ONLY_GRIDS:
+            # The genasgrid originals' parameters but for the noise type: NoiseParams' defaults are their
+            # lacunarity 2.0 and gain 0.5
+            params = NoiseParams(
+                seed=SEED, frequency=0.01, noise_type=noise_type, fractal_type=FractalType.FBM, octaves=4
+            )
+            file = case_file("hog", library, feature, grid_name, "noise")
+            write_f32(stage, file, sample(params, *axes))
+            hog.append(
+                {
+                    "id": case_id("hog", library, feature, grid_name, "noise"),
+                    "set": "hog",
+                    "source": {"library": library, "feature": feature, "array": "grid_as_grid", "hog_only": True},
+                    "params": params.to_dict(),
+                    "point_set": grid_name,
+                    "output": "noise",
+                    "file": file,
+                    "compare": _points(0.0),
+                }
+            )
+        _swap_in(root, stage, point_sets, originals + hog)
         published = True
     finally:
+        # A grid axis file this run wrote stays only if the manifest on disk lists it: _swap_in can raise after it
+        # has published, and then the files are the folder's
+        if new_point_files:
+            try:
+                listed = json.loads((root / "manifest.json").read_text(encoding="utf-8"))["files"]
+            except (OSError, UnicodeDecodeError, ValueError, KeyError, TypeError):
+                # A cleanup failure must not replace the error that brought us here: log it, keep the files (whether
+                # the manifest lists them is unknown), and let the original exception, if any, propagate
+                _LOGGER.exception(
+                    f"cleanup: cannot read the manifest in {root}; kept the grid files this run wrote: "
+                    f"{[p.name for p in new_point_files]}"
+                )
+                listed = None
+            if listed is not None:
+                for path in new_point_files:
+                    if path.relative_to(root).as_posix() not in listed:
+                        path.unlink(missing_ok=True)
         # The old set sits in stage/old-hog until a rollback moves it back: if it is still there and nothing was
         # published, the rollback failed and this folder is the only copy
         if not published and (stage / "old-hog").exists():

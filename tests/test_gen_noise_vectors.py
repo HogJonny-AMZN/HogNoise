@@ -84,7 +84,11 @@ def test_the_hog_set_is_one_case_per_distinct_parameters_point_set_and_output(tm
     v = conformance.load(tmp_path)
     hog = [c.id for c in v.cases if c.set == "hog"]
     assert hog == [
+        "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",  # hog-only: the odd grid
+        "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+        "hog/fns/perlin_billow/scatter_2d",  # hog-only: FastNoiseSIMD in 2D; perlin_billow2's twin gets none
         "hog/fns/perlin_billow/scatter_3d",  # perlin_billow2 has the same parameters: no second case
+        "hog/fns/simplex_billow/scatter_2d",  # the #shape variant gets no 2D twin
         "hog/fns/simplex_billow/scatter_3d",
         "hog/fns/simplex_billow/scatter_3d#shape",
     ]
@@ -99,6 +103,88 @@ def _two_features(tmp_path):
     gen.write_originals(tmp_path, captured, coords())
     gen.generate_hog(tmp_path)
     return captured
+
+
+def test_hog_only_cases_are_marked_and_the_odd_grid_is_a_point_set(tmp_path):
+    _two_features(tmp_path)
+    v = conformance.load(tmp_path)
+    hog_only = sorted(c.id for c in v.cases if c.source.get("hog_only"))
+    assert hog_only == [
+        "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+        "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+        "hog/fns/perlin_fbm/scatter_2d",
+        "hog/fns/value_fbm/scatter_2d",
+    ]
+    assert v.case("hog/fns/perlin_fbm/scatter_2d").source["from_case"] == "original/fns/perlin_fbm/scatter_3d"
+    assert v.point_sets["genasgrid_0.7_1.0_1.3"].origin["scales"] == [0.7, 1.0, 1.3]
+    sample, warp = conformance.renderings("numpy")
+    assert conformance.check(sample, v, warp=warp, grid=conformance.grid_rendering("numpy")).ok
+
+
+def _without_the_odd_grid(tmp_path):
+    """A folder as it was before the hog-only grid: originals only, no grid point set, no grid files."""
+    _two_features(tmp_path)
+    for axis in "xyz":
+        (tmp_path / f"points/genasgrid_0.7_1.0_1.3_{axis}.f32").unlink()
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    manifest["point_sets"].pop("genasgrid_0.7_1.0_1.3")
+    manifest["cases"] = [c for c in manifest["cases"] if c["set"] == "original"]
+    manifest["files"] = {
+        k: v for k, v in manifest["files"].items() if not k.startswith(("hog/", "points/genasgrid_0.7"))
+    }
+    for f in (tmp_path / "hog").rglob("*.f32"):
+        f.unlink()
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_a_failed_regeneration_removes_the_grid_files_it_wrote(tmp_path, monkeypatch):
+    _without_the_odd_grid(tmp_path)
+
+    def broken(*args):
+        raise RuntimeError("the swap fell over")
+
+    # The swap runs after the grid's axis files are written, so this proves they are removed, not never written
+    monkeypatch.setattr(gen, "_swap_in", broken)
+    with pytest.raises(RuntimeError):
+        gen.generate_hog(tmp_path)
+    assert not list((tmp_path / "points").glob("genasgrid_0.7*")), "no grid file left that the manifest does not list"
+    assert conformance.load(tmp_path)  # the folder still loads
+
+
+def test_a_cleanup_that_cannot_read_the_manifest_keeps_the_original_error(tmp_path, monkeypatch, caplog):
+    """The cleanup reads the manifest; when that fails too, the swap's error is raised and the cleanup's is logged."""
+    _without_the_odd_grid(tmp_path)
+
+    def broken(*args):
+        (tmp_path / "manifest.json").write_text("{half a manifest", encoding="utf-8")
+        raise RuntimeError("the swap fell over")
+
+    monkeypatch.setattr(gen, "_swap_in", broken)
+    with pytest.raises(RuntimeError, match="the swap fell over"):
+        gen.generate_hog(tmp_path)
+    errors = [r for r in caplog.records if r.levelname == "ERROR" and "cannot read the manifest" in r.getMessage()]
+    assert len(errors) == 1, caplog.text
+    # not knowing whether the manifest lists them, the cleanup keeps the grid files rather than guess
+    assert len(list((tmp_path / "points").glob("genasgrid_0.7*"))) == 3
+
+
+def test_a_grid_file_written_part_way_is_removed_too(tmp_path, monkeypatch):
+    """A write that fails part way (a full disk) leaves a partial file, which must not outlive the run."""
+    # Not only the axis files removed: a manifest that still lists them fails generate_hog's opening load first
+    _without_the_odd_grid(tmp_path)
+    real_write = gen.write_f32
+
+    def partial(root, rel, values):
+        if rel.startswith("points/genasgrid_0.7"):
+            (root / rel).write_bytes(b"\x00\x00")
+            raise OSError("no space left on device")
+        real_write(root, rel, values)
+
+    monkeypatch.setattr(gen, "write_f32", partial)
+    with pytest.raises(OSError):
+        gen.generate_hog(tmp_path)
+    assert not list((tmp_path / "points").glob("genasgrid_0.7*"))
+    assert conformance.load(tmp_path)  # the folder still loads
 
 
 def test_a_regeneration_that_fails_part_way_leaves_the_folder_as_it_was(tmp_path, monkeypatch):
@@ -118,17 +204,17 @@ def test_a_regeneration_that_fails_part_way_leaves_the_folder_as_it_was(tmp_path
     with pytest.raises(RuntimeError):
         gen.generate_hog(tmp_path)
     assert (tmp_path / "manifest.json").read_bytes() == before
-    assert len(conformance.load(tmp_path).cases) == 4, "the folder still loads, hog set and all"
+    assert len(conformance.load(tmp_path).cases) == 8, "the folder still loads, hog set and all"
     assert not list(tmp_path.parent.glob(f"{tmp_path.name}.hog-*")), "no staging folder left behind"
     monkeypatch.undo()
-    assert len(gen.generate_hog(tmp_path)) == 2
+    assert len(gen.generate_hog(tmp_path)) == 6
 
 
 def test_a_rerun_regenerates_even_when_the_hog_files_are_gone(tmp_path):
     _two_features(tmp_path)
     for f in (tmp_path / "hog").rglob("*.f32"):
         f.unlink()
-    assert len(gen.generate_hog(tmp_path)) == 2
+    assert len(gen.generate_hog(tmp_path)) == 6
     conformance.load(tmp_path)
 
 
@@ -175,7 +261,7 @@ def test_a_swap_that_fails_raises_and_leaves_the_folder_loadable(tmp_path, monke
         gen.generate_hog(tmp_path)
     monkeypatch.undo()
     assert (tmp_path / "manifest.json").read_bytes() == before
-    assert len(conformance.load(tmp_path).cases) == 4, "the old hog set is back and the folder loads"
+    assert len(conformance.load(tmp_path).cases) == 8, "the old hog set is back and the folder loads"
     assert not list(tmp_path.parent.glob(f"{tmp_path.name}.hog-*")), "nothing left beside the folder"
     assert real_publish is gen._publish_manifest
 

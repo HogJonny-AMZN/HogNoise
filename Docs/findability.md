@@ -32,10 +32,11 @@ table, numba and numpy agreeing bit for bit, and the seeds of both FastNoiseLite
 
 - **Advertise only what ships; disclose the rest plainly.** A term that *advertises* a capability (the topics, the keywords,
   the GitHub description, the first paragraph, *Who it's for*) names something shipped with vectors behind it, as
-  [the definition of done](standards/definition-of-done-project.md) already requires of claims. So `gpu`, `wgsl`, `shader`
-  and `4d` are not topics or keywords yet; when the GPU rung lands, `wgsl`, `webgpu` and `gpu` join them in that pull request.
+  [the definition of done](standards/definition-of-done-project.md) already requires of claims. So `4d` is not a topic or
+  keyword yet. The GPU rung, with the hog vectors and a measured tolerance behind it, brings `wgsl`, `webgpu` and `gpu`
+  into the keywords in its own pull request (the GPU port), and into the topics when that pull request merges.
   Naming a limitation, an alternative or a plan that is labelled as one (the README's *Limits* and roadmap line, llms.txt's
-  "no GPU rung and no 4D yet", "FastNoise2 is the answer for 4D") is disclosure, and stays.
+  "no 4D yet", "FastNoise2 is the answer for 4D") is disclosure, and stays.
 - **Prose, not a keyword list.** A search engine and a reader both reward a paragraph that answers *why would I want this*;
   neither rewards a pile of tags in the README.
 - **Every surface says the same thing.** When one changes, check the others in the same pull request. The GitHub

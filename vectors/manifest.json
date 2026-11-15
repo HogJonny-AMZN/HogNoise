@@ -1,6 +1,33 @@
 {
   "format": 1,
   "point_sets": {
+    "genasgrid_0.7_1.0_1.3": {
+      "dims": 3,
+      "count": 16384,
+      "axes": [
+        "points/genasgrid_0.7_1.0_1.3_x.f32",
+        "points/genasgrid_0.7_1.0_1.3_y.f32",
+        "points/genasgrid_0.7_1.0_1.3_z.f32"
+      ],
+      "from": {
+        "start": [
+          -64,
+          -64,
+          1
+        ],
+        "shape": [
+          128,
+          128,
+          1
+        ],
+        "scales": [
+          0.7,
+          1.0,
+          1.3
+        ],
+        "order": "C"
+      }
+    },
     "genasgrid_1.0_0.5_2.0": {
       "dims": 3,
       "count": 16384,
@@ -6171,6 +6198,52 @@
       "point_set": "scatter_3d",
       "output": "noise",
       "file": "hog/fnl/cubic_ridged.scatter_3d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+      "set": "hog",
+      "source": {
+        "library": "fnl",
+        "feature": "genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3",
+        "array": "grid_as_grid",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "OPEN_SIMPLEX2",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "genasgrid_0.7_1.0_1.3",
+      "output": "noise",
+      "file": "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3.genasgrid_0.7_1.0_1.3.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -13143,6 +13216,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_euclidean_cellvalue/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_cellvalue",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "cellvalue",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_cellvalue/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "CELL_VALUE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_cellvalue.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_euclidean_cellvalue/scatter_3d",
       "set": "hog",
       "source": {
@@ -13248,6 +13379,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_euclidean_distance.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_euclidean_distance/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -13371,6 +13560,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_euclidean_distance2/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance2",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance2/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE2",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance2.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_euclidean_distance2/scatter_3d",
       "set": "hog",
       "source": {
@@ -13476,6 +13723,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_euclidean_distance2add.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_euclidean_distance2add/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance2add",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2add",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance2add/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE2_ADD",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance2add.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -13599,6 +13904,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_euclidean_distance2cave/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance2cave",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2cave",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance2cave/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE2_CAVE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance2cave.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_euclidean_distance2cave/scatter_3d",
       "set": "hog",
       "source": {
@@ -13704,6 +14067,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_euclidean_distance2div.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_euclidean_distance2div/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance2div",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2div",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance2div/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE2_DIV",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance2div.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -13827,6 +14248,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_euclidean_distance2mul/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance2mul",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2mul",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance2mul/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE2_MUL",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance2mul.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_euclidean_distance2mul/scatter_3d",
       "set": "hog",
       "source": {
@@ -13932,6 +14411,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_euclidean_distance2sub.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_euclidean_distance2sub/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_distance2sub",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2sub",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_distance2sub/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "DISTANCE2_SUB",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_distance2sub.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -14055,6 +14592,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_euclidean_noiselookup/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_euclidean_noiselookup",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "euclidean",
+          "cellular_jitter": 0.45,
+          "cellular_return": "noiselookup",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_euclidean_noiselookup/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN",
+        "cellular_return": "NOISE_LOOKUP",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_euclidean_noiselookup.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_euclidean_noiselookup/scatter_3d",
       "set": "hog",
       "source": {
@@ -14160,6 +14755,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_manhattan_cellvalue.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_manhattan_cellvalue/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_cellvalue",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "cellvalue",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_cellvalue/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "CELL_VALUE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_cellvalue.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -14283,6 +14936,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_manhattan_distance/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_manhattan_distance/scatter_3d",
       "set": "hog",
       "source": {
@@ -14388,6 +15099,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_manhattan_distance2.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_manhattan_distance2/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance2",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance2/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE2",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance2.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -14511,6 +15280,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_manhattan_distance2add/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance2add",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2add",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance2add/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE2_ADD",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance2add.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_manhattan_distance2add/scatter_3d",
       "set": "hog",
       "source": {
@@ -14616,6 +15443,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_manhattan_distance2cave.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_manhattan_distance2cave/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance2cave",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2cave",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance2cave/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE2_CAVE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance2cave.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -14739,6 +15624,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_manhattan_distance2div/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance2div",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2div",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance2div/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE2_DIV",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance2div.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_manhattan_distance2div/scatter_3d",
       "set": "hog",
       "source": {
@@ -14844,6 +15787,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_manhattan_distance2mul.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_manhattan_distance2mul/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance2mul",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2mul",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance2mul/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE2_MUL",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance2mul.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -14967,6 +15968,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_manhattan_distance2sub/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_distance2sub",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2sub",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_distance2sub/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "DISTANCE2_SUB",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_distance2sub.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_manhattan_distance2sub/scatter_3d",
       "set": "hog",
       "source": {
@@ -15072,6 +16131,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_manhattan_noiselookup.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_manhattan_noiselookup/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_manhattan_noiselookup",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "manhattan",
+          "cellular_jitter": 0.45,
+          "cellular_return": "noiselookup",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_manhattan_noiselookup/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "MANHATTAN",
+        "cellular_return": "NOISE_LOOKUP",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_manhattan_noiselookup.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -15195,6 +16312,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_natural_cellvalue/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_cellvalue",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "cellvalue",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_cellvalue/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "CELL_VALUE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_cellvalue.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_natural_cellvalue/scatter_3d",
       "set": "hog",
       "source": {
@@ -15300,6 +16475,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_natural_distance.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_natural_distance/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -15423,6 +16656,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_natural_distance2/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance2",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance2/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE2",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance2.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_natural_distance2/scatter_3d",
       "set": "hog",
       "source": {
@@ -15528,6 +16819,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_natural_distance2add.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_natural_distance2add/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance2add",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2add",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance2add/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE2_ADD",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance2add.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -15651,6 +17000,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_natural_distance2cave/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance2cave",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2cave",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance2cave/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE2_CAVE",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance2cave.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_natural_distance2cave/scatter_3d",
       "set": "hog",
       "source": {
@@ -15756,6 +17163,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_natural_distance2div.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_natural_distance2div/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance2div",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2div",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance2div/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE2_DIV",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance2div.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -15879,6 +17344,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_natural_distance2mul/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance2mul",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2mul",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance2mul/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE2_MUL",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance2mul.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_natural_distance2mul/scatter_3d",
       "set": "hog",
       "source": {
@@ -15984,6 +17507,64 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cellular_natural_distance2sub.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cellular_natural_distance2sub/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_distance2sub",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "distance2sub",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_distance2sub/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "DISTANCE2_SUB",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_distance2sub.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -16107,6 +17688,64 @@
       }
     },
     {
+      "id": "hog/fns/cellular_natural_noiselookup/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cellular_natural_noiselookup",
+        "array": "scatter_2d",
+        "params": {
+          "cellular_distance": "natural",
+          "cellular_jitter": 0.45,
+          "cellular_return": "noiselookup",
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "lookup_frequency": 0.2,
+          "noise_type": "cellular",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cellular_natural_noiselookup/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "CELLULAR",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "NATURAL",
+        "cellular_return": "NOISE_LOOKUP",
+        "cellular_jitter": 0.45,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cellular_natural_noiselookup.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cellular_natural_noiselookup/scatter_3d",
       "set": "hog",
       "source": {
@@ -16211,6 +17850,63 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/cubic_billow.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/cubic_billow/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cubic_billow",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "billow",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "cubic",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cubic_billow/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "VALUE_CUBIC",
+        "fractal_type": "BILLOW",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cubic_billow.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -16329,6 +18025,60 @@
       }
     },
     {
+      "id": "hog/fns/cubic_none/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cubic_none",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "noise_type": "cubic",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cubic_none/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "VALUE_CUBIC",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cubic_none.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cubic_none/scatter_3d",
       "set": "hog",
       "source": {
@@ -16438,6 +18188,63 @@
       }
     },
     {
+      "id": "hog/fns/cubic_rigidmulti/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "cubic_rigidmulti",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "rigidmulti",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "cubic",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/cubic_rigidmulti/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "VALUE_CUBIC",
+        "fractal_type": "RIGID_MULTI",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/cubic_rigidmulti.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/cubic_rigidmulti/scatter_3d",
       "set": "hog",
       "source": {
@@ -16485,6 +18292,52 @@
       "point_set": "scatter_3d",
       "output": "noise",
       "file": "hog/fns/cubic_rigidmulti.scatter_3d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "genasgrid_simplex_fbm_scales_0.7_1.0_1.3",
+        "array": "grid_as_grid",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "genasgrid_0.7_1.0_1.3",
+      "output": "noise",
+      "file": "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3.genasgrid_0.7_1.0_1.3.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -16688,6 +18541,63 @@
       }
     },
     {
+      "id": "hog/fns/perlin_billow/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "perlin_billow",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "billow",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "perlin",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/perlin_billow/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "PERLIN",
+        "fractal_type": "BILLOW",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/perlin_billow.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/perlin_billow/scatter_3d",
       "set": "hog",
       "source": {
@@ -16788,6 +18698,60 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/perlin_none.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/perlin_none/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "perlin_none",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "noise_type": "perlin",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/perlin_none/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "PERLIN",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/perlin_none.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -16906,6 +18870,63 @@
       }
     },
     {
+      "id": "hog/fns/perlin_rigidmulti/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "perlin_rigidmulti",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "rigidmulti",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "perlin",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/perlin_rigidmulti/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "PERLIN",
+        "fractal_type": "RIGID_MULTI",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/perlin_rigidmulti.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/perlin_rigidmulti/scatter_3d",
       "set": "hog",
       "source": {
@@ -17009,6 +19030,63 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/simplex_billow.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/simplex_billow/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_billow",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "billow",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_billow/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "BILLOW",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_billow.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -17186,6 +19264,63 @@
       }
     },
     {
+      "id": "hog/fns/simplex_fbm/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_fbm",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "fbm",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_fbm/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_fbm.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/simplex_fbm/scatter_3d",
       "set": "hog",
       "source": {
@@ -17296,6 +19431,70 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/simplex_fbm_perturb_gradient.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/simplex_fbm_perturb_gradient/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_fbm_perturb_gradient",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "fbm",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "perturb_amp": 1.0,
+          "perturb_frequency": 0.5,
+          "perturb_gain": 0.5,
+          "perturb_lacunarity": 2.0,
+          "perturb_normalise_length": 1.0,
+          "perturb_octaves": 3,
+          "perturb_type": "gradient",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_fbm_perturb_gradient/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "GRADIENT",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_fbm_perturb_gradient.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -17431,6 +19630,70 @@
       }
     },
     {
+      "id": "hog/fns/simplex_fbm_perturb_gradient_normalise/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_fbm_perturb_gradient_normalise",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "fbm",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "perturb_amp": 1.0,
+          "perturb_frequency": 0.5,
+          "perturb_gain": 0.5,
+          "perturb_lacunarity": 2.0,
+          "perturb_normalise_length": 1.0,
+          "perturb_octaves": 3,
+          "perturb_type": "gradient_normalise",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_fbm_perturb_gradient_normalise/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "GRADIENT_NORMALISE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_fbm_perturb_gradient_normalise.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/simplex_fbm_perturb_gradient_normalise/scatter_3d",
       "set": "hog",
       "source": {
@@ -17548,6 +19811,70 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/simplex_fbm_perturb_gradientfractal.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/simplex_fbm_perturb_gradientfractal/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_fbm_perturb_gradientfractal",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "fbm",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "perturb_amp": 1.0,
+          "perturb_frequency": 0.5,
+          "perturb_gain": 0.5,
+          "perturb_lacunarity": 2.0,
+          "perturb_normalise_length": 1.0,
+          "perturb_octaves": 3,
+          "perturb_type": "gradientfractal",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_fbm_perturb_gradientfractal/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "GRADIENT_FRACTAL",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_fbm_perturb_gradientfractal.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -17683,6 +20010,70 @@
       }
     },
     {
+      "id": "hog/fns/simplex_fbm_perturb_gradientfractal_normalise/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_fbm_perturb_gradientfractal_normalise",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "fbm",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "perturb_amp": 1.0,
+          "perturb_frequency": 0.5,
+          "perturb_gain": 0.5,
+          "perturb_lacunarity": 2.0,
+          "perturb_normalise_length": 1.0,
+          "perturb_octaves": 3,
+          "perturb_type": "gradientfractal_normalise",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_fbm_perturb_gradientfractal_normalise/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "GRADIENT_FRACTAL_NORMALISE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_fbm_perturb_gradientfractal_normalise.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/simplex_fbm_perturb_gradientfractal_normalise/scatter_3d",
       "set": "hog",
       "source": {
@@ -17809,6 +20200,70 @@
       }
     },
     {
+      "id": "hog/fns/simplex_fbm_perturb_normalise/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_fbm_perturb_normalise",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "fbm",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "perturb_amp": 1.0,
+          "perturb_frequency": 0.5,
+          "perturb_gain": 0.5,
+          "perturb_lacunarity": 2.0,
+          "perturb_normalise_length": 1.0,
+          "perturb_octaves": 3,
+          "perturb_type": "normalise",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_fbm_perturb_normalise/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "FBM",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NORMALISE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_fbm_perturb_normalise.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/simplex_fbm_perturb_normalise/scatter_3d",
       "set": "hog",
       "source": {
@@ -17925,6 +20380,60 @@
       }
     },
     {
+      "id": "hog/fns/simplex_none/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_none",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "noise_type": "simplex",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_none/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_none.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/simplex_none/scatter_3d",
       "set": "hog",
       "source": {
@@ -18025,6 +20534,63 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/simplex_rigidmulti.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/simplex_rigidmulti/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "simplex_rigidmulti",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "rigidmulti",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "simplex",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/simplex_rigidmulti/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "SIMPLEX_CLASSIC",
+        "fractal_type": "RIGID_MULTI",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/simplex_rigidmulti.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -18146,6 +20712,63 @@
       }
     },
     {
+      "id": "hog/fns/value_billow/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "value_billow",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "billow",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "value",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/value_billow/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "VALUE",
+        "fractal_type": "BILLOW",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/value_billow.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/value_billow/scatter_3d",
       "set": "hog",
       "source": {
@@ -18246,6 +20869,60 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/value_none.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/value_none/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "value_none",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "noise_type": "value",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/value_none/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "VALUE",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/value_none.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -18364,6 +21041,63 @@
       }
     },
     {
+      "id": "hog/fns/value_rigidmulti/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "value_rigidmulti",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "rigidmulti",
+          "frequency": 0.01,
+          "gain": 0.5,
+          "lacunarity": 2.0,
+          "noise_type": "value",
+          "octaves": 4,
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/value_rigidmulti/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "VALUE",
+        "fractal_type": "RIGID_MULTI",
+        "octaves": 4,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/value_rigidmulti.scatter_2d.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
       "id": "hog/fns/value_rigidmulti/scatter_3d",
       "set": "hog",
       "source": {
@@ -18464,6 +21198,60 @@
       "point_set": "grid_y0",
       "output": "noise",
       "file": "hog/fns/whitenoise_none.grid_y0.f32",
+      "compare": {
+        "kind": "points",
+        "bound": {
+          "scale": 0.0,
+          "coordinate_scaled": false
+        }
+      }
+    },
+    {
+      "id": "hog/fns/whitenoise_none/scatter_2d",
+      "set": "hog",
+      "source": {
+        "library": "fns",
+        "feature": "whitenoise_none",
+        "array": "scatter_2d",
+        "params": {
+          "fractal_type": "none",
+          "frequency": 0.01,
+          "noise_type": "whitenoise",
+          "seed": 12345,
+          "source": "pyfastnoisesimd"
+        },
+        "from_case": "original/fns/whitenoise_none/scatter_3d",
+        "hog_only": true
+      },
+      "params": {
+        "seed": 12345,
+        "frequency": 0.01,
+        "noise_type": "WHITE_NOISE",
+        "fractal_type": "NONE",
+        "octaves": 1,
+        "lacunarity": 2.0,
+        "gain": 0.5,
+        "weighted_strength": 0.0,
+        "ping_pong_strength": 2.0,
+        "rotation_3d": "NONE",
+        "cellular_distance": "EUCLIDEAN_SQ",
+        "cellular_return": "DISTANCE",
+        "cellular_jitter": 1.0,
+        "domain_warp": "NONE",
+        "domain_warp_amp": 1.0,
+        "perturb": "NONE",
+        "perturb_amp": 1.0,
+        "perturb_frequency": 0.5,
+        "perturb_octaves": 3,
+        "perturb_lacunarity": 2.0,
+        "perturb_gain": 0.5,
+        "perturb_normalise_length": 1.0,
+        "cellular_lookup_type": "OPEN_SIMPLEX2",
+        "cellular_lookup_frequency": 0.2
+      },
+      "point_set": "scatter_2d",
+      "output": "noise",
+      "file": "hog/fns/whitenoise_none.scatter_2d.f32",
       "compare": {
         "kind": "points",
         "bound": {
@@ -36016,6 +38804,7 @@
     "hog/fnl/cubic_ridged.grid_y0.f32": "5a0cadf0ba9d9c5fc053d02c305fdf8c91fda19dd937b47078b8fef2943f529d",
     "hog/fnl/cubic_ridged.scatter_2d.f32": "a326f37c30d859e0280e8088474e5f4c4f52f47a18d20e03f0f67a08d1b4c403",
     "hog/fnl/cubic_ridged.scatter_3d.f32": "b6ac48fbf126e6868943e789ece8e3054087a16a576ffc40897be585bcf12fb1",
+    "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3.genasgrid_0.7_1.0_1.3.f32": "47afb7024415a6818ec927e60ee44712f72f2c7eb746f79a07161143e669ae85",
     "hog/fnl/perlin_fbm.grid_y0.f32": "223c8201583376b4c0e0f02d59d742ec7bb2bf8d238c051461cefba747194410",
     "hog/fnl/perlin_fbm.scatter_2d.f32": "abdee3c514b484842fd98fdadbc0da36c3aa42daec1be14229f9ac5bcc4a9aa3",
     "hog/fnl/perlin_fbm.scatter_3d.f32": "a07cfea2ada2b07ad032fbc6d292a8246df7c02535b712b255e3539822d32dbd",
@@ -36134,99 +38923,146 @@
     "hog/fnl/warp_opensimplex2reduced_none.scatter_3d.f32": "2bfd75935711e27349a44d7a68ddf302e0649f7780f68c6dec36c656a319927b",
     "hog/fnl/warp_opensimplex2reduced_none.scatter_3d.warp.f32": "622e4a43acd2c50bfe7857fbd1fa9bc366caba189382669918c89ad67fc7f3cd",
     "hog/fns/cellular_euclidean_cellvalue.grid_y0.f32": "b6742384e63dacba1cbe5bd2f6f21ee68dd66cae9a1c5e3b80644fe4ddafd382",
+    "hog/fns/cellular_euclidean_cellvalue.scatter_2d.f32": "5f8a5bbf40429e707510b2a3ef661ade107f2fc401819364cbe3cdba40573e0f",
     "hog/fns/cellular_euclidean_cellvalue.scatter_3d.f32": "270f20f2558cf200154388ce8349238c125832a3da0173f26a8922a7489e8759",
     "hog/fns/cellular_euclidean_distance.grid_y0.f32": "2e3509402d315bcc9515836bc2a8680dd7cb09fc1c949c76d064a8069e44bde8",
+    "hog/fns/cellular_euclidean_distance.scatter_2d.f32": "8e5b90a08b7662a581e35a5813623243ced0e1e312f877fc2d1b85b20636aed1",
     "hog/fns/cellular_euclidean_distance.scatter_3d.f32": "2eaf8f7195fc38f78615a215cb8ee3e2a78d50e57095fec03515f904ca5ba5d0",
     "hog/fns/cellular_euclidean_distance2.grid_y0.f32": "ae3961e28b3102ccc44b7e3e5e71c0bb122c2ee3f8afd42d3358a633eccd22d8",
+    "hog/fns/cellular_euclidean_distance2.scatter_2d.f32": "6d873e200ca91bea9dfa14aaec2c8ab7a213bd720e7766c6f82ef9703b18e440",
     "hog/fns/cellular_euclidean_distance2.scatter_3d.f32": "793f7c329e5efb07849257da18b1b0eed3958d2f7e7311cb96bd7d13b0a63e5b",
     "hog/fns/cellular_euclidean_distance2add.grid_y0.f32": "d318e8780ec3144b8d442267bb4a0eebef0b83468a2c5fe90469cbf394ae1e8c",
+    "hog/fns/cellular_euclidean_distance2add.scatter_2d.f32": "083f3a933d43d3d33c900593e27d49f9c2ce3fdd425a61679f306d8f415334c9",
     "hog/fns/cellular_euclidean_distance2add.scatter_3d.f32": "48e5375a31cf820ca09f5160191eccc9d5a5ab8b9051d4f72f5dcd21aecb0813",
     "hog/fns/cellular_euclidean_distance2cave.grid_y0.f32": "846857c0cf3b0a32723fdd5899cb06d743303a4ade2c5ae1a15023b0e271ab06",
+    "hog/fns/cellular_euclidean_distance2cave.scatter_2d.f32": "ad28239f53870fcec10ff4862c71b88c9bff9ae285431237df4ab2c3ce8e37a5",
     "hog/fns/cellular_euclidean_distance2cave.scatter_3d.f32": "3cbf248d918ec8ef8283b95e1719811e1401a5fcd44a6dd19ed3a32912b7629b",
     "hog/fns/cellular_euclidean_distance2div.grid_y0.f32": "3c03a623dc7ad9ebad5f0d1615858b6e6287bb8dc1dd46904023c024f755885b",
+    "hog/fns/cellular_euclidean_distance2div.scatter_2d.f32": "bd65b671506092de83593e425bb18f230253f3786d0d6d98142afe9ca59a5dfa",
     "hog/fns/cellular_euclidean_distance2div.scatter_3d.f32": "23460e36cd09413d944fc2f07749a4549823dc1190ce8df31efaeab1f5aae9e8",
     "hog/fns/cellular_euclidean_distance2mul.grid_y0.f32": "57814486b28b8509817a84429538f6cc6990e81bba7888be652b17f362b645f7",
+    "hog/fns/cellular_euclidean_distance2mul.scatter_2d.f32": "6f14fb29d5c266ac029c3e1711cd786dc849000698be8d7a0df87cae0d63ac41",
     "hog/fns/cellular_euclidean_distance2mul.scatter_3d.f32": "ad7881c40e85761413ff7c66231eb2e379cea5ef42a895245d7392746e63ca22",
     "hog/fns/cellular_euclidean_distance2sub.grid_y0.f32": "bf9ea86bbf4a40ed189ecbd1ec7637a134f98e04b514535288fb66a85de0cf92",
+    "hog/fns/cellular_euclidean_distance2sub.scatter_2d.f32": "17a67d0ccfba7c96aefccd4f85aed4cad76ee5fbf6ef3a2cbd82b874f44cc0a3",
     "hog/fns/cellular_euclidean_distance2sub.scatter_3d.f32": "a41d7c528477f0686a5a32e0bbb15cce16d85f0902d4ebce8c130365c71c3d10",
     "hog/fns/cellular_euclidean_noiselookup.grid_y0.f32": "38a70e3d4abafc78c79f23ac2018ace410dc089a6b107f4233039789cf0a3007",
+    "hog/fns/cellular_euclidean_noiselookup.scatter_2d.f32": "5a87e8f72c926d9afd2ba1ae822d976318116c1c00e74157b9c78077669a250c",
     "hog/fns/cellular_euclidean_noiselookup.scatter_3d.f32": "e4d3c7fc44444670abb94a09ec328cfab2ed8f5335519f52f72c4cb7d9deb69b",
     "hog/fns/cellular_manhattan_cellvalue.grid_y0.f32": "b15d8e72e033cf57f32858a3a0d291d9b49eb939b9902e9dde49201b297e44f6",
+    "hog/fns/cellular_manhattan_cellvalue.scatter_2d.f32": "da9089033fbe504203e1c30e20cb9eec0be90dec16e264539a9b87258f3c058d",
     "hog/fns/cellular_manhattan_cellvalue.scatter_3d.f32": "c291ab945668692a8dcff2a92d5257f553f327767d857c8252bb8e4996a9dc70",
     "hog/fns/cellular_manhattan_distance.grid_y0.f32": "6c080be76b32d5958a5ff5c533a26c08448dc9660496ec4e601e802ddbb15b4a",
+    "hog/fns/cellular_manhattan_distance.scatter_2d.f32": "485baf596790276a515b1bd200de3a641eb3c782f82ad651058b0b74af6f0270",
     "hog/fns/cellular_manhattan_distance.scatter_3d.f32": "049e359a59efd8647144e07c80fde05434f9ce2c4d8917e929965c84c478edb9",
     "hog/fns/cellular_manhattan_distance2.grid_y0.f32": "01b89a98c64124748636522c7a0d624dc3e1556446d5fb1010c11ac4fe6b5ab0",
+    "hog/fns/cellular_manhattan_distance2.scatter_2d.f32": "cae0cabaa7fa0314cb5fb82d142154fbea49fd4ddd6dbd23643c4d3e47abbaf5",
     "hog/fns/cellular_manhattan_distance2.scatter_3d.f32": "37e287de4fa20d3cce83a1af54113402eea8ff8e137e51f23160282bae876303",
     "hog/fns/cellular_manhattan_distance2add.grid_y0.f32": "bff25c01221b13b94cd89ea82167da419d94b36b3b2a2c9961850f57fb422d39",
+    "hog/fns/cellular_manhattan_distance2add.scatter_2d.f32": "33ea679022039b81902db78bcdf9f9a74942e22b42b43cc511fca9d9797bdb57",
     "hog/fns/cellular_manhattan_distance2add.scatter_3d.f32": "bcf6ac00473715c252186dad967cc7ead908d025a38dfeccd97adfb74b147528",
     "hog/fns/cellular_manhattan_distance2cave.grid_y0.f32": "a7ac763b7c9e75b1732f32198a5bc5134697dc2f93d42cf02bfa1545cb795dd1",
+    "hog/fns/cellular_manhattan_distance2cave.scatter_2d.f32": "cf1132dc9acbca888479511af29cf245503752e16bf25f220984bd085f6bc824",
     "hog/fns/cellular_manhattan_distance2cave.scatter_3d.f32": "181863b9219c4472896298655bbbbfc9a690cc1aff2f0107fac0b950a253ba39",
     "hog/fns/cellular_manhattan_distance2div.grid_y0.f32": "35e229a141432073148d4e06ff120edfbde725cb22a7d48367c2ea6bcd1048a7",
+    "hog/fns/cellular_manhattan_distance2div.scatter_2d.f32": "8fe352a092f099dd4a4641bec17f9bcde5dfe1af690c1bae435352ac3752cd5b",
     "hog/fns/cellular_manhattan_distance2div.scatter_3d.f32": "f25b457134174a325d5a12755d6a906f939e4a2539c28c79c1021cb90eb9ac66",
     "hog/fns/cellular_manhattan_distance2mul.grid_y0.f32": "0ea015836d51b6c1baaf19231c6ea7f0c90af3635f97fd536ed60873dbc16e23",
+    "hog/fns/cellular_manhattan_distance2mul.scatter_2d.f32": "7492caf36a89ab84a43456aed415e90c300cd71f6968c32d590a09ec45590ca1",
     "hog/fns/cellular_manhattan_distance2mul.scatter_3d.f32": "8dbcb8a55a2a24c4cdab350b31c194c378a94992206341d03da5da30c8f3c55b",
     "hog/fns/cellular_manhattan_distance2sub.grid_y0.f32": "7081dd1ac839f5a788d743fd9b341dafacd1b401ae091d684eccb22ed750afa5",
+    "hog/fns/cellular_manhattan_distance2sub.scatter_2d.f32": "6a6546f04d000000f5ebe8f740b89954c3e48ded67378565b53114c140a00a35",
     "hog/fns/cellular_manhattan_distance2sub.scatter_3d.f32": "062272532556de021e03792fff9539e3425ac60d06b5ae28276748b8e00698f3",
     "hog/fns/cellular_manhattan_noiselookup.grid_y0.f32": "ef9900152e5c2245f7cc398abc6c9ff0f3941b49d158c356b65e206efb0b689b",
+    "hog/fns/cellular_manhattan_noiselookup.scatter_2d.f32": "97d6d01b94545308d9a89ca0c1126f9266df8dfccf0c7fd7ae7d5b1243d99257",
     "hog/fns/cellular_manhattan_noiselookup.scatter_3d.f32": "485411f4a3a17954116ed10e7268fc75d4edf8262700f456e50ecf19a7229e02",
     "hog/fns/cellular_natural_cellvalue.grid_y0.f32": "ee46112a38fcfd133f9d68543391a4d2c8d62a527a4362f6105c6b1506a74ab7",
+    "hog/fns/cellular_natural_cellvalue.scatter_2d.f32": "443d3c1eaae486d074d15b274a5a7ccf24db7c390f661aba1805b082d438d3b0",
     "hog/fns/cellular_natural_cellvalue.scatter_3d.f32": "1070b81edcbf323eaab75f827557e95f8f85946c86bb12f5dd23984bc1695937",
     "hog/fns/cellular_natural_distance.grid_y0.f32": "a2d9b12d05b111e49c8e40b8a01290df8e021b300f8fefdbb8454ac40fbdd920",
+    "hog/fns/cellular_natural_distance.scatter_2d.f32": "39e52a16a76fe1b4918aeb83ff79442713581ffef6c63715f1bee7a41a4e9e15",
     "hog/fns/cellular_natural_distance.scatter_3d.f32": "84eae14d92e5f4baf09bb7d71de6fe2a9efc464fb6b0d50f33a6a908ce06bd3e",
     "hog/fns/cellular_natural_distance2.grid_y0.f32": "873712c2e703af8845b15b43bf022ac1019346de906872d430466313b1e7645c",
+    "hog/fns/cellular_natural_distance2.scatter_2d.f32": "c5a85936676a24b463896f94022a217a8beb38fdd03858287dbfdb811de97819",
     "hog/fns/cellular_natural_distance2.scatter_3d.f32": "2b8991bed02d20820dd014c8546ef812bb4fcf19954e017145b5832d968d57e8",
     "hog/fns/cellular_natural_distance2add.grid_y0.f32": "985a245ef37572b429bca0f122f178750a7831fcbe5c2a41b3e395178a15408b",
+    "hog/fns/cellular_natural_distance2add.scatter_2d.f32": "4496dde93b80a8013b230688b8400cf2bdca8e9ebcaca52ce792d74ddb12b947",
     "hog/fns/cellular_natural_distance2add.scatter_3d.f32": "03f127f71d234a1d52b172f478727f0669bb3ef31e2a70d6081f3fe7d5038c56",
     "hog/fns/cellular_natural_distance2cave.grid_y0.f32": "1d384f21f20a587682c00798ddbde8639959a6f5225d4dc8d668a681bcb30b7b",
+    "hog/fns/cellular_natural_distance2cave.scatter_2d.f32": "2db8a6fe26444df7761f017eae6754d2238be30a3c65b6587e3135b668bcd7ec",
     "hog/fns/cellular_natural_distance2cave.scatter_3d.f32": "7ee779356acb7394a989d1e10f9108a10e7690cbc16abdae1c88cacbeed7adaa",
     "hog/fns/cellular_natural_distance2div.grid_y0.f32": "cb66bb4354033152cf4e810d4144cfd8f53dd0e4aff64c59eb44eb5212cfa63d",
+    "hog/fns/cellular_natural_distance2div.scatter_2d.f32": "097b916e1204bfb382689a024d7d3a49c42ff0075899703616edb3fade798c57",
     "hog/fns/cellular_natural_distance2div.scatter_3d.f32": "e8028844371ccb8d7f1c09a131f278c9111032d8c0c3e44c839e0305bf9910a0",
     "hog/fns/cellular_natural_distance2mul.grid_y0.f32": "714278e9d0bd7ee3ac62e68c585f6ba50c1d8c2c7c1a1d26b55ecc275f8291f0",
+    "hog/fns/cellular_natural_distance2mul.scatter_2d.f32": "a213052ae47191e71ae16abbc64fcca93c81f32a3f8dd6d6c559bb768ae4654d",
     "hog/fns/cellular_natural_distance2mul.scatter_3d.f32": "2467930b6e772fec3d5231ea324c5232c6f8b6f2cec33d838b07641fc6bd9eac",
     "hog/fns/cellular_natural_distance2sub.grid_y0.f32": "e379a5d8441d2756d04b1672219f08f4245b2fcd59e8a27fa41cb3489847b7a0",
+    "hog/fns/cellular_natural_distance2sub.scatter_2d.f32": "825abee27aa5f33ff2f42a01489f530572b425572f624c3363fb3fa12f594527",
     "hog/fns/cellular_natural_distance2sub.scatter_3d.f32": "bc7f9a299bd76292aa3c9126a7dd57b5fc9ae08426b9e1a863255a35f14f56c9",
     "hog/fns/cellular_natural_noiselookup.grid_y0.f32": "6749c68d239f5cb88349844a598935b4447206e02c20eafc0eaee16291c113e7",
+    "hog/fns/cellular_natural_noiselookup.scatter_2d.f32": "d3a452f6af37f041bd70934676ce806f632dbaf1d79e13e7a22d0f09e6d9c60a",
     "hog/fns/cellular_natural_noiselookup.scatter_3d.f32": "bf5978b8c4893ba049a2c3011ba02e3b067f628ea0fa8dec785800d4b8646790",
     "hog/fns/cubic_billow.grid_y0.f32": "0258c4059eef9b47f46629570d20e4472349ef16e90434cbc25b1f8a74a3b24e",
+    "hog/fns/cubic_billow.scatter_2d.f32": "5cc45d50079e78a707155ef8f2b0732e6419b913da77081fdc368f6bfb2caea6",
     "hog/fns/cubic_billow.scatter_3d.f32": "a903ad8ebd1b3285ce3a4c4eae07188192cfc11a3d5cf8aa735864ebdcb46eb2",
     "hog/fns/cubic_none.grid_y0.f32": "64043c9aacbeec38cb8988db18b55ebb5e09ca24056a73a94d1e57a388a04e39",
+    "hog/fns/cubic_none.scatter_2d.f32": "095d3599a531195b0ee0769ed22a5f3d76a6a0063bcd661fe66d6e6247c69266",
     "hog/fns/cubic_none.scatter_3d.f32": "efe8b909163b0dd1c716b667b6343f4d9144234f6e0a1fffc9e649f5b7ff073b",
     "hog/fns/cubic_rigidmulti.grid_y0.f32": "757c06fb0f07556365903ccd555a628a47812247129b71135e3a2b00eeaab972",
+    "hog/fns/cubic_rigidmulti.scatter_2d.f32": "74fc25d99805aeb9b13d1f0d80aaaa22d92034f72fe9a41dab88840ac2153795",
     "hog/fns/cubic_rigidmulti.scatter_3d.f32": "df22ff7da0101f025f6edc6c09a49bda8c785c261991cbdfd9b6e508bd05a6f3",
+    "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3.genasgrid_0.7_1.0_1.3.f32": "2dbee9f5a5ee3a97d523f0848cbb6206722b2792e3b14d74aaf4e9254246f129",
     "hog/fns/genasgrid_simplex_fbm_scales_1.0_0.5_2.0.genasgrid_1.0_0.5_2.0.f32": "4bc5bd5497dbaf95b651792e2d23f758fcbccc13248bd078599e0af832aaccc5",
     "hog/fns/genasgrid_simplex_fbm_scales_1.0_1.0_1.0.genasgrid_1.0_1.0_1.0.f32": "875d1e9f047f9d501c18b66cecd40c77932d767716c50fb63ccb1b76c17a605f",
     "hog/fns/perlin_billow.grid_y0.f32": "6430e844e783a13d5219bf8f9235162abe062db7b474c710544fd4d15890d7f3",
+    "hog/fns/perlin_billow.scatter_2d.f32": "fb9ad2ccdb48300bd034c8da856d29101ef0c9c60ac998d55689d49d1fc24f4b",
     "hog/fns/perlin_billow.scatter_3d.f32": "63db172f425a17874747e8ca8b8cc40cf11802f6df7dfda41da97d839e906e05",
     "hog/fns/perlin_none.grid_y0.f32": "40d33c58c634a62ca4c8a15fce359d93724cb821cf7eb86fc6d6580d5538fd49",
+    "hog/fns/perlin_none.scatter_2d.f32": "7fa695f2d7afa1cd87baf7a8765899dccf9905a5aca220f84e3569d249921d91",
     "hog/fns/perlin_none.scatter_3d.f32": "f971f3e89ecc71252be25be6a93ba429333d07ab7f77a9078d324c9301f766db",
     "hog/fns/perlin_rigidmulti.grid_y0.f32": "348133e328f2f08235865af66f1af3523b16ff2c4f19dfd3bc98ace5b5491fb9",
+    "hog/fns/perlin_rigidmulti.scatter_2d.f32": "3094bb3b4697c40a7a089bffae62cf4fba563ad62458a74defafe8a8de58273f",
     "hog/fns/perlin_rigidmulti.scatter_3d.f32": "f125d186a5bc58ba0c552fd7422fefa1a27a768e5af9423f27511dd42b45fa12",
     "hog/fns/simplex_billow.grid_y0.f32": "66bc817d0b39cf96ec6f20f4b830b141f6a171ecb9361ffc5d1af70a14312d98",
+    "hog/fns/simplex_billow.scatter_2d.f32": "29656db7f3e0dd09c63dafba3421733b249ec5edfed36c7c1651825a6f6c3643",
     "hog/fns/simplex_billow.scatter_3d#shape.f32": "659987e44dd978997e29202272e20aa9d9de287342e3259f364f95aff93b993b",
     "hog/fns/simplex_billow.scatter_3d.f32": "3e894a5678f671c8f62f058f5c6bd4423236ec8e07b7aec9241f64dd3d25df50",
     "hog/fns/simplex_fbm.grid_y0.f32": "5a36f121daa0a30a88855f877e5a5fea40f76525a6ee1981a7dfa3b0e58c1c67",
+    "hog/fns/simplex_fbm.scatter_2d.f32": "22e92444bd44f490102f865e0061af98bfd53be629acce755dc0a86f0ed57511",
     "hog/fns/simplex_fbm.scatter_3d.f32": "8906849c4c5698a77ab4b4560bd54e0ad010fe3a17bbae366412e2d1010e6977",
     "hog/fns/simplex_fbm_perturb_gradient.grid_y0.f32": "d5254f2896b625b5d3cf8de566e3896dd08e09e468b5fe652dd60ae2cd736c50",
+    "hog/fns/simplex_fbm_perturb_gradient.scatter_2d.f32": "72cc5fd131f23f3a1222b51e48b52a207dd7047247f9741393014608cb559f1a",
     "hog/fns/simplex_fbm_perturb_gradient.scatter_3d.f32": "0b33649280f14965fe4deb4cba4e827a06abeac9223c3ae22ace0ddf9733ba1d",
     "hog/fns/simplex_fbm_perturb_gradient_normalise.grid_y0.f32": "dfc0fb99e6d285c6b80d37582662444bea871d5f8a9fb9d7a5d59ffeb717ef70",
+    "hog/fns/simplex_fbm_perturb_gradient_normalise.scatter_2d.f32": "8f7091d6d6ce96e8ba99dd8a535cb1a13a86522b67ad1d2bfeb6b5b857fabf1f",
     "hog/fns/simplex_fbm_perturb_gradient_normalise.scatter_3d.f32": "5344c1b52d133fce915195a91d7cdec952a5e94769b743f5bebd10f0d0f7fd93",
     "hog/fns/simplex_fbm_perturb_gradientfractal.grid_y0.f32": "ef3b135ac2742c75cead9f212f839fe34bca821cec7867f6d0f96de8c079c0fd",
+    "hog/fns/simplex_fbm_perturb_gradientfractal.scatter_2d.f32": "2282e417b47bde90ecd985b253b6618b4c8f0c8591bcf42d07d45de4fae42a45",
     "hog/fns/simplex_fbm_perturb_gradientfractal.scatter_3d.f32": "266c5d5d64dcd02832132296e819c72b906a198b72dcc07a585fc9bcc12f5ebb",
     "hog/fns/simplex_fbm_perturb_gradientfractal_normalise.grid_y0.f32": "1139d3764b9266f574bf10ff4c0e777bf6b10ff459f559c68695080265641672",
+    "hog/fns/simplex_fbm_perturb_gradientfractal_normalise.scatter_2d.f32": "8e241ff3851b805f207cf01b12cd5e8f2ffa7cc676a46a3c3edfa0b204aa317b",
     "hog/fns/simplex_fbm_perturb_gradientfractal_normalise.scatter_3d.f32": "b1c8f759a8940cd42ad7f854dcd0829f932061794191ac64c9f7e65ba2709fc6",
     "hog/fns/simplex_fbm_perturb_normalise.grid_y0.f32": "f562f247fef997ec765fe9c550503be4c993c81fcda98dce8cfe24b87db54428",
+    "hog/fns/simplex_fbm_perturb_normalise.scatter_2d.f32": "aa61cb9dfa489608b72bb132e3637e141b63909705f8673c8d2733832c58106b",
     "hog/fns/simplex_fbm_perturb_normalise.scatter_3d.f32": "3e68f3368ec24f80286f2df269bdbaea2388d4693e89d36a448a04d0cfa1d9c0",
     "hog/fns/simplex_none.grid_y0.f32": "547cf2b93539e6a3c7543b4e1c223ea8a8e3d39a00709778bf5d6ccb8328f3e8",
+    "hog/fns/simplex_none.scatter_2d.f32": "dff68144ee56761ed5f305e76ebacd39183c3204ac49c0f236fd166a61f63e2a",
     "hog/fns/simplex_none.scatter_3d.f32": "d2c5c6d845625b261af7843ddfbbefe026ebf28a922b615c224896a9e7184d96",
     "hog/fns/simplex_rigidmulti.grid_y0.f32": "42aa97d06ac30affb51b47aafce89113bcf325c3a1fa69831824d41a6fc805a9",
+    "hog/fns/simplex_rigidmulti.scatter_2d.f32": "80cb56072d41a543d1059eb8d2e62839e3980982c64cecd72b6106e52034f528",
     "hog/fns/simplex_rigidmulti.scatter_3d.f32": "86f0bdfa380409f5c409a7f21f56232b6e2aed4e631f06aa5ec2f792d4eba3b2",
     "hog/fns/value_billow.grid_y0.f32": "609112222cffcc2ddd660ec5d8fe2870d98eea3809c5b083cd49085165c64b8c",
+    "hog/fns/value_billow.scatter_2d.f32": "bcf15ef3b54f8409963f708e8a911efd73145ed3444b5ceadf511a34d4924037",
     "hog/fns/value_billow.scatter_3d.f32": "b736a44118cd247d09e1abb56e38764629e2b0d5afa22df05891bbb174c0640e",
     "hog/fns/value_none.grid_y0.f32": "cb4c8a835331962fbbe44991af59ffa0f6dec0067cd8c9321500136e30d3e2b3",
+    "hog/fns/value_none.scatter_2d.f32": "faa302e00eadb11c3578c48acf7703accd46a4e58173242923388a2ad18c9621",
     "hog/fns/value_none.scatter_3d.f32": "08b389a2f8ca854f2ad02b68a75854f0933663b51875af3cacb27733c88898fd",
     "hog/fns/value_rigidmulti.grid_y0.f32": "c01cf7ff4483d6789ffabd1df57660361423ffb9836e33deac57f92ffd0eddba",
+    "hog/fns/value_rigidmulti.scatter_2d.f32": "fa76c9f2484eeeffcefb40b4d8f8b9121344d9147d4f4e3c4013d2eb75137c55",
     "hog/fns/value_rigidmulti.scatter_3d.f32": "4389c7e003ca06d27fb35d0516f78de18a1cfcf9c3ad5c467e58fb3c9a2216ae",
     "hog/fns/whitenoise_none.grid_y0.f32": "3475e642f8c3ee57ca1df92dc7939ac380da09b0733c6a29cc85b69b73e7da97",
+    "hog/fns/whitenoise_none.scatter_2d.f32": "ea5b5814ee1178297a6020fc12acb4d19834f202b133544cd5311ec8d7e40aef",
     "hog/fns/whitenoise_none.scatter_3d.f32": "5f9a6a3415959626f0d44ac0a310e0d1e2c5736327134335ffd3cc001af239f5",
     "original/fnl/cellular_euclidean_cellvalue.grid_y0.f32": "21e1eef259a6511636a195a2cbaf3d08c46f04a01815d32c842376bed84f3bbe",
     "original/fnl/cellular_euclidean_cellvalue.scatter_2d.f32": "711c2684814677c0df68268d43f4f1c5e2bc0faad21ea5509076b349d11f5912",
@@ -36553,6 +39389,9 @@
     "original/fns/value_rigidmulti.scatter_3d.f32": "b2b660f9ff10f5e73a05c09f0a7e0fa9176e0ddbe0d4ec4147ce49f987ae782c",
     "original/fns/whitenoise_none.grid_y0.f32": "3475e642f8c3ee57ca1df92dc7939ac380da09b0733c6a29cc85b69b73e7da97",
     "original/fns/whitenoise_none.scatter_3d.f32": "5f9a6a3415959626f0d44ac0a310e0d1e2c5736327134335ffd3cc001af239f5",
+    "points/genasgrid_0.7_1.0_1.3_x.f32": "c9bfce661339f21a401fa313773246d0c1cc60be673f5c3934dfaf79ba3a544f",
+    "points/genasgrid_0.7_1.0_1.3_y.f32": "9a61cf9a82f4e6c55beafee8b4a26e8ce06515438507ae8e4fee2ee22f3cb36b",
+    "points/genasgrid_0.7_1.0_1.3_z.f32": "9acf6c97707f1d3e71955115a0fe9640e9a32e8091ee32c53c3ec1cba167bdbb",
     "points/genasgrid_1.0_0.5_2.0_x.f32": "70d0117025b60f4e7c0a6e806d6bbc77c7274e8de63bf5d42409a473f950ee21",
     "points/genasgrid_1.0_0.5_2.0_y.f32": "64d694b7fde2cea82dde32b256ce00f0cc949d2b80655f7fa2f2000be39cbec1",
     "points/genasgrid_1.0_0.5_2.0_z.f32": "d8676edc42bae47512eb3e46a95b0910bc8b5e70dd5efacab5256a9fde9fc69c",
