@@ -176,31 +176,16 @@ def close_to_the_cpu(select: str) -> int:
     return checked
 
 
-@pytest.mark.parametrize(
-    "select",
-    [
-        "hog/fnl/simplex_*",
-        "hog/fnl/perlin_*",
-        "hog/fnl/value_*",
-        "hog/fnl/cubic_*",
-        "hog/fnl/cellular_*",
-        "hog/fns/cellular_*",
-        "hog/fns/simplex_none/*",
-        "hog/fns/simplex_fbm/*",
-        "hog/fns/simplex_billow/*",
-        "hog/fns/simplex_rigidmulti/*",
-        "hog/fns/perlin_*",
-        "hog/fns/value_*",
-        "hog/fns/cubic_*",
-        "hog/fns/whitenoise_none/*",
-        "hog/fns/genasgrid_*",
-        "hog/fnl/genasgrid_*",
-        "hog/fns/simplex_fbm_perturb_*",
-        "hog/fnl/warp_*",
-    ],
-)
+@pytest.mark.parametrize("select", ["hog/*"])
 def test_the_gpu_matches_the_cpu(device, select):
     close_to_the_cpu(select)
+
+
+def test_every_feature_builds_a_sampler(device):
+    """No feature is left unported: every hog case's parameters build a GpuSampler."""
+    vectors = conformance.load(VECTORS, sets="hog")
+    for params in {case.params for case in vectors.cases}:
+        gpu.GpuSampler(params)
 
 
 def test_every_pipeline_builds(device):
@@ -217,14 +202,3 @@ def test_a_power_of_two_grid_equals_its_points_bit_for_bit(device):
     xs, ys, zs = grid_points(start, shape)
     points = sampler.sample_points(xs, ys, zs, np.empty(len(xs), np.float32))
     assert np.array_equal(sampler.sample_grid(start, shape).ravel(), points)
-
-
-def test_a_feature_not_yet_ported_is_unsupported_not_wrong(device, monkeypatch):
-    """While the port grows, an unported feature reports unsupported (Tasks 6 to 12). The gate is emptied here, so
-    the test holds whatever the port has reached; Task 13 deletes both."""
-    monkeypatch.setattr(gpu, "_PORTED_NOISE", set())
-    with pytest.raises(NotImplementedError, match="not yet ported to WGSL: noise_type OPEN_SIMPLEX2"):
-        gpu.GpuSampler(NoiseParams())
-    # A NoiseLookup's own noise is gated too: _lookup_single2/3 call the leaf noises directly.
-    with pytest.raises(NotImplementedError, match="cellular_lookup_type OPEN_SIMPLEX2"):
-        gpu.GpuSampler(NoiseParams())

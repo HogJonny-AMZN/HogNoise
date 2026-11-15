@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 from hog_noise import tables
 from hog_noise.backends import Backend, register
-from hog_noise.params import FractalType, NoiseParams, NoiseType
+from hog_noise.params import NoiseParams
 from hog_noise.samplers import CAPABILITY
 
 _MODULE_NAME = "hog_noise.gpu"
@@ -136,45 +136,6 @@ def _workgroups(n: int) -> tuple[int, int, int]:
     return (_MAX_GROUPS, math.ceil(groups / _MAX_GROUPS), 1)
 
 
-#: What noise.wgsl implements so far. Each shader task grows these; Task 13 removes them and `_check_ported`.
-_PORTED_NOISE = {
-    NoiseType.OPEN_SIMPLEX2,
-    NoiseType.OPEN_SIMPLEX2S,
-    NoiseType.CELLULAR,
-    NoiseType.PERLIN,
-    NoiseType.VALUE,
-    NoiseType.VALUE_CUBIC,
-    NoiseType.WHITE_NOISE,
-    NoiseType.SIMPLEX_CLASSIC,
-}
-_PORTED_FRACTAL = {
-    FractalType.NONE,
-    FractalType.FBM,
-    FractalType.RIDGED,
-    FractalType.PING_PONG,
-    FractalType.BILLOW,
-    FractalType.RIGID_MULTI,
-    FractalType.DOMAIN_WARP_PROGRESSIVE,
-    FractalType.DOMAIN_WARP_INDEPENDENT,
-}
-
-
-def _check_ported(params: NoiseParams) -> None:
-    """
-    Refuse, as not implemented, parameters that reach a branch noise.wgsl does not have yet (Tasks 6 to 12). Every
-    perturb (Task 11) and every domain warp (Task 12) is ported.
-    """
-    missing = []
-    if params.noise_type not in _PORTED_NOISE:
-        missing.append(f"noise_type {params.noise_type.name}")
-    if params.cellular_lookup_type not in _PORTED_NOISE:  # _lookup_single2/3 call the leaf noises themselves
-        missing.append(f"cellular_lookup_type {params.cellular_lookup_type.name}")
-    if params.fractal_type not in _PORTED_FRACTAL:
-        missing.append(f"fractal_type {params.fractal_type.name}")
-    if missing:
-        raise NotImplementedError("not yet ported to WGSL: " + ", ".join(missing))
-
-
 class _Gpu:
     """The process's one device, the buffers that never change, and one pipeline per entry point."""
 
@@ -257,7 +218,6 @@ class GpuSampler:
                     f"{field}={value} is past the wgpu rung's cap of {MAX_OCTAVES}: a shader loop that long can stall "
                     f"the device"
                 )
-        _check_ported(params)
         self.params = params
         self._gpu = _Gpu.get()
         self._params = self._gpu.uniform(pack_params(params))
