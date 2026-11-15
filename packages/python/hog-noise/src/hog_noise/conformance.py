@@ -667,8 +667,8 @@ def _shape(case: Case, ours: NDArray[np.float32]) -> CaseResult:
 def renderings(name: str) -> tuple[Sample, Sample]:
     """
     ``sample`` and ``warp`` callables for one of this package's renderings, by backend name (numpy, numba,
-    fastnoiselite). A rendering without a warp entry point raises `NotImplementedError` from ``warp``. One sampler is
-    built per distinct parameter record and reused, so a run over the vectors builds each once.
+    fastnoiselite, wgpu). A rendering without a warp entry point raises `NotImplementedError` from ``warp``. One
+    sampler is built per distinct parameter record and reused, so a run over the vectors builds each once.
     """
     from hog_noise.samplers import make_sampler
 
@@ -717,7 +717,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(prog="python -m hog_noise.conformance", description=__doc__.split("\n\n")[0])
     parser.add_argument("vectors", type=Path, help="the vectors folder")
-    parser.add_argument("--rendering", default="numpy", help="numpy, numba or fastnoiselite")
+    parser.add_argument("--rendering", default="numpy", help="numpy, numba, fastnoiselite or wgpu")
     parser.add_argument("--reference", choices=("hog", "original", "both"), default="hog")
     parser.add_argument("--select", default=None, help="an fnmatch pattern over case ids")
     parser.add_argument("--bound", type=float, default=None, help="replace every points case's bound")
