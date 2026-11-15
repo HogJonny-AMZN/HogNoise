@@ -261,6 +261,10 @@ def _check_rule(rule: object) -> None:
                 raise ConformanceError(f"within is {within!r}, not an object with scale and fraction")
             _number(within.get("scale"), "within.scale", lo=0.0)
             _number(within.get("fraction"), "within.fraction", 0.0, 1.0)
+            if not isinstance(within.get("coordinate_scaled", False), bool):
+                raise ConformanceError(
+                    f"within.coordinate_scaled is {within['coordinate_scaled']!r}, not true or false"
+                )
     elif rule["kind"] == "shape":
         if not isinstance(rule.get("finite", False), bool):
             raise ConformanceError(f"finite is {rule['finite']!r}, not true or false")
@@ -388,7 +392,8 @@ def check(
     :param sample: The rendering's noise entry point.
     :param vectors: A vectors folder, or one already loaded.
     :param reference: Which set to check against.
-    :param bound: Replaces the bound of every ``points`` case checked (``min_correlation`` and ``within`` still apply).
+    :param bound: Replaces the bound of every ``points`` case checked (``min_correlation`` and ``within`` still apply;
+        ``within`` is coordinate-scaled per point, as a bound is, when its rule says ``coordinate_scaled``).
     :param warp: The rendering's warp entry point; without it, warp cases are skipped.
     :param select: An `fnmatch` pattern over case ids.
     """
@@ -454,9 +459,13 @@ def _points(case: Case, ps: PointSet, ours: NDArray[np.float32], bound: Bound | 
         if not corr >= float(rule["min_correlation"]):
             failures.append(f"correlation {corr:.6f} below {rule['min_correlation']}")
     if "within" in rule:
-        fraction = float(np.mean(diff <= float(rule["within"]["scale"])))
-        if not fraction >= float(rule["within"]["fraction"]):
-            failures.append(f"{fraction:.4f} within {rule['within']['scale']}, below {rule['within']['fraction']}")
+        w = rule["within"]
+        tight = Bound(float(w["scale"]), bool(w.get("coordinate_scaled", False))).per_point(
+            case.params.frequency, ps.axes
+        )
+        fraction = float(np.mean(diff <= tight))
+        if not fraction >= float(w["fraction"]):
+            failures.append(f"{fraction:.4f} within {w['scale']}, below {w['fraction']}")
     return CaseResult(
         case.id,
         "points",

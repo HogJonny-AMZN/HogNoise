@@ -199,6 +199,48 @@ def test_min_correlation_and_within_are_checked_too(tmp_path):
     assert conformance.check(_values(two_off), root, reference="original").results[0].status == "fail"  # 50% within
 
 
+def test_a_scaled_within_holds_each_point_to_its_own_allowance(tmp_path):
+    """Acceptance 3: a point above its own allowance but below the set's largest fails, so an allowance applied to the
+    whole set instead of per point is caught. make_vectors' points have max |axis| 10, 1000, 300 and 2000; at f = 0.01
+    a scale of 1e-3 allows 1e-3, 1e-2, 3e-3 and 2e-2."""
+    ref = np.zeros(4, np.float32)
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "within": {"scale": 1e-3, "coordinate_scaled": True, "fraction": 1.0},
+    }
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    above_its_own = np.array([5e-3, 0.0, 0.0, 0.0], np.float32)
+    assert conformance.check(_values(above_its_own), root, reference="original").results[0].status == "fail"
+    each_inside = np.array([5e-4, 9e-3, 2e-3, 1.5e-2], np.float32)
+    assert conformance.check(_values(each_inside), root, reference="original").results[0].status == "pass"
+
+
+def test_an_absolute_within_is_unchanged(tmp_path):
+    ref = np.zeros(4, np.float32)
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "within": {"scale": 1e-3, "fraction": 1.0},
+    }
+    root = make_vectors(tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": ref})
+    scaled_would_pass = np.array([5e-4, 9e-3, 2e-3, 1.5e-2], np.float32)
+    assert conformance.check(_values(scaled_would_pass), root, reference="original").results[0].status == "fail"
+
+
+def test_a_withins_coordinate_scaled_must_be_true_or_false(tmp_path):
+    rule = {
+        "kind": "points",
+        "bound": {"scale": 1.0, "coordinate_scaled": False},
+        "within": {"scale": 1e-3, "coordinate_scaled": "yes", "fraction": 1.0},
+    }
+    root = make_vectors(
+        tmp_path, [a_case("original/t/f/p3", "o/f.f32", compare=rule)], {"o/f.f32": np.zeros(4, np.float32)}
+    )
+    with pytest.raises(conformance.ConformanceError, match="within.coordinate_scaled"):
+        conformance.load(root)
+
+
 def test_shape_checks_range_mean_std_ratio_and_finite(tmp_path):
     ref = np.array([-0.5, 0.0, 0.5, 0.25], np.float32)
     rule = {"kind": "shape", "range": [-1.05, 1.05], "mean_within": 0.2, "std_within": 0.2, "finite": True}
