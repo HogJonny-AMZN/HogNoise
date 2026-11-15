@@ -131,6 +131,43 @@ the 48 FastNoiseSIMD features without a 2D case are grids, so the cases were 48.
 Copilot also found the spec naming one caller of `renderings()` where there are 13. P-6 covers behaviour; this covers
 numbers. Not mechanised.
 
+### P-11 · A status a merge changed, fixed on the feature branch only
+
+**Trigger:** a merge changes a status that living records state (a plan Accepted when its pull request merges, a row
+landed), and you are working on a long-running branch.
+**Do:** fix the records on the default branch, in the next pull request off it; make the same edit on the long branch
+with the same script, so the two agree line for line and merge cleanly. Never leave the default branch saying what the
+merge made untrue.
+**Because:** [PR #21](https://github.com/HogJonny-AMZN/HogNoise/pull/21) merged the GPU port's plan; the plan's status,
+the board row, the map and the handoff were updated to Accepted only on `feat/gpu-port`, so `main` still said Proposed.
+[PR #23](https://github.com/HogJonny-AMZN/HogNoise/pull/23)'s new handoff header then said Accepted against its own
+*In flight* row, and Copilot found it. Not mechanised: which statuses a merge changes is not something a check can see.
+
+### P-12 · Derived numbers committed before the derivation was run end to end
+
+**Trigger:** a tool turns measurements into numbers that are committed and then judge something (a tolerance, a
+threshold, a budget).
+**Do:** before committing its output, run the whole chain once, on real measurements, to the end: measure, derive,
+load, and check against the adapter or machine that measured. Name that run in the pull request. Unit tests of each
+step are not that run.
+**Because:** in the GPU port ([PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22)) the plan's `floor3` passed
+its tests and rounded a correlation of 0.9999999999999998 up to 1.0, so the trial run's rules failed the RTX 5090 that
+had measured them; and after the real measurement a rule asked one bit-exact feature for a correlation of exactly 1.0,
+which CI's llvmpipe failed with its output identical to the reference (`np.corrcoef` of identical arrays is not always
+1.0). The first was caught by a trial run, the second by CI. Not mechanised.
+
+### P-13 · A tool that writes a committed file, given an input that yields nothing
+
+**Trigger:** you write or review a tool that writes into the tracked tree from inputs it reads (records, a folder, a
+manifest).
+**Do:** refuse an input that yields nothing, and inputs that disagree or are incomplete, before writing anything; build
+every output first, then write each atomically (a temporary file and a replace). Its tests include the empty, partial
+and malformed inputs, and assert the committed files are byte-identical afterwards.
+**Because:** `tools/measure_gpu.py derive`, pointed at a folder with no records, overwrote the committed
+`vectors/tolerance/wgpu.json` with zero rules and rewrote `portability-gpu.md` before failing on the third file. No
+test covered it; the deliberate review on [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22) probed it. Fixed
+with a check of the records against the hog set and atomic writes; P-2 covers a test that writes, this covers a tool.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
