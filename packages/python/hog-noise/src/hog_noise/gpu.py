@@ -7,8 +7,20 @@ never loads it (Docs/standards/python-project.md, *The package boundary*). One d
 and kept with its pipelines. Spec: Docs/superpowers/specs/2026-11-14-gpu-port.md.
 """
 
+import importlib.resources
 import logging as _logging
+import math
 import os
+import struct
+import time
+
+import numpy as np
+from numpy.typing import NDArray
+
+from hog_noise import tables
+from hog_noise.backends import Backend, register
+from hog_noise.params import DomainWarpType, FractalType, NoiseParams, NoiseType, PerturbType
+from hog_noise.samplers import CAPABILITY
 
 _MODULE_NAME = "hog_noise.gpu"
 __version__ = "0.1.0"
@@ -90,9 +102,193 @@ def is_available() -> bool:
     return True
 
 
+#: Below every CPU rung and the reference: never chosen by the ladder, only by name.
+PRIORITY = -20
+#: The longest octave loop the shader is given; a longer one can stall the device until the driver resets it.
+MAX_OCTAVES = 32
+WORKGROUP = 64
+_MAX_GROUPS = 65535
+#: The shader's ``Params`` struct, field for field in `NoiseParams.kernel_args()` order: ``i`` an i32, ``f`` an f32.
+PARAM_KINDS = "ifiiifffffiifiifiiififfifff"
+ENTRY_POINTS = ("sample_points_3d", "sample_points_2d", "sample_grid", "warp_points_3d", "warp_points_2d")
+
+
+def pack_params(params: NoiseParams) -> bytes:
+    """The ``Params`` uniform: `kernel_args()` with the seed wrapped to i32, little-endian, padded to 16 bytes."""
+    args = list(params.kernel_args())
+    args[0] = ((int(args[0]) + 0x80000000) & 0xFFFFFFFF) - 0x80000000
+    values = [int(a) if kind == "i" else float(a) for kind, a in zip(PARAM_KINDS, args, strict=True)]
+    data = struct.pack("<" + PARAM_KINDS, *values)
+    return data + bytes(-len(data) % 16)
+
+
+def pack_grid(start, shape, scales) -> bytes:
+    """The ``Grid`` uniform: the start cell, the shape and the per-axis scales, padded to 16 bytes."""
+    data = struct.pack("<iiiIIIfff", *(int(v) for v in start), *(int(n) for n in shape), *(float(s) for s in scales))
+    return data + bytes(-len(data) % 16)
+
+
+def _workgroups(n: int) -> tuple[int, int, int]:
+    """Workgroups for ``n`` points: along x, wrapping into y past the 65,535 a dimension allows (``point_index``)."""
+    groups = math.ceil(n / WORKGROUP)
+    if groups <= _MAX_GROUPS:
+        return (groups, 1, 1)
+    return (_MAX_GROUPS, math.ceil(groups / _MAX_GROUPS), 1)
+
+
+#: What noise.wgsl implements so far. Each shader task grows these; Task 13 removes them and `_check_ported`.
+_PORTED_NOISE = {NoiseType.OPEN_SIMPLEX2}
+_PORTED_FRACTAL = {FractalType.NONE}
+
+
+def _check_ported(params: NoiseParams) -> None:
+    """Refuse, as not implemented, parameters that reach a branch noise.wgsl does not have yet (Tasks 6 to 12)."""
+    missing = []
+    if params.noise_type not in _PORTED_NOISE:
+        missing.append(f"noise_type {params.noise_type.name}")
+    if params.fractal_type not in _PORTED_FRACTAL:
+        missing.append(f"fractal_type {params.fractal_type.name}")
+    if params.domain_warp != DomainWarpType.NONE:
+        missing.append(f"domain_warp {params.domain_warp.name}")
+    if params.perturb != PerturbType.NONE:
+        missing.append(f"perturb {params.perturb.name}")
+    if missing:
+        raise NotImplementedError("not yet ported to WGSL: " + ", ".join(missing))
+
+
+class _Gpu:
+    """The process's one device, the buffers that never change, and one pipeline per entry point."""
+
+    _instance: "_Gpu | None" = None
+
+    @classmethod
+    def get(cls) -> "_Gpu":
+        """The process's one `_Gpu`, built on first use: the device, the shader's pipelines and the tables."""
+        if cls._instance is None:
+            cls._instance = cls(device())
+        return cls._instance
+
+    def __init__(self, dev) -> None:
+        wgpu = _wgpu()
+        self.wgpu, self.device = wgpu, dev
+        source = (importlib.resources.files("hog_noise") / "wgsl" / "noise.wgsl").read_text(encoding="utf-8")
+        t0 = time.perf_counter()
+        module = dev.create_shader_module(code=source)  # naga validates here
+        stage, kind = wgpu.ShaderStage.COMPUTE, wgpu.BufferBindingType
+        layout = [kind.uniform, kind.read_only_storage, kind.read_only_storage, kind.read_only_storage,
+                  kind.read_only_storage, kind.storage, kind.uniform]  # fmt: skip
+        self.layout = dev.create_bind_group_layout(
+            entries=[{"binding": i, "visibility": stage, "buffer": {"type": t}} for i, t in enumerate(layout)]
+        )
+        pipeline_layout = dev.create_pipeline_layout(bind_group_layouts=[self.layout])
+        self.pipelines = {
+            name: dev.create_compute_pipeline(layout=pipeline_layout, compute={"module": module, "entry_point": name})
+            for name in ENTRY_POINTS
+        }
+        self.build_seconds = time.perf_counter() - t0
+        _LOGGER.info(f"noise.wgsl: {len(ENTRY_POINTS)} pipelines built in {1000 * self.build_seconds:.0f} ms")
+        table = np.concatenate([tables.GRADIENTS_2D, tables.GRADIENTS_3D, tables.RAND_VECS_2D, tables.RAND_VECS_3D])
+        self.tables = self.storage(table)
+        self.unused = self.storage(np.zeros(1, np.float32))  # bound where an entry point reads nothing
+        self.no_grid = self.uniform(bytes(48))
+
+    def storage(self, values: NDArray) -> object:
+        """A read-only storage buffer holding ``values`` as float32."""
+        data = np.ascontiguousarray(values, dtype=np.float32).tobytes()
+        return self.device.create_buffer_with_data(data=data, usage=self.wgpu.BufferUsage.STORAGE)
+
+    def uniform(self, data: bytes) -> object:
+        """A uniform buffer holding ``data``."""
+        return self.device.create_buffer_with_data(data=data, usage=self.wgpu.BufferUsage.UNIFORM)
+
+    def run(self, entry: str, params_buffer, axes, n: int, width: int, grid=None) -> NDArray[np.float32]:
+        """Dispatch ``entry`` over ``n`` points and read back ``n * width`` floats."""
+        if n == 0:
+            return np.empty(0, np.float32)
+        wgpu, dev = self.wgpu, self.device
+        coords = [self.storage(a) for a in axes] + [self.unused] * (3 - len(axes))
+        out = dev.create_buffer(size=n * width * 4, usage=wgpu.BufferUsage.STORAGE | wgpu.BufferUsage.COPY_SRC)
+        buffers = [params_buffer, self.tables, *coords, out, grid if grid is not None else self.no_grid]
+        group = dev.create_bind_group(
+            layout=self.layout,
+            entries=[
+                {"binding": i, "resource": {"buffer": b, "offset": 0, "size": b.size}} for i, b in enumerate(buffers)
+            ],
+        )
+        encoder = dev.create_command_encoder()
+        compute = encoder.begin_compute_pass()
+        compute.set_pipeline(self.pipelines[entry])
+        compute.set_bind_group(0, group)
+        compute.dispatch_workgroups(*_workgroups(n))
+        compute.end()
+        dev.queue.submit([encoder.finish()])
+        return np.frombuffer(dev.queue.read_buffer(out), dtype=np.float32).copy()
+
+
+class GpuSampler:
+    """The wgpu rung's sampler: the calls every sampler has, run by noise.wgsl on the process's one device."""
+
+    name = "wgpu"
+
+    def __init__(self, params: NoiseParams) -> None:
+        for field in ("octaves", "perturb_octaves"):
+            value = getattr(params, field)
+            if value > MAX_OCTAVES:
+                raise NotImplementedError(
+                    f"{field}={value} is past the wgpu rung's cap of {MAX_OCTAVES}: a shader loop that long can stall "
+                    f"the device"
+                )
+        _check_ported(params)
+        self.params = params
+        self._gpu = _Gpu.get()
+        self._params = self._gpu.uniform(pack_params(params))
+
+    def sample_points(self, xs, ys, zs, out: NDArray[np.float32]) -> NDArray[np.float32]:
+        """3D noise at each ``(xs[i], ys[i], zs[i])`` into ``out``."""
+        out[...] = self._gpu.run("sample_points_3d", self._params, (xs, ys, zs), len(xs), 1)
+        return out
+
+    def sample_points_2d(self, xs, ys, out: NDArray[np.float32]) -> NDArray[np.float32]:
+        """2D noise at each ``(xs[i], ys[i])`` into ``out``."""
+        out[...] = self._gpu.run("sample_points_2d", self._params, (xs, ys), len(xs), 1)
+        return out
+
+    def sample_grid(self, start, shape, scales=(1.0, 1.0, 1.0)) -> NDArray[np.float32]:
+        """The grid `samplers._KernelSampler.sample_grid` describes, its coordinates computed on the GPU."""
+        shape = tuple(int(n) for n in shape)
+        grid = self._gpu.uniform(pack_grid(start, shape, scales))
+        return self._gpu.run("sample_grid", self._params, (), math.prod(shape), 1, grid).reshape(shape)
+
+    def warp_points(self, xs, ys, zs) -> NDArray[np.float32]:
+        """The warped raw coordinates, ``(N, 3)``. Refused until Task 12 ports the warp."""
+        raise NotImplementedError("not yet ported to WGSL: the warp entry points")  # Task 12 removes this line
+        return self._gpu.run("warp_points_3d", self._params, (xs, ys, zs), len(xs), 3).reshape(len(xs), 3)
+
+    def warp_points_2d(self, xs, ys) -> NDArray[np.float32]:
+        """The warped raw coordinates, ``(N, 2)``. Refused until Task 12 ports the warp."""
+        raise NotImplementedError("not yet ported to WGSL: the warp entry points")  # Task 12 removes this line
+        return self._gpu.run("warp_points_2d", self._params, (xs, ys), len(xs), 2).reshape(len(xs), 2)
+
+    def sample(self, x: float, y: float, z: float = 0.0) -> float:
+        """`sample_points` on one point: correct, and slow on purpose (a dispatch per value)."""
+        one = np.empty(1, np.float32)
+        return float(
+            self.sample_points(np.array([x], np.float32), np.array([y], np.float32), np.array([z], np.float32), one)[0]
+        )
+
+
+register(
+    Backend(CAPABILITY, "wgpu", PRIORITY, is_available, GpuSampler, note="noise.wgsl on wgpu, float32; override only")
+)
+
+
 if __name__ == "__main__":
     _logging.basicConfig(level=_logging.INFO)
     try:
         print(adapter_info())
     except RuntimeError as e:
         print(f"no GPU here: {e}")
+    else:
+        sampler = GpuSampler(NoiseParams(frequency=0.01))
+        xs = np.linspace(-100, 100, 5, dtype=np.float32)
+        print("wgpu", np.round(sampler.sample_points(xs, xs, np.zeros(5, np.float32), np.empty(5, np.float32)), 5))

@@ -13,6 +13,7 @@ can say no.
 """
 
 import ast
+import os
 import subprocess
 import sys
 import textwrap
@@ -122,3 +123,58 @@ def test_the_blocker_would_stop_a_real_import():
     result = _run_blocked(extra="import large_worlds")
     assert result.returncode != 0
     assert "refused: large_worlds" in result.stderr
+
+
+def test_wgpu_is_allowed_in_gpu_py_alone():
+    source = "def device():\n    import wgpu\n"
+    assert foreign(source) == {"wgpu"}, "any other module importing wgpu fails the scan"
+    assert foreign(source, MODULE_ALLOWED["gpu.py"]) == set()
+
+
+def test_gpu_py_imports_wgpu_only_inside_functions():
+    tree = ast.parse((SRC / "gpu.py").read_text(encoding="utf-8"))
+    top = imported_top_levels(
+        ast.unparse(
+            ast.Module(body=[n for n in tree.body if isinstance(n, ast.Import | ast.ImportFrom)], type_ignores=[])
+        )
+    )
+    assert "wgpu" not in top
+
+
+def test_asking_for_the_wgpu_rung_with_wgpu_refused_names_the_cause():
+    """Acceptance 4: BackendUnavailable naming the extra, not an ImportError traceback."""
+    code = _BLOCKED_IMPORT.format(forbidden=FORBIDDEN_AT_RUNTIME, extra="") + textwrap.dedent(
+        """
+        from hog_noise.backends import BackendUnavailable
+        try:
+            hog_noise.make_sampler(hog_noise.NoiseParams(), backend="wgpu")
+        except BackendUnavailable as e:
+            print("refused=" + str(e))
+        """
+    )
+    result = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "refused=" in result.stdout and "wgpu is not installed: install hog-noise[gpu]" in result.stdout, (
+        result.stdout
+    )
+
+
+def test_with_wgpu_installed_the_default_ladder_never_loads_it():
+    """Acceptance 4, the other half; the second line proves the probe can see wgpu load."""
+    try:
+        import wgpu  # noqa: F401
+    except ImportError:
+        if os.environ.get("HOG_NOISE_REQUIRE_GPU") == "1":
+            pytest.fail("HOG_NOISE_REQUIRE_GPU=1, but wgpu is not installed")
+        pytest.skip("wgpu is not installed here (the gpu extra)")
+    code = (
+        "import sys, hog_noise\n"
+        "hog_noise.make_sampler(hog_noise.NoiseParams())[0].sample(1.0, 2.0)\n"
+        "print('wgpu' in sys.modules)\n"
+        "from hog_noise import gpu\n"
+        "gpu._wgpu()\n"
+        "print('wgpu' in sys.modules)\n"
+    )
+    result = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split() == ["False", "True"], result.stdout
