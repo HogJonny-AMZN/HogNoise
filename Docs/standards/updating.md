@@ -58,7 +58,9 @@ happens, so that the template is fixed for the next one: the log is how a reposi
    ([#178](https://github.com/HogJonny-AMZN/ai-first-template/issues/178)).
 2. **Get the release.** Clone the tag into a scratch folder **outside** the repository:
    `gh repo clone <upstream> <scratch>/template -- --branch vB --depth 1` (the upstream is `[framework] upstream` in
-   `framework.toml`). Read `gh release view vB --repo <upstream>` (`--repo`, because `gh` otherwise looks at the repository you
+   `framework.toml`). The tag is annotated, so the clone prints `warning: refs/tags/vB ... is not a commit!` and git's
+   advice about a detached HEAD: both are expected, and the checkout is the release. Read
+   `gh release view vB --repo <upstream>` (`--repo`, because `gh` otherwise looks at the repository you
    are standing in): it says what a repository has to do beyond the files.
 3. **Render it for this repository.** Make `<scratch>/rendered` and copy the repository's `project.json`, `framework.toml` and
    `framework.lock` into it, then change `template_version` to B **in the copies of the last two** (so `init` accepts the lock).
@@ -87,10 +89,12 @@ happens, so that the template is fixed for the next one: the log is how a reposi
      override's reason. A kept `failure-modes.md` never receives the release's new framework entries, while the
      managed files that cite them by number (the definition of done, the skills) do: the release notes list the
      entries added, so carry them in, or cite them as the template's entries. When the release changed only text the
-     kept file never had (a row the repository's copy left out), and no tool ported in the update enforces a rule from
-     it here (its check is off, or needs what the repository does not have), there is nothing to carry: keep the
-     override as it is, and say so in the pull request
-     ([#213](https://github.com/HogJonny-AMZN/ai-first-template/issues/213)). An extension (`python-project.md` beside `python.md`, `project.md` in a skill's folder) is never
+     kept file never had (a row the repository's copy left out), and no check that runs here enforces a rule from it
+     (its check is off, or needs what the repository does not have), there is nothing to carry: keep the override as
+     it is, and say so in the pull request ([#213](https://github.com/HogJonny-AMZN/ai-first-template/issues/213)). A
+     check counts whether this update ported it or it ran before: where `landed-rows` already ran, 0.10.1's draft-first
+     step had to be carried into a kept copy of the `review-and-pr` skill
+     ([#220](https://github.com/HogJonny-AMZN/ai-first-template/issues/220)). An extension (`python-project.md` beside `python.md`, `project.md` in a skill's folder) is never
      touched by an update: it is the project's, and no release ships one.
    - A *skills mirror* or a generated adapter is not ported by hand: port the canonical `.agents/skills/` file, then
      `uv run python tools/sync_adapters.py --write`.
@@ -107,6 +111,15 @@ happens, so that the template is fixed for the next one: the log is how a reposi
 7. **Commit it on the branch and open one pull request** that names the release, lists the paths ported, says what was
    kept as an override and why, and carries *Template findings*: the findings log, or "none". Nothing is committed for
    you.
+
+**Several releases at once.** B is always the latest release, however far behind A is: one render of B ports every
+managed file changed since A, so there is no stop at a release in between, which would be rendered and locked only to be
+replaced. What the render does not carry is each release's hand steps. After step 4, work through the release sections
+below from the one after A up to B's, oldest first, and do each one's steps in its order, with three exceptions found by
+name, not by number. A section's *Take* step is the render already done, though what it says `make check` then reports
+still holds. A step that comes before *Take* (0.8.0's history fetch in CI) is done before the render. A section's
+*Check it* waits: step 5 records B, and step 6 checks once, against B
+([#218](https://github.com/HogJonny-AMZN/ai-first-template/issues/218)).
 
 ## Turning a module on
 
@@ -357,7 +370,7 @@ more loosely: an Icebox `Cost` may be `unsized: <reason>`, and `status-copy` no 
 ## 0.9.1: the other invisible characters
 
 0.9.1 widens `control-char` ([#159](https://github.com/HogJonny-AMZN/ai-first-template/issues/159)). It changes no
-contract, gains no stage and adds no finding name. A repository on 0.8.0 takes *0.9.0* first, then this.
+contract, gains no stage and adds no finding name. A repository on 0.8.0 does *0.9.0*'s hand steps too, by *Several releases at once*.
 
 1. **Take 0.9.1**, by the steps above. `make check` brings `control-char` findings only if your files hold one of the
    characters it now also reads: a C1 control (U+0080 to U+009F); a bidirectional embedding, override or isolate
@@ -371,7 +384,7 @@ contract, gains no stage and adds no finding name. A repository on 0.8.0 takes *
 0.9.2 fixes the logging example a repository's update found faults in ([#172](https://github.com/HogJonny-AMZN/ai-first-template/issues/172) to
 [#174](https://github.com/HogJonny-AMZN/ai-first-template/issues/174)), widens `control-char` once more, and corrects three of 0.9.0's steps
 ([#175](https://github.com/HogJonny-AMZN/ai-first-template/issues/175) to [#177](https://github.com/HogJonny-AMZN/ai-first-template/issues/177)). It changes no contract, gains no stage, adds no
-finding name and adds no framework ledger entry. A repository on 0.9.0 takes *0.9.1* first, then this.
+finding name and adds no framework ledger entry. A repository on 0.9.0 does *0.9.1*'s hand steps too, by *Several releases at once*.
 
 1. **Take 0.9.2**, by the steps above. `make check` brings `control-char` findings only if your Markdown holds a line
    separator (U+2028) or a paragraph separator (U+2029): invisible in an editor, and a line break to
@@ -401,7 +414,7 @@ finding name and adds no framework ledger entry. A repository on 0.9.0 takes *0.
 
 0.9.3 fixes one more fault in the logging example's pruning ([#186](https://github.com/HogJonny-AMZN/ai-first-template/issues/186)) and says who its lock
 protects ([#184](https://github.com/HogJonny-AMZN/ai-first-template/issues/184)). It changes no contract, gains no stage, adds no finding name and adds no
-framework ledger entry. A repository on 0.9.1 takes *0.9.2* first, then this.
+framework ledger entry. A repository on 0.9.1 does *0.9.2*'s hand steps too, by *Several releases at once*.
 
 1. **Take 0.9.3**, by the steps above. `make check` brings no new finding.
 2. **An App that copied `tool_root_logging.py`** (python-uv): the reference arrives fixed (`__version__` 0.1.2), and
@@ -420,8 +433,8 @@ framework ledger entry. A repository on 0.9.1 takes *0.9.2* first, then this.
 ## 0.9.4: a prune whose file was gone when it looked
 
 0.9.4 fixes one more fault in the logging example's pruning ([#190](https://github.com/HogJonny-AMZN/ai-first-template/issues/190)). It changes no contract,
-gains no stage, adds no finding name and adds no framework ledger entry. A repository on 0.9.2 takes *0.9.3* first,
-then this.
+gains no stage, adds no finding name and adds no framework ledger entry. A repository on 0.9.2 does *0.9.3*'s hand steps too,
+by *Several releases at once*.
 
 1. **Take 0.9.4**, by the steps above. `make check` brings no new finding.
 2. **An App that copied `tool_root_logging.py`** (python-uv): the reference arrives fixed (`__version__` 0.1.3), and
@@ -438,7 +451,7 @@ then this.
 
 0.10.0 adds a `journal-author` finding, gives the template's own gate a stage, and fixes a test that needed the GitHub
 CLI ([#200](https://github.com/HogJonny-AMZN/ai-first-template/issues/200)). It changes no contract a repository acts on
-and adds no framework ledger entry. A repository on 0.9.3 takes *0.9.4* first, then this.
+and adds no framework ledger entry. A repository on 0.9.3 does *0.9.4*'s hand steps too, by *Several releases at once*.
 
 1. **Take 0.10.0**, by the steps above.
 2. **A `##` heading in a session file** (with a `[[people]]` roster): `make check` reports it as `journal-author`,
@@ -463,7 +476,7 @@ and adds no framework ledger entry. A repository on 0.9.3 takes *0.9.4* first, t
 ([#207](https://github.com/HogJonny-AMZN/ai-first-template/issues/207) to
 [#209](https://github.com/HogJonny-AMZN/ai-first-template/issues/209),
 [#213](https://github.com/HogJonny-AMZN/ai-first-template/issues/213)). It changes no contract, gains no stage, adds no
-finding name and adds no framework ledger entry. A repository on 0.9.4 takes *0.10.0* first, then this.
+finding name and adds no framework ledger entry. A repository on 0.9.4 does *0.10.0*'s hand steps too, by *Several releases at once*.
 
 1. **Take 0.10.1**, by the steps above. `make check` brings no new finding.
 2. **Two tools behave better where a folder cannot be read.** `check_hygiene.py` (`__version__` 0.3.2), run without
@@ -479,3 +492,19 @@ finding name and adds no framework ledger entry. A repository on 0.9.4 takes *0.
    - the `review-and-pr` skill: a pull request that lands a board row opens first, as a draft (its steps are renumbered
      from 3).
 4. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.10.1 locked`.
+
+## 0.10.2: several releases in one render, and the guide's gaps
+
+0.10.2 answers what two repositories' 0.10.1 updates found
+([#218](https://github.com/HogJonny-AMZN/ai-first-template/issues/218),
+[#220](https://github.com/HogJonny-AMZN/ai-first-template/issues/220)). It changes the guide and the journal standard
+only: no tool, no contract, no stage, no finding name and no framework ledger entry. A repository on 0.10.0 does
+*0.10.1*'s hand steps too, by *Several releases at once*.
+
+1. **Take 0.10.2**, by the steps above. `make check` brings no new finding.
+2. **The guide and the journal standard say more.** Nothing to do unless one of these is a decision your repository met:
+   - this guide: *Several releases at once* says how a repository more than one release behind takes the latest in one
+     render and then each skipped release's hand steps; step 2 says the clone's `is not a commit!` warning is expected;
+     step 4's kept-override clause asks whether a check that runs here enforces the new text, however it arrived;
+   - `journal.md`: a session continued past midnight names its next-day file for the time it opens, in UTC.
+3. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.10.2 locked`.

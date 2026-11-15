@@ -32,6 +32,7 @@ Makefile is the project's own file, so a repository that predates the target add
 - **Beliefs that changed** are the most valuable content: what was believed, what contradicted it, what is true now.
 - End an entry with a trailing arrow (`→`) linking the durable artifact it produced, when there is one.
 - A session that crosses midnight closes its file with `**Continued in:**` and opens the next day's with `**Preceded by:**`. The
+  next day's file is named for the time it opens, in UTC, since the session's start falls on the day before. The
   split is never retroactive: entries are not moved between files. Two sessions on one day carry `**Ran in parallel with:**`.
 - The journal is history: nothing in it is rewritten to match what is true now. A later file corrects an earlier one.
 - **Two pull requests open at once from one session** both append to its file, and the second to merge conflicts.
@@ -46,7 +47,7 @@ Two name forms are session files, and every check that finds them recognises bot
 
 | Form | Name | Author | Index |
 | --- | --- | --- | --- |
-| New | `YYYY-MM/YYYY-MM-DD-<login>-HHMM.md`: in the **month folder** of its day, the author's GitHub login (1 to 39 letters, digits or single hyphens), and the session's start in **UTC** | Named in each entry, checked against the roster | None: the directory listing is the index |
+| New | `YYYY-MM/YYYY-MM-DD-<login>-HHMM.md`: in the **month folder** of its day, the author's GitHub login (1 to 39 letters, digits or single hyphens), and the session's start in **UTC** (a session continued from the day before: the time this file opens) | Named in each entry, checked against the roster | None: the directory listing is the index |
 | Old | `YYYY-MM-DD-session-NN.md`, at the top of the journal directory | The owner | A row in the table in the journal README |
 
 Use the new form for a new file, under its month folder (`Docs/journal/2026-11/` for a file dated in November 2026; make the

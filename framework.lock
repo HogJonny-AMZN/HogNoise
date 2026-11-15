@@ -1,5 +1,5 @@
 {
-  "template_version": "0.10.1",
+  "template_version": "0.10.2",
   "initialised": "2026-10-31",
   "files": {
     ".agents/skills/local-review/SKILL.md": "162bd3f6ec7e27712523c00965eb57ec12056bfab4c624db9c24171684d8560b",
@@ -23,12 +23,12 @@
     "Docs/standards/examples/tool_root_logging.py": "e5e73e5661212538e7c814f9477b983652677f90a9bca38e090f2f05cd1d937f",
     "Docs/standards/failure-modes.md": "91e997b3d8708664d456be3052b9a96c9fd55077ccfb3adafbdecaaa3470341e",
     "Docs/standards/harness-probes.md": "506e71718b94e4d0574ca393cf2f1d74b1e824ae52f0a6f34f910cfbcd12bffa",
-    "Docs/standards/journal.md": "f7dd2dd2d23a3a666edae12df283e2ce8891e3a1021168f9c3cbb660988585b2",
+    "Docs/standards/journal.md": "2aa00750e3f0e6361b2c6e6a0fcec8110fe8434302caad0aa84356b11077be87",
     "Docs/standards/layout.md": "b252c0299fa6a7c4cd3ba0a0b8d1a94d441838c16fe1acd4a35350af82b01e9c",
     "Docs/standards/python.md": "d957e830d05b7578104593b1c2f6c3e32aa694b7eba2cafb29c0bd66e8e70090",
     "Docs/standards/testing.md": "4352311e0d030cb8c7c60520f3a022da57ed55e7166f520cc013f7d147ce3298",
     "Docs/standards/tooling.md": "04e62b98fca28e409497eb7f257373dc6b657b187cdc0f3f3fb86d0acda269ee",
-    "Docs/standards/updating.md": "986c5196fc3c19d81c103eadcbc946664b9922bbc8831a491aa050525d601531",
+    "Docs/standards/updating.md": "9a9e742a2f1f0d33a44cb88b307fa59264fbe67dc3bf85778269043d9b3ee725",
     "Docs/standards/workflow.md": "3973d57d4642412b3521b5fc8138f7e4288430603648ff690b91487f652bb786",
     "framework-manifest.toml": "9212d2b23e32f96a09edf78fc6f249f114a527aea97b76adf5f7e5e0296004ef",
     "tests/pins.py": "59845aa6086d901b6f71519806fc972e5ba10e151bcd6d7b150986d83a8f961a",
