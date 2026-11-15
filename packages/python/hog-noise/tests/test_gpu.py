@@ -4,7 +4,6 @@ skipping under HOG_NOISE_REQUIRE_GPU=1 (the software-adapter CI legs), so a leg 
 Package: packages/python/hog-noise/tests/test_gpu
 """
 
-import fnmatch
 import math
 import os
 import struct
@@ -134,51 +133,63 @@ def test_an_installed_wgpu_never_changes_the_ladder(device):
     assert ("wgpu", "override-only rung") in selection.skipped
 
 
-#: The port's working check, ~50x the spike's measured drift. The measured rules replace it in Task 15.
-DEV_SCALE = 1e-4
-#: Features whose output jumps where float32 flips a choice: held at 99% of points during the port. A grid's points
-#: sit on the lattice, where a corner choice ties and float32 and float64 round it apart (owner's decision, 2026-11-14).
-DEV_DISCRETE = ("cellvalue", "noiselookup", "whitenoise", "genasgrid")
+TOLERANCE = VECTORS / "tolerance" / "wgpu.json"
 
 
-def close_to_the_cpu(select: str) -> int:
-    """
-    Every hog case matching ``select``, on the GPU, finite and within DEV_SCALE per point (coordinate-scaled) at every
-    point (99% for a discrete feature); grids through ``sample_grid``. Returns how many cases it checked, so a pattern
-    that matches nothing fails.
-    """
-    vectors = conformance.load(VECTORS, sets="hog")
+@pytest.fixture(scope="module")
+def judged(device):
+    vectors = conformance.load(VECTORS)
+    return vectors, conformance.Tolerance.load(TOLERANCE, vectors)
+
+
+def test_the_rung_passes_every_hog_case_against_its_tolerance(judged):
+    """Acceptance 1 (and 2, run on the owner's GPU): every feature, every entry point, nothing unsupported."""
+    vectors, tolerance = judged
     sample, warp = conformance.renderings("wgpu")
-    grid = conformance.grid_rendering("wgpu")
-    tight = Bound(DEV_SCALE, coordinate_scaled=True)
-    checked = 0
-    for case in vectors.cases:
-        if not fnmatch.fnmatchcase(case.id, select):
-            continue
+    report = conformance.check(sample, vectors, warp=warp, grid=conformance.grid_rendering("wgpu"), tolerance=tolerance)
+    print(f"adapter: {gpu.adapter_info()}")
+    assert report.ok and report.complete, report.table()
+
+
+def test_a_seed_off_by_one_fails(judged):
+    vectors, tolerance = judged
+    sample, _ = conformance.renderings("wgpu")
+
+    def off(params, xs, ys, zs):
+        return sample(params.replace(seed=params.seed + 1), xs, ys, zs)
+
+    assert not conformance.check(off, vectors, tolerance=tolerance, select="hog/fnl/simplex_fbm/*").ok
+
+
+def test_a_rule_at_0_9_of_its_worst_fails(judged):
+    """Acceptance 3: the rule is tight enough to matter. The worst is this adapter's own, so the test holds anywhere."""
+    vectors, tolerance = judged
+    sample, _ = conformance.renderings("wgpu")
+    feature = "fnl/simplex_fbm"
+    unit = Bound(1.0, coordinate_scaled=True)
+    worst = 0.0
+    for case in (c for c in vectors.cases if c.id.startswith(f"hog/{feature}/")):
         ps = vectors.point_sets[case.point_set]
-        if ps.origin is not None and case.output == "noise":
-            o = ps.origin
-            ours = grid(case.params, tuple(o["start"]), tuple(o["shape"]), tuple(o["scales"])).ravel()
-        else:
-            fn = warp if case.output == "warp" else sample
-            ours = fn(case.params, ps.axes[0], ps.axes[1], ps.axes[2] if ps.dims == 3 else None)
-        ours = np.asarray(ours, np.float32)
-        assert ours.shape == case.values.shape, case.id
-        assert np.isfinite(ours).all(), f"{case.id}: not finite"
-        diff = np.abs(ours.astype(np.float64) - case.values.astype(np.float64))
-        if diff.ndim == 2:
-            diff = diff.max(axis=1)
-        within = float(np.mean(diff <= tight.per_point(case.params.frequency, ps.axes)))
-        need = 0.99 if any(k in case.id for k in DEV_DISCRETE) else 1.0
-        assert within >= need, f"{case.id}: {within:.4f} of points within {DEV_SCALE} scaled; max {diff.max():.3e}"
-        checked += 1
-    assert checked, f"no hog case matches {select!r}"
-    return checked
+        ours = sample(case.params, ps.axes[0], ps.axes[1], ps.axes[2] if ps.dims == 3 else None)
+        diff = np.abs(np.asarray(ours, np.float64) - case.values.astype(np.float64))
+        worst = max(worst, float((diff / unit.per_point(case.params.frequency, ps.axes)).max()))
+    assert worst > 0.0, "a feature with no drift here cannot show the rule failing; choose another"
+    rules = dict(tolerance.rules)
+    rules[(feature, None)] = dict(rules[(feature, None)], bound={"scale": 0.9 * worst, "coordinate_scaled": True})
+    tight = conformance.Tolerance(tolerance.rendering, tolerance.range, rules)
+    assert not conformance.check(sample, vectors, tolerance=tight, select=f"hog/{feature}/*").ok
 
 
-@pytest.mark.parametrize("select", ["hog/*"])
-def test_the_gpu_matches_the_cpu(device, select):
-    close_to_the_cpu(select)
+def test_more_than_32_octaves_reports_unsupported_and_the_run_continues(judged):
+    vectors, tolerance = judged
+    sample, _ = conformance.renderings("wgpu")
+
+    def deep(params, xs, ys, zs):
+        return sample(params.replace(octaves=33), xs, ys, zs)
+
+    report = conformance.check(deep, vectors, tolerance=tolerance, select="hog/fnl/simplex_*/scatter_3d")
+    assert len(report.results) > 1 and all(r.status == "unsupported" for r in report.results)
+    assert report.ok and not report.complete
 
 
 def test_every_feature_builds_a_sampler(device):

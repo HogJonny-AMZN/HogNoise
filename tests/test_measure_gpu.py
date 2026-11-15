@@ -3,6 +3,8 @@ HogNoise: the GPU measurement and the rules derived from it (the GPU port's spec
 Package: tests/test_measure_gpu
 """
 
+import json
+
 import pytest
 
 import _tools_path  # noqa: F401  (puts tools/ on sys.path)
@@ -137,3 +139,24 @@ def test_a_measurement_that_is_not_finite_is_a_finding_not_the_tightest_rule(fie
     """step_up(NaN) is the 1e-7 floor, so a NaN that reached derive would look like a perfect adapter."""
     with pytest.raises(m.Finding, match="not finite"):
         m.derive([record("a", {"hog/fnl/f/scatter_3d": stats("fnl/f", **{field: float("nan")})})])
+
+
+TOLERANCE = m.VECTORS / "tolerance" / "wgpu.json"
+
+
+def test_the_committed_rules_follow_from_the_committed_record():
+    """Acceptance 6: every number in the tolerance file recomputes from the record; a hand-edited one fails here."""
+    tolerance = json.loads(TOLERANCE.read_text(encoding="utf-8"))
+    records = m.read_records(m.VECTORS / tolerance["measured"]["record"])
+    assert [m.label(r) for r in records] == tolerance["measured"]["adapters"]
+    assert m.derive(records) == tolerance["rules"]
+    assert m.measured_range(m.conformance.load(m.VECTORS)) == tolerance["range"]
+
+
+def test_a_hand_edited_number_is_caught(tmp_path):
+    """The instrument can say no: the same comparison, with one rule's scale halved, differs."""
+    tolerance = json.loads(TOLERANCE.read_text(encoding="utf-8"))
+    records = m.read_records(m.VECTORS / tolerance["measured"]["record"])
+    edited = json.loads(json.dumps(tolerance["rules"]))
+    edited[0]["bound"]["scale"] /= 2
+    assert m.derive(records) != edited
