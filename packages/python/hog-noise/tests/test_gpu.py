@@ -119,6 +119,35 @@ def test_more_than_32_octaves_is_refused_as_not_implemented_before_any_device():
         gpu.GpuSampler(NoiseParams(perturb_octaves=40))
 
 
+def test_axes_of_unequal_length_are_refused_before_any_device():
+    """WGSL's robust access would clamp a short axis to its last value, silently: the lengths are checked first."""
+    xs, short = np.zeros(4, np.float32), np.zeros(3, np.float32)
+    assert gpu._point_count((xs, xs, xs)) == 4
+    assert gpu._point_count((xs, xs), np.empty(4, np.float32)) == 4
+    with pytest.raises(ValueError, match=r"\[4, 3, 4\]"):
+        gpu._point_count((xs, short, xs))
+    with pytest.raises(ValueError, match="out has 3"):
+        gpu._point_count((xs, xs), short)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s, a, b: s.sample_points(a, b, a, np.empty(len(a), np.float32)),
+        lambda s, a, b: s.sample_points_2d(a, b, np.empty(len(a), np.float32)),
+        lambda s, a, b: s.sample_points(a, a, a, np.empty(len(b), np.float32)),
+        lambda s, a, b: s.warp_points(a, b, a),
+        lambda s, a, b: s.warp_points_2d(a, b),
+    ],
+    ids=["sample_points", "sample_points_2d", "out", "warp_points", "warp_points_2d"],
+)
+def test_every_entry_point_refuses_a_short_axis(device, call):
+    sampler = gpu.GpuSampler(NoiseParams(frequency=0.01))
+    xs = np.linspace(-10, 10, 100, dtype=np.float32)
+    with pytest.raises(ValueError, match="100"):
+        call(sampler, xs, xs[:99])
+
+
 def test_the_rung_is_registered_override_only():
     from hog_noise.backends import registered
 
@@ -213,3 +242,28 @@ def test_a_power_of_two_grid_equals_its_points_bit_for_bit(device):
     xs, ys, zs = grid_points(start, shape)
     points = sampler.sample_points(xs, ys, zs, np.empty(len(xs), np.float32))
     assert np.array_equal(sampler.sample_grid(start, shape).ravel(), points)
+
+
+def test_a_dispatch_past_65535_workgroups_reaches_its_last_points(judged):
+    """
+    noise.wgsl's ``point_index`` strides y by ``65535u * 64u``, which must be `gpu._MAX_GROUPS` times `gpu.WORKGROUP`:
+    the last 64 points, the only ones in the second row of workgroups, match the numpy rendering by the feature's rule.
+    A stride of ``65536u * 64u`` leaves them unwritten and fails here (tried); a smaller one only computes some points
+    twice, with the same values. Value noise, one octave, is the cheapest feature: about 5 s on WARP once the pipelines
+    are built, 4,194,304 points.
+    """
+    from hog_noise import NumpySampler
+
+    vectors, tolerance = judged
+    case = next(c for c in vectors.cases if c.id.startswith("hog/fnl/value_none/"))
+    params, rule = case.params, tolerance.rule_for(case)
+    i = np.arange(gpu._MAX_GROUPS * gpu.WORKGROUP + gpu.WORKGROUP)
+    # distinct at every point, so a point read from the wrong index has another value; inside the measured range
+    xs, ys, zs = (((i % m) - m // 2).astype(np.float32) for m in (4093, 4091, 4099))
+    assert gpu._workgroups(len(xs)) == (65535, 2, 1)
+    ours = gpu.GpuSampler(params).sample_points(xs, ys, zs, np.empty(len(xs), np.float32))[-64:]
+    tail = tuple(a[-64:] for a in (xs, ys, zs))
+    numpy = NumpySampler(params).sample_points(*tail, np.empty(64, np.float32))
+    allowed = Bound(**rule["bound"]).per_point(params.frequency, tail)
+    diff = np.abs(ours.astype(np.float64) - numpy.astype(np.float64))
+    assert rule["rule"] == "continuous" and np.all(diff <= allowed), diff.max()

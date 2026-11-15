@@ -4,6 +4,7 @@ Package: tests/test_measure_gpu
 """
 
 import json
+import subprocess
 
 import pytest
 
@@ -179,3 +180,144 @@ def test_a_hand_edited_number_is_caught(tmp_path):
     edited = json.loads(json.dumps(tolerance["rules"]))
     edited[0]["bound"]["scale"] /= 2
     assert m.derive(records) != edited
+
+
+# -------------------------------------------------------------------------
+# derive_files and read_records on a copy of vectors/: never the real one (ledger P-2)
+RECORD = "reports/gpu/0d419e9"
+REAL_VECTORS = m.VECTORS
+
+
+@pytest.fixture(scope="module")
+def hog_vectors():
+    return m.conformance.load(REAL_VECTORS, sets="hog")
+
+
+@pytest.fixture
+def copy(tmp_path, monkeypatch, hog_vectors):
+    """
+    A copy of the files `derive_files` writes, under a ``vectors/`` that `m.VECTORS` points at, with the committed hog
+    set standing in for its load: returns the copy's root and the bytes of each file before the call.
+    """
+    root = tmp_path / "vectors"
+    for rel in ("tolerance/wgpu.json", "portability-gpu.md", f"{RECORD}/record.md"):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes((REAL_VECTORS / rel).read_bytes())
+    monkeypatch.setattr(m, "VECTORS", root)
+    monkeypatch.setattr(m.conformance, "load", lambda *a, **k: hog_vectors)
+    before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    return root, before
+
+
+def _write_records(folder, records):
+    folder.mkdir(parents=True, exist_ok=True)
+    for i, rec in enumerate(records):
+        (folder / f"r{i}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+
+def _real_records():
+    return m.read_records(REAL_VECTORS / RECORD)
+
+
+def test_derive_files_reproduces_the_committed_files_from_the_committed_record(copy):
+    root, before = copy
+    for p in (REAL_VECTORS / RECORD).glob("*.json"):
+        (root / RECORD / p.name).write_bytes(p.read_bytes())
+    m.derive_files(root / RECORD)
+    for path, data in before.items():
+        assert path.read_bytes().replace(b"\r\n", b"\n") == data.replace(b"\r\n", b"\n"), path
+    assert not [p for p in root.rglob("*") if p.name.endswith(".tmp")], "no temporary file is left behind"
+
+
+def test_an_empty_folder_is_a_finding_and_writes_nothing(copy):
+    """A folder with no records once overwrote the tolerance with zero rules before failing on record.md."""
+    root, before = copy
+    (root / "reports" / "gpu" / "empty").mkdir(parents=True)
+    with pytest.raises(m.Finding, match="no measurement records"):
+        m.derive_files(root / "reports" / "gpu" / "empty")
+    assert {p: p.read_bytes() for p in before} == before
+
+
+def test_records_holding_different_cases_are_a_finding_and_write_nothing(copy):
+    root, before = copy
+    a, b = _real_records()[:2]
+    del b["cases"][sorted(b["cases"])[0]]
+    folder = root / "reports" / "gpu" / "uneven"
+    _write_records(folder, [a, b])
+    with pytest.raises(m.Finding, match="not the same cases"):
+        m.derive_files(folder)
+    assert {p: p.read_bytes() for p in before} == before
+
+
+def test_records_that_are_not_the_hog_set_are_a_finding(copy):
+    """A stale record, measured before a hog case was added, would otherwise end in max() of an empty sequence."""
+    root, before = copy
+    rec = _real_records()[0]
+    del rec["cases"][sorted(rec["cases"])[0]]
+    folder = root / "reports" / "gpu" / "stale"
+    _write_records(folder, [rec])
+    with pytest.raises(m.Finding, match="missing 1"):
+        m.derive_files(folder)
+    assert {p: p.read_bytes() for p in before} == before
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{not json",
+        "[]",
+        '{"adapter": {"device": "d", "backend_type": "b"}, "host": "h", "commit": "abc1234"}',
+        '{"adapter": {"device": "d", "backend_type": "b"}, "host": "h", "commit": 7, "cases": {}}',
+        '{"adapter": "d", "host": "h", "commit": "abc1234", "cases": {}}',
+        '{"adapter": {"device": "d", "backend_type": "b"}, "commit": "abc1234", "cases": {}}',
+        '{"adapter": {"device": "d", "backend_type": "b"}, "host": "h", "commit": "abc1234", "cases": []}',
+    ],
+)
+def test_a_malformed_record_is_a_finding_naming_the_file(tmp_path, text):
+    (tmp_path / "bad.json").write_text(text, encoding="utf-8")
+    with pytest.raises(m.Finding, match=r"bad\.json"):
+        m.read_records(tmp_path)
+
+
+def test_a_well_formed_record_reads(tmp_path):
+    """The control for the malformed ones: the same reader says yes."""
+    good = {"adapter": {"device": "d", "backend_type": "b"}, "host": "h", "commit": "abc1234", "cases": {}}
+    (tmp_path / "good.json").write_text(json.dumps(good), encoding="utf-8")
+    assert m.read_records(tmp_path) == [good]
+
+
+@pytest.mark.parametrize("value", ["C:/Temp/x", "../../x", "0d419", "g0d419e9", "0d419e9 x", "a" * 41])
+def test_a_pinned_commit_that_is_not_hex_is_refused(monkeypatch, value):
+    """The commit becomes a folder name: ``C:/Temp/x`` once gave ``C:/Temp``."""
+    monkeypatch.setenv(m.COMMIT_ENV, value)
+    with pytest.raises(ValueError, match=m.COMMIT_ENV):
+        m._commit()
+
+
+def test_a_pinned_commit_is_shortened_to_seven(monkeypatch):
+    monkeypatch.setenv(m.COMMIT_ENV, "0d419e9ABCDEF0123")
+    assert m._commit() == "0d419e9"
+
+
+def _git(returncode, stdout):
+    def run(argv, **kwargs):
+        assert argv[0] == "git", argv
+        if kwargs.get("check") and returncode:
+            raise subprocess.CalledProcessError(returncode, argv, stdout, "fatal: not a git repository")
+        return subprocess.CompletedProcess(argv, returncode, stdout, "fatal: not a git repository")
+
+    return run
+
+
+@pytest.mark.parametrize("returncode, stdout", [(128, ""), (128, "bafde93\n"), (0, ""), (0, "not-a-commit\n")])
+def test_a_git_that_fails_or_answers_nothing_raises(monkeypatch, returncode, stdout):
+    monkeypatch.delenv(m.COMMIT_ENV, raising=False)
+    monkeypatch.setattr(m.subprocess, "run", _git(returncode, stdout))
+    with pytest.raises((subprocess.CalledProcessError, ValueError)):
+        m._commit()
+
+
+def test_git_s_answer_is_the_commit(monkeypatch):
+    monkeypatch.delenv(m.COMMIT_ENV, raising=False)
+    monkeypatch.setattr(m.subprocess, "run", _git(0, "bafde93\n"))
+    assert m._commit() == "bafde93"

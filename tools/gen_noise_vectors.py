@@ -519,10 +519,20 @@ def generate_hog(root: Path = OUT) -> list[str]:
         # A grid axis file this run wrote stays only if the manifest on disk lists it: _swap_in can raise after it
         # has published, and then the files are the folder's
         if new_point_files:
-            listed = json.loads((root / "manifest.json").read_text(encoding="utf-8"))["files"]
-            for path in new_point_files:
-                if path.relative_to(root).as_posix() not in listed:
-                    path.unlink(missing_ok=True)
+            try:
+                listed = json.loads((root / "manifest.json").read_text(encoding="utf-8"))["files"]
+            except (OSError, UnicodeDecodeError, ValueError, KeyError, TypeError):
+                # A cleanup failure must not replace the error that brought us here: log it, keep the files (whether
+                # the manifest lists them is unknown), and let the original exception, if any, propagate
+                _LOGGER.exception(
+                    f"cleanup: cannot read the manifest in {root}; kept the grid files this run wrote: "
+                    f"{[p.name for p in new_point_files]}"
+                )
+                listed = None
+            if listed is not None:
+                for path in new_point_files:
+                    if path.relative_to(root).as_posix() not in listed:
+                        path.unlink(missing_ok=True)
         # The old set sits in stage/old-hog until a rollback moves it back: if it is still there and nothing was
         # published, the rollback failed and this folder is the only copy
         if not published and (stage / "old-hog").exists():

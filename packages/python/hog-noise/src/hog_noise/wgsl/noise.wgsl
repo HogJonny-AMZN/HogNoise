@@ -1939,7 +1939,8 @@ fn sample_one_3d(x : f32, y : f32, z : f32) -> f32 {
 // -------------------------------------------------------------------------
 // the compute entry points (gpu.ENTRY_POINTS)
 
-// A dispatch past 65,535 workgroups wraps into y (gpu._workgroups).
+// A dispatch past 65,535 workgroups wraps into y (gpu._workgroups). The stride is gpu.py's _MAX_GROUPS * WORKGROUP:
+// change one and the other together (test_gpu.py, test_a_dispatch_past_65535_workgroups_reaches_its_last_points).
 fn point_index(gid : vec3<u32>) -> u32 { return gid.x + gid.y * (65535u * 64u); }
 
 @compute @workgroup_size(64)

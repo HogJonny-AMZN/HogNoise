@@ -161,6 +161,8 @@ def _origin(name: str, origin: object, count: int) -> Mapping[str, object] | Non
             and all(isinstance(v, kind) and not isinstance(v, bool) for v in value)
         ):
             raise ConformanceError(f"point set {name}: from.{key} is {value!r}, not three numbers")
+    if not all(n >= 1 for n in origin["shape"]):  # [-1, -4, 1] has the right product and no grid
+        raise ConformanceError(f"point set {name}: from.shape is {origin['shape']!r}, not three positive integers")
     if int(np.prod(origin["shape"])) != count:
         raise ConformanceError(f"point set {name}: from.shape {origin['shape']} is not {count} points")
     if origin.get("order", "C") not in ("C", "F"):
@@ -743,6 +745,8 @@ def main(argv: list[str] | None = None) -> int:
         tolerance = Tolerance.load(args.tolerance, vectors) if args.tolerance is not None else None
     except (BackendUnavailable, ConformanceError) as e:
         parser.exit(2, f"{parser.prog}: error: {e}\n")
+    if tolerance is not None and tolerance.rendering != args.rendering:  # another rendering's rules judge nothing
+        parser.error(f"{args.tolerance} is for the {tolerance.rendering!r} rendering, not {args.rendering!r}")
     sample, warp = renderings(args.rendering)
     bound = Bound(args.bound, args.coordinate_scaled) if args.bound is not None else None
     report = check(

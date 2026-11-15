@@ -7,12 +7,16 @@ never loads it (Docs/standards/python-project.md, *The package boundary*). One d
 and kept with its pipelines. Spec: Docs/superpowers/specs/2026-11-14-gpu-port.md.
 """
 
+from __future__ import annotations
+
 import importlib.resources
 import logging as _logging
 import math
 import os
 import struct
 import time
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -30,11 +34,16 @@ _LOGGER = _logging.getLogger(_MODULE_NAME)
 #: Part of an adapter's name: the first adapter whose name contains it is used instead of wgpu's default.
 ADAPTER_ENV = "HOG_NOISE_WGPU_ADAPTER"
 
-#: The process's one device and its adapter's description, made on first use.
-_STATE: dict[str, object] = {}
+#: The process's one device and its adapter's description, made on first use. Kept apart from `_Gpu`'s pipelines on
+#: purpose: `adapter_info` and `is_available` (CI's *Adapter* step, the ladder's probe) need the device and nothing
+#: else, and building the five pipelines would make every probe pay for compiling noise.wgsl.
+_STATE: dict[str, Any] = {}
+
+# wgpu's objects are typed `Any` here: wgpu is never imported at module level (the package boundary), so its types
+# cannot be named in a signature.
 
 
-def _wgpu():
+def _wgpu() -> Any:
     """The wgpu module, or a RuntimeError naming the extra that installs it."""
     try:
         import wgpu
@@ -45,7 +54,13 @@ def _wgpu():
     return wgpu
 
 
-def _pick_adapter(wgpu):
+def _pick_adapter(wgpu: Any) -> Any:
+    """
+    The GPU adapter to use: the first whose name contains `ADAPTER_ENV`'s value, ignoring case, else wgpu's
+    high-performance choice.
+
+    :raises RuntimeError: "no adapter", naming the ones found.
+    """
     wanted = os.environ.get(ADAPTER_ENV, "").strip()
     if wanted:
         adapters = wgpu.gpu.enumerate_adapters_sync()
@@ -71,7 +86,7 @@ def _pick_adapter(wgpu):
     return adapter
 
 
-def device():
+def device() -> Any:
     """
     The process's one device, made on first use and kept.
 
@@ -122,7 +137,7 @@ def pack_params(params: NoiseParams) -> bytes:
     return data + bytes(-len(data) % 16)
 
 
-def pack_grid(start, shape, scales) -> bytes:
+def pack_grid(start: Sequence[int], shape: Sequence[int], scales: Sequence[float]) -> bytes:
     """The ``Grid`` uniform: the start cell, the shape and the per-axis scales, padded to 16 bytes."""
     data = struct.pack("<iiiIIIfff", *(int(v) for v in start), *(int(n) for n in shape), *(float(s) for s in scales))
     return data + bytes(-len(data) % 16)
@@ -136,19 +151,37 @@ def _workgroups(n: int) -> tuple[int, int, int]:
     return (_MAX_GROUPS, math.ceil(groups / _MAX_GROUPS), 1)
 
 
-class _Gpu:
-    """The process's one device, the buffers that never change, and one pipeline per entry point."""
+def _point_count(axes: Sequence[NDArray[np.float32]], out: NDArray[np.float32] | None = None) -> int:
+    """
+    The number of points: every axis's length, and ``out``'s where given, which must all be one.
 
-    _instance: "_Gpu | None" = None
+    :raises ValueError: Naming the lengths. Checked before any GPU work: WGSL's robust access would clamp a short axis
+        to its last value and give an answer, silently.
+    """
+    lengths = [len(a) for a in axes]
+    if len(set(lengths)) > 1:
+        raise ValueError(f"the axes have lengths {lengths}; every axis needs one per point")
+    if out is not None and len(out) != lengths[0]:
+        raise ValueError(f"out has {len(out)} values for {lengths[0]} points")
+    return lengths[0]
+
+
+class _Gpu:
+    """
+    The process's one device, the buffers that never change, and one pipeline per entry point. The device itself lives
+    in `_STATE`, not here, so the probes that need only the device never build the pipelines.
+    """
+
+    _instance: _Gpu | None = None  # the pipelines, built on the first sampler; the device is `_STATE`'s
 
     @classmethod
-    def get(cls) -> "_Gpu":
+    def get(cls) -> _Gpu:
         """The process's one `_Gpu`, built on first use: the device, the shader's pipelines and the tables."""
         if cls._instance is None:
             cls._instance = cls(device())
         return cls._instance
 
-    def __init__(self, dev) -> None:
+    def __init__(self, dev: Any) -> None:
         wgpu = _wgpu()
         self.wgpu, self.device = wgpu, dev
         source = (importlib.resources.files("hog_noise") / "wgsl" / "noise.wgsl").read_text(encoding="utf-8")
@@ -172,17 +205,31 @@ class _Gpu:
         self.unused = self.storage(np.zeros(1, np.float32))  # bound where an entry point reads nothing
         self.no_grid = self.uniform(bytes(48))
 
-    def storage(self, values: NDArray) -> object:
+    def storage(self, values: NDArray[np.float32]) -> Any:
         """A read-only storage buffer holding ``values`` as float32."""
         data = np.ascontiguousarray(values, dtype=np.float32).tobytes()
         return self.device.create_buffer_with_data(data=data, usage=self.wgpu.BufferUsage.STORAGE)
 
-    def uniform(self, data: bytes) -> object:
+    def uniform(self, data: bytes) -> Any:
         """A uniform buffer holding ``data``."""
         return self.device.create_buffer_with_data(data=data, usage=self.wgpu.BufferUsage.UNIFORM)
 
-    def run(self, entry: str, params_buffer, axes, n: int, width: int, grid=None) -> NDArray[np.float32]:
-        """Dispatch ``entry`` over ``n`` points and read back ``n * width`` floats."""
+    def run(
+        self,
+        entry: str,
+        params_buffer: Any,
+        axes: Sequence[NDArray[np.float32]],
+        n: int,
+        width: int,
+        grid: Any | None = None,
+    ) -> NDArray[np.float32]:
+        """
+        Dispatch ``entry`` over ``n`` points and read back ``n * width`` floats.
+
+        :raises ValueError: An axis whose length is not ``n`` (checked before any GPU work).
+        """
+        if axes and _point_count(axes) != n:
+            raise ValueError(f"the axes have {len(axes[0])} points, not {n}")
         if n == 0:
             return np.empty(0, np.float32)
         wgpu, dev = self.wgpu, self.device
@@ -222,29 +269,64 @@ class GpuSampler:
         self._gpu = _Gpu.get()
         self._params = self._gpu.uniform(pack_params(params))
 
-    def sample_points(self, xs, ys, zs, out: NDArray[np.float32]) -> NDArray[np.float32]:
-        """3D noise at each ``(xs[i], ys[i], zs[i])`` into ``out``."""
-        out[...] = self._gpu.run("sample_points_3d", self._params, (xs, ys, zs), len(xs), 1)
+    def sample_points(
+        self,
+        xs: NDArray[np.float32],
+        ys: NDArray[np.float32],
+        zs: NDArray[np.float32],
+        out: NDArray[np.float32],
+    ) -> NDArray[np.float32]:
+        """
+        3D noise at each ``(xs[i], ys[i], zs[i])`` into ``out``.
+
+        :raises ValueError: Axes, or ``out``, of unequal length.
+        """
+        n = _point_count((xs, ys, zs), out)
+        out[...] = self._gpu.run("sample_points_3d", self._params, (xs, ys, zs), n, 1)
         return out
 
-    def sample_points_2d(self, xs, ys, out: NDArray[np.float32]) -> NDArray[np.float32]:
-        """2D noise at each ``(xs[i], ys[i])`` into ``out``."""
-        out[...] = self._gpu.run("sample_points_2d", self._params, (xs, ys), len(xs), 1)
+    def sample_points_2d(
+        self, xs: NDArray[np.float32], ys: NDArray[np.float32], out: NDArray[np.float32]
+    ) -> NDArray[np.float32]:
+        """
+        2D noise at each ``(xs[i], ys[i])`` into ``out``.
+
+        :raises ValueError: Axes, or ``out``, of unequal length.
+        """
+        n = _point_count((xs, ys), out)
+        out[...] = self._gpu.run("sample_points_2d", self._params, (xs, ys), n, 1)
         return out
 
-    def sample_grid(self, start, shape, scales=(1.0, 1.0, 1.0)) -> NDArray[np.float32]:
+    def sample_grid(
+        self,
+        start: Sequence[int],
+        shape: Sequence[int],
+        scales: Sequence[float] = (1.0, 1.0, 1.0),
+    ) -> NDArray[np.float32]:
         """The grid `samplers._KernelSampler.sample_grid` describes, its coordinates computed on the GPU."""
         shape = tuple(int(n) for n in shape)
         grid = self._gpu.uniform(pack_grid(start, shape, scales))
         return self._gpu.run("sample_grid", self._params, (), math.prod(shape), 1, grid).reshape(shape)
 
-    def warp_points(self, xs, ys, zs) -> NDArray[np.float32]:
-        """The warped raw coordinates, ``(N, 3)``: the reference's ``DomainWarp`` alone, as `scalar.warp_3d` gives."""
-        return self._gpu.run("warp_points_3d", self._params, (xs, ys, zs), len(xs), 3).reshape(len(xs), 3)
+    def warp_points(
+        self, xs: NDArray[np.float32], ys: NDArray[np.float32], zs: NDArray[np.float32]
+    ) -> NDArray[np.float32]:
+        """
+        The warped raw coordinates, ``(N, 3)``: the reference's ``DomainWarp`` alone, as `scalar.warp_3d` gives.
 
-    def warp_points_2d(self, xs, ys) -> NDArray[np.float32]:
-        """The warped raw coordinates, ``(N, 2)``: the 2D twin of `warp_points`."""
-        return self._gpu.run("warp_points_2d", self._params, (xs, ys), len(xs), 2).reshape(len(xs), 2)
+        :raises ValueError: Axes of unequal length.
+        """
+        n = _point_count((xs, ys, zs))
+        return self._gpu.run("warp_points_3d", self._params, (xs, ys, zs), n, 3).reshape(n, 3)
+
+    def warp_points_2d(self, xs: NDArray[np.float32], ys: NDArray[np.float32]) -> NDArray[np.float32]:
+        """
+        The warped raw coordinates, ``(N, 2)``: the 2D twin of `warp_points`.
+
+        :raises ValueError: Axes of unequal length.
+        """
+        n = _point_count((xs, ys))
+        return self._gpu.run("warp_points_2d", self._params, (xs, ys), n, 2).reshape(n, 2)
 
     def sample(self, x: float, y: float, z: float = 0.0) -> float:
         """`sample_points` on one point: correct, and slow on purpose (a dispatch per value)."""

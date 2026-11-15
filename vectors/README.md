@@ -24,9 +24,9 @@ hog/fnl/  hog/fns/        what HogNoise's numpy rendering produces; every CPU re
 tolerance/wgpu.json       the GPU rendering's bounds against the hog set (see Tolerance files)
 accepted.json             a person's verdict on an advisory mismatch, by feature name
 portability.md            how closely each pair of renderings agreed, rewritten by a full test run
-portability-gpu.md        the GPU rendering against the hog set, per feature and adapter
+portability-gpu.md        the GPU rendering against the hog set, per feature and GPU adapter
 reports/                  the comparison sheet behind each verdict
-reports/gpu/<commit>/     the GPU measurement the tolerance file was derived from, one JSON file per adapter
+reports/gpu/<commit>/     the measurement records the tolerance file was derived from, one JSON file per GPU adapter
 ```
 
 Every `.f32` file is raw little-endian IEEE 754 float32 with no header. A noise output holds one value per point. A warp
@@ -144,7 +144,8 @@ worst over every adapter, rounded up to a 1, 2 or 5 step (the 99th percentile, f
 `fraction` is one minus twice the worst fraction outside and whose `min_correlation` is the worst correlation, each
 rounded down to three places, the correlation to at most 0.999). A
 measurement the rules cannot hold, such as a discrete feature flipping more than 1% of its points, stops the
-derivation as a finding for a person. `wgpu.json` was derived from four records at commit `0d419e9`: an RTX 5090
+derivation as a measurement finding for a person, and so does a folder of records that are not all exactly the hog
+set's cases; nothing is written then. `wgpu.json` was derived from four records at commit `0d419e9`: an RTX 5090
 (Vulkan) and Direct3D 12's WARP on one machine, and WARP and Mesa's llvmpipe (Vulkan) on CI. A test recomputes every
 number from that record, so a number edited by hand fails it. A rule is never loosened to make a run pass: an adapter
-that fails one is a finding, and loosening it is a person's decision.
+that fails one is a measurement finding, and loosening it is a person's decision.

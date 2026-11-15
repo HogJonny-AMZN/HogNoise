@@ -396,6 +396,8 @@ def test_the_grid_path_fails_a_grid_of_the_wrong_shape_or_order(tmp_path):
     [
         ({"start": [0, 0], "shape": [2, 2, 1], "scales": [1, 1, 1], "order": "C"}, "from.start"),
         ({"start": [0, 0, 0], "shape": [2, 2, 2], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
+        ({"start": [0, 0, 0], "shape": [-1, -4, 1], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
+        ({"start": [0, 0, 0], "shape": [4, 1, 0], "scales": [1, 1, 1], "order": "C"}, "from.shape"),
         ({"start": [0, 0, 0], "shape": [2, 2, 1], "scales": [1, "1", 1], "order": "C"}, "from.scales"),
         ({"start": [0, 0, 0], "shape": [2, 2, 1], "scales": [1, 1, 1], "order": "K"}, "from.order"),
     ],
@@ -817,7 +819,7 @@ def test_the_command_line_takes_a_tolerance(tmp_path):
     )
     ref = NumpySampler(NoiseParams.from_dict(case["params"])).sample_points(xs, ys, zs, np.empty(4, np.float32))
     root = make_vectors(tmp_path, [case], {"h/f.f32": ref})
-    path = write_tolerance(root, [CONTINUOUS])
+    path = write_tolerance(root, [CONTINUOUS], rendering="numpy")
     run = subprocess.run(
         [sys.executable, "-m", "hog_noise.conformance", str(root), "--rendering", "numpy", "--tolerance", str(path)],
         capture_output=True,
@@ -830,3 +832,27 @@ def test_the_command_line_takes_a_tolerance(tmp_path):
         text=True,
     )
     assert bad.returncode == 2 and "hog set alone" in bad.stderr
+
+
+def test_the_command_line_refuses_another_renderings_tolerance(tmp_path, capsys):
+    """``--rendering numpy --tolerance tolerance/wgpu.json`` ran and passed, judging numpy by wgpu's rules."""
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    path = write_tolerance(root, [CONTINUOUS], rendering="wgpu")
+    with pytest.raises(SystemExit) as exit_:
+        conformance.main([str(root), "--rendering", "numpy", "--tolerance", str(path)])
+    assert exit_.value.code == 2
+    assert "is for the 'wgpu' rendering, not 'numpy'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("kind", ["missing", "not json", "a directory"])
+def test_a_tolerance_file_that_cannot_be_read_is_a_conformance_error(tmp_path, kind):
+    """The three ways the file is not there to read: none is an empty tolerance."""
+    root = make_vectors(tmp_path / "v", [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    path = tmp_path / "tolerance.json"
+    if kind == "not json":
+        path.write_text('{"format": 1, "rules": [', encoding="utf-8")
+    elif kind == "a directory":
+        path.mkdir()
+    with pytest.raises(conformance.ConformanceError, match="cannot be read as JSON"):
+        conformance.Tolerance.load(path, v)

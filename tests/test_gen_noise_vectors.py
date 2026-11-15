@@ -151,6 +151,23 @@ def test_a_failed_regeneration_removes_the_grid_files_it_wrote(tmp_path, monkeyp
     assert conformance.load(tmp_path)  # the folder still loads
 
 
+def test_a_cleanup_that_cannot_read_the_manifest_keeps_the_original_error(tmp_path, monkeypatch, caplog):
+    """The cleanup reads the manifest; when that fails too, the swap's error is raised and the cleanup's is logged."""
+    _without_the_odd_grid(tmp_path)
+
+    def broken(*args):
+        (tmp_path / "manifest.json").write_text("{half a manifest", encoding="utf-8")
+        raise RuntimeError("the swap fell over")
+
+    monkeypatch.setattr(gen, "_swap_in", broken)
+    with pytest.raises(RuntimeError, match="the swap fell over"):
+        gen.generate_hog(tmp_path)
+    errors = [r for r in caplog.records if r.levelname == "ERROR" and "cannot read the manifest" in r.getMessage()]
+    assert len(errors) == 1, caplog.text
+    # not knowing whether the manifest lists them, the cleanup keeps the grid files rather than guess
+    assert len(list((tmp_path / "points").glob("genasgrid_0.7*"))) == 3
+
+
 def test_a_grid_file_written_part_way_is_removed_too(tmp_path, monkeypatch):
     """A write that fails part way (a full disk) leaves a partial file, which must not outlive the run."""
     # Not only the axis files removed: a manifest that still lists them fails generate_hog's opening load first

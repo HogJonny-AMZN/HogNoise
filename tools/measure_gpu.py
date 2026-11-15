@@ -6,11 +6,13 @@ Package: tools/measure_gpu
     uv run --group gpu python tools/measure_gpu.py run                  # this adapter -> vectors/reports/gpu/<commit>/
     uv run python tools/measure_gpu.py derive vectors/reports/gpu/<commit>   # every adapter -> the rules and the tables
 
-`run` writes one JSON file per adapter, so the owner's GPU, WARP and CI's llvmpipe each add their own (``--out``
-elsewhere for a trial). `derive` reads them all and writes `vectors/tolerance/wgpu.json`, `vectors/portability-gpu.md`
-and the folder's `record.md`; the folder must be under `vectors/`, which the tolerance file names. The rules follow from
-the record alone, so tests/test_measure_gpu.py can recompute every committed number.
+`run` writes one measurement record (a JSON file) per GPU adapter, so the owner's GPU, WARP and CI's llvmpipe each add
+their own (``--out`` elsewhere for a trial). `derive` reads them all and writes `vectors/tolerance/wgpu.json`,
+`vectors/portability-gpu.md` and the folder's `record.md`; the folder must be under `vectors/`, which the tolerance file
+names. The rules follow from the records alone, so tests/test_measure_gpu.py can recompute every committed number.
 """
+
+from __future__ import annotations
 
 import argparse
 import collections
@@ -23,6 +25,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -49,7 +52,11 @@ MAX_CORRELATION = 0.999
 
 
 class Finding(Exception):
-    """A measurement the rules cannot turn into a number: the owner's decision, in the pull request."""
+    """
+    A measurement finding: a measurement the rules cannot turn into a number, or a measurement record that cannot be
+    read as one. It stops the derivation for the owner's decision, in the pull request (the glossary's **Measurement
+    finding**, not the docs check's **Finding**).
+    """
 
 
 def step_up(x: float) -> float:
@@ -79,7 +86,9 @@ def feature_of(case_id: str) -> str:
     return "/".join(case_id.split("/")[1:3])
 
 
-def measure(vectors, sample, warp, grid) -> dict[str, dict]:
+def measure(
+    vectors: conformance.Vectors, sample: conformance.Sample, warp: conformance.Sample, grid: conformance.Grid
+) -> dict[str, dict[str, Any]]:
     """
     Per hog case, the numbers the rules are derived from.
 
@@ -91,7 +100,7 @@ def measure(vectors, sample, warp, grid) -> dict[str, dict]:
     :raises Finding: A rendering that wrote a value that is not finite, or an output of the wrong shape.
     """
     unit = Bound(1.0, coordinate_scaled=True)
-    cases: dict[str, dict] = {}
+    cases: dict[str, dict[str, Any]] = {}
     for case in vectors.cases:
         if case.set != "hog":
             continue
@@ -128,14 +137,14 @@ def measure(vectors, sample, warp, grid) -> dict[str, dict]:
     return cases
 
 
-def derive(records: list[dict]) -> list[dict]:
+def derive(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     The rules, from every adapter's record, by the spec's rules and the plan's decisions.
 
     :raises Finding: A measurement that is not finite, a continuous feature or a warp past `LARGEST`, or a discrete
         feature flipping more than 1% of points.
     """
-    groups: dict[tuple[str, str], list[dict]] = collections.defaultdict(list)
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = collections.defaultdict(list)
     outputs: dict[str, set[str]] = collections.defaultdict(set)
     for rec in records:
         for s in rec["cases"].values():
@@ -178,12 +187,59 @@ def derive(records: list[dict]) -> list[dict]:
     return rules
 
 
-def read_records(folder: Path) -> list[dict]:
-    """Every adapter's record in ``folder``, by file name."""
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.glob("*.json"))]
+def read_records(folder: Path) -> list[dict[str, Any]]:
+    """
+    Every GPU adapter's measurement record in ``folder``, by file name; an empty list when it holds none.
+
+    :raises Finding: A file that cannot be read, is not JSON, or is not a record: an object with an ``adapter`` object
+        naming its ``device`` and ``backend_type``, a ``host`` and a ``commit`` string, and a ``cases`` object.
+    """
+    records = []
+    for path in sorted(folder.glob("*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError) as e:
+            raise Finding(f"{path}: cannot be read ({e})") from e
+        except json.JSONDecodeError as e:
+            raise Finding(f"{path}: not JSON ({e})") from e
+        adapter = record.get("adapter") if isinstance(record, dict) else None
+        if not (
+            isinstance(adapter, dict)
+            and all(isinstance(adapter.get(k), str) for k in ("device", "backend_type"))
+            and isinstance(record.get("host"), str)
+            and isinstance(record.get("commit"), str)
+            and isinstance(record.get("cases"), dict)
+        ):
+            raise Finding(
+                f"{path}: not a measurement record (an object with an 'adapter' object naming its device and "
+                f"backend_type, a 'host' and a 'commit' string, and a 'cases' object)"
+            )
+        records.append(record)
+    return records
 
 
-def measured_range(vectors) -> dict[str, object]:
+def check_cases(records: list[dict[str, Any]], hog_ids: set[str], folder: Path) -> None:
+    """
+    Every record holds the same cases, and they are exactly the hog set's: a rule over part of the set, or a stale
+    record measured before a case was added, is not a number to derive.
+
+    :raises Finding: No records, records holding different cases, or cases that are not the hog set's.
+    """
+    if not records:
+        raise Finding(f"{folder}: no measurement records (*.json) to derive from")
+    first = set(records[0]["cases"])
+    for rec in records[1:]:
+        if set(rec["cases"]) != first:
+            raise Finding(f"{folder}: the records hold not the same cases ({label(records[0])} vs {label(rec)})")
+    missing, extra = sorted(hog_ids - first), sorted(first - hog_ids)
+    if missing or extra:
+        raise Finding(
+            f"{folder}: the records are not the hog set's cases: missing {len(missing)} {missing[:3]}, "
+            f"{len(extra)} not in it {extra[:3]}"
+        )
+
+
+def measured_range(vectors: conformance.Vectors) -> dict[str, object]:
     """The frequencies and the largest noise-space coordinate of the hog set: what the rules hold over."""
     hog = [c for c in vectors.cases if c.set == "hog"]
     reach = max(
@@ -201,35 +257,54 @@ COMMIT_ENV = "HOG_NOISE_MEASURED_COMMIT"
 HOST_ENV = "HOG_NOISE_MEASURE_HOST"
 
 
+#: A commit as a folder name: 7 to 40 hex digits, nothing that could be a path.
+_HEX_COMMIT = re.compile(r"[0-9a-fA-F]{7,40}")
+
+
 def _commit() -> str:
+    """
+    The measured commit, shortened to seven: `COMMIT_ENV` when set, else ``git rev-parse --short HEAD``.
+
+    :raises ValueError: A pinned commit, or git's answer, that is not 7 to 40 hex digits (it becomes a folder name).
+    :raises subprocess.CalledProcessError: git exited nonzero.
+    """
     pinned = os.environ.get(COMMIT_ENV, "").strip()
     if pinned:
-        return pinned[:7]
-    return subprocess.run(
+        if not _HEX_COMMIT.fullmatch(pinned):
+            raise ValueError(f"{COMMIT_ENV} is {pinned!r}, not a commit of 7 to 40 hex digits")
+        return pinned[:7].lower()
+    answer = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True, cwd=ROOT
     ).stdout.strip()
+    if not _HEX_COMMIT.fullmatch(answer):
+        raise ValueError(f"git rev-parse --short HEAD answered {answer!r}, not a commit; set {COMMIT_ENV}")
+    return answer[:7].lower()
 
 
-def label(record: dict) -> str:
+def label(record: dict[str, Any]) -> str:
     """An adapter's record, named: device, back end and where it ran."""
     return f"{record['adapter']['device']} ({record['adapter']['backend_type']}) on {record['host']}"
 
 
 def _slug(text: str) -> str:
+    """``text`` as a file name: lower case, each run of other characters one hyphen."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 def run(out: Path) -> Path:
-    """Measure every hog case on this machine's adapter and write its record to ``out``; returns the file."""
+    """Measure every hog case on this machine's GPU adapter and write its record to ``out``; returns the file."""
     from hog_noise import gpu
 
+    commit = _commit()
+    _LOGGER.info(f"run: measuring the hog set under {VECTORS} at commit {commit}, writing to {out}")
     vectors = conformance.load(VECTORS)
     sample, warp = conformance.renderings("wgpu")
     info = gpu.adapter_info()
+    _LOGGER.info(f"run: GPU adapter {info['device']} ({info['backend_type']}, {info['adapter_type']})")
     data = {
         "adapter": info,
         "host": os.environ.get(HOST_ENV, "").strip() or "local",
-        "commit": _commit(),
+        "commit": commit,
         "cases": measure(vectors, sample, warp, conformance.grid_rendering("wgpu")),
     }
     out.mkdir(parents=True, exist_ok=True)
@@ -239,7 +314,7 @@ def run(out: Path) -> Path:
     return path
 
 
-def _tables(records: list[dict], rules: list[dict]) -> tuple[str, str]:
+def _tables(records: list[dict[str, Any]], rules: list[dict[str, Any]]) -> tuple[str, str]:
     """``record.md`` (per case and adapter) and ``portability-gpu.md`` (per feature and adapter)."""
     adapters = [label(r) for r in records]
     tight = {r["feature"]: f"{r['within']['scale']:.0e}" for r in rules if r["kind"] == "discrete"}
@@ -267,11 +342,30 @@ def _tables(records: list[dict], rules: list[dict]) -> tuple[str, str]:
     return "\n".join(per_case) + "\n", "\n".join(lines) + "\n"
 
 
+def _replace(path: Path, text: str) -> None:
+    """Write ``text`` to a temporary file beside ``path``, then put it in place in one step: never half-written."""
+    tmp = path.with_name(f"{path.name}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8", newline="\n")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def derive_files(folder: Path) -> list[Path]:
-    """Derive the rules from every record in ``folder`` (under ``vectors/``) and write the three files; returns them."""
+    """
+    Derive the rules from every measurement record in ``folder`` (under ``vectors/``) and write the three files;
+    returns them. Every text is built before any is written, and each is put in place whole.
+
+    :raises Finding: No records, a malformed one, records that are not all exactly the hog set's cases, or a measurement
+        the rules cannot turn into a number. Nothing is written then.
+    """
+    files = sorted(p.name for p in folder.glob("*.json"))
+    _LOGGER.info(f"derive: {len(files)} measurement records in {folder}: {files}")
     records = read_records(folder)
+    vectors = conformance.load(VECTORS, sets="hog")
+    check_cases(records, {c.id for c in vectors.cases if c.set == "hog"}, folder)
     rules = derive(records)
-    vectors = conformance.load(VECTORS)
     tolerance = {
         "format": conformance.TOLERANCE_FORMAT,
         "rendering": "wgpu",
@@ -283,16 +377,25 @@ def derive_files(folder: Path) -> list[Path]:
         "rules": rules,
     }
     record_md, portability = _tables(records, rules)
-    written = [VECTORS / "tolerance" / "wgpu.json", VECTORS / "portability-gpu.md", folder / "record.md"]
-    written[0].parent.mkdir(parents=True, exist_ok=True)
-    written[0].write_text(json.dumps(tolerance, indent=2) + "\n", encoding="utf-8", newline="\n")
-    written[1].write_text(portability, encoding="utf-8", newline="\n")
-    written[2].write_text(record_md, encoding="utf-8", newline="\n")
+    texts = {
+        VECTORS / "tolerance" / "wgpu.json": json.dumps(tolerance, indent=2) + "\n",
+        VECTORS / "portability-gpu.md": portability,
+        folder / "record.md": record_md,
+    }
+    (VECTORS / "tolerance").mkdir(parents=True, exist_ok=True)
+    for path, text in texts.items():
+        _replace(path, text)
+    written = list(texts)
     _LOGGER.info(f"derived {len(rules)} rules from {len(records)} adapters: {[str(p) for p in written]}")
     return written
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    ``run`` (measure this machine's GPU adapter) or ``derive <folder>`` (the rules and tables from every record in it).
+
+    :return: 0, or 1 on a measurement finding, which is logged for the owner.
+    """
     parser = argparse.ArgumentParser(prog="measure_gpu", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
     run_p = sub.add_parser("run", help="measure this machine's adapter")
