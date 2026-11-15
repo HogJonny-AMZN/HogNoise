@@ -3,13 +3,16 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-14: ai-first-template 0.9.4 and its workspace layout have landed
-([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)), and 0.10.1, which answers that update's findings
-([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)); the GPU port's spec is Accepted
-([PR #20](https://github.com/HogJonny-AMZN/HogNoise/pull/20)), and its plan is Proposed, for the owner to accept.
+**Last updated:** 2026-11-15: ai-first-template 0.10.2, which answers 0.10.1's findings, taken off `main` while the
+GPU port builds on `feat/gpu-port`. Before it, 0.9.4 and its workspace layout
+([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)) and 0.10.1
+([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)) landed; the GPU port's spec is Accepted
+([PR #20](https://github.com/HogJonny-AMZN/HogNoise/pull/20)), and so is its plan
+([PR #21](https://github.com/HogJonny-AMZN/HogNoise/pull/21)).
 Published 2026-11-01 at
-[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.10.1
-(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1) with no overrides
+[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.10.2
+(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1 and 0.10.2) with no
+overrides
 ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2, locking the
 [north-star roadmap](../design/2026-11-01-north-star-roadmap.md), waits on the owner and blocks neither.
 
