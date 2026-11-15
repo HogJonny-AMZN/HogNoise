@@ -269,6 +269,100 @@ fn simplex2(seed : i32, x : f32, y : f32) -> f32 {
     return (n0 + n1 + n2) * 99.83685446303647;
 }
 
+// scalar.py: simplex2s (262). The smoother variant, a modified 2D simplex; x, y are already skewed by _transform2.
+fn simplex2s(seed : i32, x : f32, y : f32) -> f32 {
+    var i = _fast_floor(x);
+    var j = _fast_floor(y);
+    let xi = x - f32(i);
+    let yi = y - f32(j);
+
+    i = i * PRIME_X;
+    j = j * PRIME_Y;
+    let i1 = i + PRIME_X;
+    let j1 = j + PRIME_Y;
+
+    let t = (xi + yi) * G2;
+    let x0 = xi - t;
+    let y0 = yi - t;
+
+    let a0 = (2.0 / 3.0) - x0 * x0 - y0 * y0;
+    var value = (a0 * a0) * (a0 * a0) * _grad_coord2(seed, i, j, x0, y0);
+
+    let a1 = (2.0 * (1.0 - 2.0 * G2) * (1.0 / G2 - 2.0)) * t + ((-2.0 * (1.0 - 2.0 * G2) * (1.0 - 2.0 * G2)) + a0);
+    let x1 = x0 - (1.0 - 2.0 * G2);
+    let y1 = y0 - (1.0 - 2.0 * G2);
+    value += (a1 * a1) * (a1 * a1) * _grad_coord2(seed, i1, j1, x1, y1);
+
+    let xmyi = xi - yi;
+    if (t > G2) {
+        if (xi + xmyi > 1.0) {
+            let x2 = x0 + (3.0 * G2 - 2.0);
+            let y2 = y0 + (3.0 * G2 - 1.0);
+            let a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
+            if (a2 > 0.0) {
+                value += (a2 * a2) * (a2 * a2) * _grad_coord2(seed, i + PRIME_X2, j1, x2, y2);
+            }
+        } else {
+            let x2 = x0 + G2;
+            let y2 = y0 + (G2 - 1.0);
+            let a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
+            if (a2 > 0.0) {
+                value += (a2 * a2) * (a2 * a2) * _grad_coord2(seed, i, j1, x2, y2);
+            }
+        }
+
+        if (yi - xmyi > 1.0) {
+            let x3 = x0 + (3.0 * G2 - 1.0);
+            let y3 = y0 + (3.0 * G2 - 2.0);
+            let a3 = (2.0 / 3.0) - x3 * x3 - y3 * y3;
+            if (a3 > 0.0) {
+                value += (a3 * a3) * (a3 * a3) * _grad_coord2(seed, i1, j + PRIME_Y2, x3, y3);
+            }
+        } else {
+            let x3 = x0 + (G2 - 1.0);
+            let y3 = y0 + G2;
+            let a3 = (2.0 / 3.0) - x3 * x3 - y3 * y3;
+            if (a3 > 0.0) {
+                value += (a3 * a3) * (a3 * a3) * _grad_coord2(seed, i1, j, x3, y3);
+            }
+        }
+    } else {
+        if (xi + xmyi < 0.0) {
+            let x2 = x0 + (1.0 - G2);
+            let y2 = y0 - G2;
+            let a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
+            if (a2 > 0.0) {
+                value += (a2 * a2) * (a2 * a2) * _grad_coord2(seed, i - PRIME_X, j, x2, y2);
+            }
+        } else {
+            let x2 = x0 + (G2 - 1.0);
+            let y2 = y0 + G2;
+            let a2 = (2.0 / 3.0) - x2 * x2 - y2 * y2;
+            if (a2 > 0.0) {
+                value += (a2 * a2) * (a2 * a2) * _grad_coord2(seed, i1, j, x2, y2);
+            }
+        }
+
+        if (yi < xmyi) {
+            let x3 = x0 - G2;
+            let y3 = y0 - (G2 - 1.0);
+            let a3 = (2.0 / 3.0) - x3 * x3 - y3 * y3;
+            if (a3 > 0.0) {
+                value += (a3 * a3) * (a3 * a3) * _grad_coord2(seed, i, j - PRIME_Y, x3, y3);
+            }
+        } else {
+            let x3 = x0 + G2;
+            let y3 = y0 + (G2 - 1.0);
+            let a3 = (2.0 / 3.0) - x3 * x3 - y3 * y3;
+            if (a3 > 0.0) {
+                value += (a3 * a3) * (a3 * a3) * _grad_coord2(seed, i, j1, x3, y3);
+            }
+        }
+    }
+
+    return value * 18.24196194486065;
+}
+
 // -------------------------------------------------------------------------
 // single-octave noise, 3D
 
@@ -349,6 +443,164 @@ fn opensimplex2_3(seed_in : i32, x : f32, y : f32, z : f32) -> f32 {
     return value * 32.69428253173828125;
 }
 
+// scalar.py: opensimplex2s_3 (499). Two offset rotated cube grids; x, y, z are already rotated by _transform3. The CPU's
+// PRIME_X * 2 (597, 744) is PRIME_X2, as its wrapped PRIME_Y << 1 and PRIME_Z << 1 are PRIME_Y2 and PRIME_Z2.
+fn opensimplex2s_3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
+    var i = _fast_floor(x);
+    var j = _fast_floor(y);
+    var k = _fast_floor(z);
+    let xi = x - f32(i);
+    let yi = y - f32(j);
+    let zi = z - f32(k);
+
+    i = i * PRIME_X;
+    j = j * PRIME_Y;
+    k = k * PRIME_Z;
+    let seed2 = seed + 1293373;
+
+    // 0 or -1 per axis: which half of the cell the point sits in (truncation toward zero)
+    let x_nmask = i32(-0.5 - xi);
+    let y_nmask = i32(-0.5 - yi);
+    let z_nmask = i32(-0.5 - zi);
+
+    let x0 = xi + f32(x_nmask);
+    let y0 = yi + f32(y_nmask);
+    let z0 = zi + f32(z_nmask);
+    let a0 = 0.75 - x0 * x0 - y0 * y0 - z0 * z0;
+    var value = (a0 * a0) * (a0 * a0) * _grad_coord3(
+        seed, i + (x_nmask & PRIME_X), j + (y_nmask & PRIME_Y), k + (z_nmask & PRIME_Z), x0, y0, z0,
+    );
+
+    let x1 = xi - 0.5;
+    let y1 = yi - 0.5;
+    let z1 = zi - 0.5;
+    let a1 = 0.75 - x1 * x1 - y1 * y1 - z1 * z1;
+    value += (a1 * a1) * (a1 * a1) * _grad_coord3(seed2, i + PRIME_X, j + PRIME_Y, k + PRIME_Z, x1, y1, z1);
+
+    let x_flip0 = f32((x_nmask | 1) << 1u) * x1;
+    let y_flip0 = f32((y_nmask | 1) << 1u) * y1;
+    let z_flip0 = f32((z_nmask | 1) << 1u) * z1;
+    let x_flip1 = f32(-2 - (x_nmask << 2u)) * x1 - 1.0;
+    let y_flip1 = f32(-2 - (y_nmask << 2u)) * y1 - 1.0;
+    let z_flip1 = f32(-2 - (z_nmask << 2u)) * z1 - 1.0;
+
+    var skip5 = false;
+    let a2 = x_flip0 + a0;
+    if (a2 > 0.0) {
+        let x2 = x0 - f32(x_nmask | 1);
+        value += (a2 * a2) * (a2 * a2) * _grad_coord3(
+            seed, i + (~x_nmask & PRIME_X), j + (y_nmask & PRIME_Y), k + (z_nmask & PRIME_Z), x2, y0, z0,
+        );
+    } else {
+        let a3 = y_flip0 + z_flip0 + a0;
+        if (a3 > 0.0) {
+            let y3 = y0 - f32(y_nmask | 1);
+            let z3 = z0 - f32(z_nmask | 1);
+            value += (a3 * a3) * (a3 * a3) * _grad_coord3(
+                seed, i + (x_nmask & PRIME_X), j + (~y_nmask & PRIME_Y), k + (~z_nmask & PRIME_Z), x0, y3, z3,
+            );
+        }
+
+        let a4 = x_flip1 + a1;
+        if (a4 > 0.0) {
+            let x4 = f32(x_nmask | 1) + x1;
+            value += (a4 * a4) * (a4 * a4) * _grad_coord3(
+                seed2, i + (x_nmask & PRIME_X2), j + PRIME_Y, k + PRIME_Z, x4, y1, z1,
+            );
+            skip5 = true;
+        }
+    }
+
+    var skip9 = false;
+    let a6 = y_flip0 + a0;
+    if (a6 > 0.0) {
+        let y6 = y0 - f32(y_nmask | 1);
+        value += (a6 * a6) * (a6 * a6) * _grad_coord3(
+            seed, i + (x_nmask & PRIME_X), j + (~y_nmask & PRIME_Y), k + (z_nmask & PRIME_Z), x0, y6, z0,
+        );
+    } else {
+        let a7 = x_flip0 + z_flip0 + a0;
+        if (a7 > 0.0) {
+            let x7 = x0 - f32(x_nmask | 1);
+            let z7 = z0 - f32(z_nmask | 1);
+            value += (a7 * a7) * (a7 * a7) * _grad_coord3(
+                seed, i + (~x_nmask & PRIME_X), j + (y_nmask & PRIME_Y), k + (~z_nmask & PRIME_Z), x7, y0, z7,
+            );
+        }
+
+        let a8 = y_flip1 + a1;
+        if (a8 > 0.0) {
+            let y8 = f32(y_nmask | 1) + y1;
+            value += (a8 * a8) * (a8 * a8) * _grad_coord3(
+                seed2, i + PRIME_X, j + (y_nmask & PRIME_Y2), k + PRIME_Z, x1, y8, z1,
+            );
+            skip9 = true;
+        }
+    }
+
+    var skip_d = false;
+    let aa = z_flip0 + a0;
+    if (aa > 0.0) {
+        let za = z0 - f32(z_nmask | 1);
+        value += (aa * aa) * (aa * aa) * _grad_coord3(
+            seed, i + (x_nmask & PRIME_X), j + (y_nmask & PRIME_Y), k + (~z_nmask & PRIME_Z), x0, y0, za,
+        );
+    } else {
+        let ab = x_flip0 + y_flip0 + a0;
+        if (ab > 0.0) {
+            let xb = x0 - f32(x_nmask | 1);
+            let yb = y0 - f32(y_nmask | 1);
+            value += (ab * ab) * (ab * ab) * _grad_coord3(
+                seed, i + (~x_nmask & PRIME_X), j + (~y_nmask & PRIME_Y), k + (z_nmask & PRIME_Z), xb, yb, z0,
+            );
+        }
+
+        let ac = z_flip1 + a1;
+        if (ac > 0.0) {
+            let zc = f32(z_nmask | 1) + z1;
+            value += (ac * ac) * (ac * ac) * _grad_coord3(
+                seed2, i + PRIME_X, j + PRIME_Y, k + (z_nmask & PRIME_Z2), x1, y1, zc,
+            );
+            skip_d = true;
+        }
+    }
+
+    if (!skip5) {
+        let a5 = y_flip1 + z_flip1 + a1;
+        if (a5 > 0.0) {
+            let y5 = f32(y_nmask | 1) + y1;
+            let z5 = f32(z_nmask | 1) + z1;
+            value += (a5 * a5) * (a5 * a5) * _grad_coord3(
+                seed2, i + PRIME_X, j + (y_nmask & PRIME_Y2), k + (z_nmask & PRIME_Z2), x1, y5, z5,
+            );
+        }
+    }
+
+    if (!skip9) {
+        let a9 = x_flip1 + z_flip1 + a1;
+        if (a9 > 0.0) {
+            let x9 = f32(x_nmask | 1) + x1;
+            let z9 = f32(z_nmask | 1) + z1;
+            value += (a9 * a9) * (a9 * a9) * _grad_coord3(
+                seed2, i + (x_nmask & PRIME_X2), j + PRIME_Y, k + (z_nmask & PRIME_Z2), x9, y1, z9,
+            );
+        }
+    }
+
+    if (!skip_d) {
+        let ad = x_flip1 + y_flip1 + a1;
+        if (ad > 0.0) {
+            let xd = f32(x_nmask | 1) + x1;
+            let yd = f32(y_nmask | 1) + y1;
+            value += (ad * ad) * (ad * ad) * _grad_coord3(
+                seed2, i + (x_nmask & PRIME_X2), j + (y_nmask & PRIME_Y2), k + PRIME_Z, xd, yd, z1,
+            );
+        }
+    }
+
+    return value * 9.046026385208288;
+}
+
 // -------------------------------------------------------------------------
 // dispatch, transforms, fractals
 
@@ -360,6 +612,9 @@ fn noise_single2(
     if (noise_type == NOISE_OPEN_SIMPLEX2) {
         return simplex2(seed, x, y);
     }
+    if (noise_type == NOISE_OPEN_SIMPLEX2S) {
+        return simplex2s(seed, x, y);
+    }
     return 0.0;
 }
 
@@ -370,6 +625,9 @@ fn noise_single3(
 ) -> f32 {
     if (noise_type == NOISE_OPEN_SIMPLEX2) {
         return opensimplex2_3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_OPEN_SIMPLEX2S) {
+        return opensimplex2s_3(seed, x, y, z);
     }
     return 0.0;
 }
@@ -413,26 +671,79 @@ fn _transform3(transform : i32, x_in : f32, y_in : f32, z_in : f32) -> vec3<f32>
     return vec3<f32>(x, y, z);
 }
 
-// scalar.py: fractal2 (1737). FRACTAL_NONE so far; the other fractals arrive in Tasks 7 and 10.
+// scalar.py: fractal2 (1737). NONE and FastNoiseLite's FBm, Ridged and PingPong; FastNoiseSIMD's RigidMulti and Billow
+// arrive in Task 10. The 2D FBm clamps n + 1 at 2 (1749); the 3D one does not (1802), as on the CPU.
 fn fractal2(
-    noise_type : i32, fractal_type : i32, seed : i32, x : f32, y : f32, octaves : i32, lacunarity : f32, gain : f32,
-    weighted : f32, ping_pong : f32, bounding : f32, cd : i32, cr : i32, cj : f32, cl : i32, cf : f32,
-) -> f32 {
-    if (fractal_type == FRACTAL_NONE) {
-        return noise_single2(noise_type, seed, x, y, cd, cr, cj, cl, cf);
-    }
-    return 0.0;
-}
-
-// scalar.py: fractal3 (1774). FRACTAL_NONE so far; the other fractals arrive in Tasks 7 and 10.
-fn fractal3(
-    noise_type : i32, fractal_type : i32, seed : i32, x : f32, y : f32, z : f32, octaves : i32, lacunarity : f32,
+    noise_type : i32, fractal_type : i32, seed_in : i32, x_in : f32, y_in : f32, octaves : i32, lacunarity : f32,
     gain : f32, weighted : f32, ping_pong : f32, bounding : f32, cd : i32, cr : i32, cj : f32, cl : i32, cf : f32,
 ) -> f32 {
     if (fractal_type == FRACTAL_NONE) {
-        return noise_single3(noise_type, seed, x, y, z, cd, cr, cj, cl, cf);
+        return noise_single2(noise_type, seed_in, x_in, y_in, cd, cr, cj, cl, cf);
     }
-    return 0.0;
+    var seed = seed_in;
+    var x = x_in;
+    var y = y_in;
+    var total = 0.0;
+    var amp = select(bounding, 1.0, fractal_type == FRACTAL_RIGID_MULTI);
+    for (var octave = 0; octave < octaves; octave++) {
+        var n = noise_single2(noise_type, seed, x, y, cd, cr, cj, cl, cf);
+        seed += 1;
+        if (fractal_type == FRACTAL_FBM) {
+            total += n * amp;
+            amp *= _lerp(1.0, min(n + 1.0, 2.0) * 0.5, weighted);
+        } else if (fractal_type == FRACTAL_RIDGED) {
+            n = abs(n);
+            total += (n * -2.0 + 1.0) * amp;
+            amp *= _lerp(1.0, 1.0 - n, weighted);
+        } else {  // PING_PONG
+            n = _ping_pong((n + 1.0) * ping_pong);
+            total += (n - 0.5) * 2.0 * amp;
+            amp *= _lerp(1.0, n, weighted);
+        }
+        x *= lacunarity;
+        y *= lacunarity;
+        amp *= gain;
+    }
+    return total;
+}
+
+// scalar.py: fractal3 (1774). NONE and FastNoiseLite's FBm, Ridged and PingPong; FastNoiseSIMD's RigidMulti and Billow
+// arrive in Task 10.
+fn fractal3(
+    noise_type : i32, fractal_type : i32, seed_in : i32, x_in : f32, y_in : f32, z_in : f32, octaves : i32,
+    lacunarity : f32, gain : f32, weighted : f32, ping_pong : f32, bounding : f32, cd : i32, cr : i32, cj : f32,
+    cl : i32, cf : f32,
+) -> f32 {
+    if (fractal_type == FRACTAL_NONE) {
+        return noise_single3(noise_type, seed_in, x_in, y_in, z_in, cd, cr, cj, cl, cf);
+    }
+    var seed = seed_in;
+    var x = x_in;
+    var y = y_in;
+    var z = z_in;
+    var total = 0.0;
+    var amp = select(bounding, 1.0, fractal_type == FRACTAL_RIGID_MULTI);
+    for (var octave = 0; octave < octaves; octave++) {
+        var n = noise_single3(noise_type, seed, x, y, z, cd, cr, cj, cl, cf);
+        seed += 1;
+        if (fractal_type == FRACTAL_FBM) {
+            total += n * amp;
+            amp *= _lerp(1.0, (n + 1.0) * 0.5, weighted);
+        } else if (fractal_type == FRACTAL_RIDGED) {
+            n = abs(n);
+            total += (n * -2.0 + 1.0) * amp;
+            amp *= _lerp(1.0, 1.0 - n, weighted);
+        } else {  // PING_PONG
+            n = _ping_pong((n + 1.0) * ping_pong);
+            total += (n - 0.5) * 2.0 * amp;
+            amp *= _lerp(1.0, n, weighted);
+        }
+        x *= lacunarity;
+        y *= lacunarity;
+        z *= lacunarity;
+        amp *= gain;
+    }
+    return total;
 }
 
 // -------------------------------------------------------------------------

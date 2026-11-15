@@ -175,7 +175,7 @@ def close_to_the_cpu(select: str) -> int:
     return checked
 
 
-@pytest.mark.parametrize("select", ["hog/fnl/simplex_none/*"])
+@pytest.mark.parametrize("select", ["hog/fnl/simplex_*"])
 def test_the_gpu_matches_the_cpu(device, select):
     close_to_the_cpu(select)
 
