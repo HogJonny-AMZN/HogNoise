@@ -27,7 +27,7 @@ from hog_noise.params import NoiseParams
 
 _MODULE_NAME = "hog_noise.conformance"
 __version__ = "0.1.0"
-__updated__ = "2026-11-13"
+__updated__ = "2026-11-14"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: The manifest format this module reads.
@@ -341,7 +341,8 @@ Grid = Callable[[NoiseParams, tuple[int, int, int], tuple[int, int, int], tuple[
 class CaseResult:
     """
     One case's outcome. ``status`` is ``pass``, ``fail``, ``unsupported`` or ``skipped``, or for an advisory case its
-    match class from `compare.classify`.
+    match class from `compare.classify`. ``rule`` is which rule judged it: ``manifest``, a tolerance's ``continuous`` or
+    ``discrete``, or ``none``.
     """
 
     id: str
@@ -353,6 +354,7 @@ class CaseResult:
     correlation: float | None = None
     needs_review: bool | None = None
     verdict: str | None = None
+    rule: str = "manifest"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -388,8 +390,8 @@ class Report:
             f"{self.count('pass')} pass, {self.count('fail')} fail, {self.count('unsupported')} unsupported, "
             f"{self.count('skipped')} skipped, {advisory} advisory",
             "",
-            "| Case | Kind | Status | Max abs | Max / bound | Note |",
-            "| --- | --- | --- | --- | --- | --- |",
+            "| Case | Kind | Status | Max abs | Max / bound | Note | Rule |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
         ]
         for r in self.results:
             note = r.detail
@@ -397,8 +399,108 @@ class Report:
                 note = f"corr {r.correlation:.6f}" + (", needs review" if r.needs_review else "")
                 if r.verdict:
                     note += f", {r.verdict}"
-            lines.append(f"| {r.id} | {r.kind} | {r.status} | {num(r.max_abs)} | {num(r.max_normalised)} | {note} |")
+            lines.append(
+                f"| {r.id} | {r.kind} | {r.status} | {num(r.max_abs)} | {num(r.max_normalised)} | {note} | {r.rule} |"
+            )
         return "\n".join(lines) + "\n"
+
+
+#: The tolerance file format this module reads (the GPU port's spec, *The tolerance*).
+TOLERANCE_FORMAT = 1
+_RULE_KINDS = ("continuous", "discrete")
+
+
+def _points_rule(rule: Mapping[str, object]) -> dict[str, object]:
+    """
+    A tolerance rule as the points rule `_points` judges: continuous is a bound alone; discrete adds within and a
+    correlation. ``rule`` records the kind, which `_points` reports.
+    """
+    kind = rule.get("kind")
+    if kind not in _RULE_KINDS:
+        raise ConformanceError(f"kind {kind!r}, not one of {_RULE_KINDS}")
+    points: dict[str, object] = {"kind": "points", "bound": rule.get("bound"), "rule": kind}
+    extra = sorted({"within", "min_correlation"} & set(rule))
+    if kind == "continuous" and extra:
+        raise ConformanceError(f"a continuous rule has a bound and nothing else, not {extra}")
+    if kind == "discrete":
+        missing = sorted({"within", "min_correlation"} - set(rule))
+        if missing:
+            raise ConformanceError(f"a discrete rule needs {missing}")
+        points["within"] = rule["within"]
+        points["min_correlation"] = rule["min_correlation"]
+    _check_rule(points)
+    return points
+
+
+def _feature(case: Case) -> str:
+    """``<library dir>/<feature>``, the middle of a case id."""
+    return "/".join(case.id.split("/")[1:3])
+
+
+@dataclasses.dataclass(frozen=True)
+class Tolerance:
+    """
+    One rendering's bounds against the hog set, from ``vectors/tolerance/<rendering>.json``: one rule per feature and
+    output, each continuous or discrete, judged as a points rule.
+    """
+
+    rendering: str
+    range: Mapping[str, object]
+    rules: Mapping[tuple[str, str | None], Mapping[str, object]]  # (feature, output or None) -> points rule
+
+    def rule_for(self, case: Case) -> Mapping[str, object] | None:
+        """The rule covering ``case``: its output's own, else its feature's, else None."""
+        feature = _feature(case)
+        return self.rules.get((feature, case.output)) or self.rules.get((feature, None))
+
+    @classmethod
+    def load(cls, path: str | Path, vectors: Vectors) -> "Tolerance":
+        """
+        Read a tolerance file and check it against ``vectors``' hog features.
+
+        :param path: The tolerance file.
+        :param vectors: The loaded vectors whose hog features the rules must name.
+        :raises ConformanceError: An unreadable or malformed file, a rule naming no hog feature, two rules covering one
+            case, or a malformed rule. Every message names the part that is wrong.
+        """
+        path = Path(path)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+            raise ConformanceError(f"{path}: cannot be read as JSON ({e})") from e
+        found = data.get("format") if isinstance(data, dict) else None
+        if found != TOLERANCE_FORMAT:
+            raise ConformanceError(f"{path}: tolerance format {found!r}, this reads {TOLERANCE_FORMAT}")
+        if not (
+            isinstance(data.get("rendering"), str)
+            and isinstance(data.get("range"), dict)
+            and isinstance(data.get("rules"), list)
+        ):
+            raise ConformanceError(f"{path}: needs a 'rendering' string, a 'range' object and a 'rules' list")
+        features = {_feature(c) for c in vectors.cases if c.set == "hog"}
+        rules: dict[tuple[str, str | None], Mapping[str, object]] = {}
+        covered: dict[str, set[str]] = {}
+        for i, rule in enumerate(data["rules"]):
+            where = f"{path}: rule {i}"
+            if not isinstance(rule, dict):
+                raise ConformanceError(f"{where}: {rule!r}, not an object")
+            feature = rule.get("feature")
+            if feature not in features:
+                raise ConformanceError(f"{where}: feature {feature!r} names no hog feature in {vectors.root}")
+            output = rule.get("output")
+            if output not in (None, "noise", "warp"):
+                raise ConformanceError(f"{where}: output {output!r}, not 'noise' or 'warp'")
+            covers = {"noise", "warp"} if output is None else {output}
+            clash = covers & covered.get(feature, set())
+            if clash:
+                raise ConformanceError(f"{where}: {feature} already has a rule covering its {sorted(clash)} cases")
+            covered.setdefault(feature, set()).update(covers)
+            try:
+                rules[(feature, output)] = _points_rule(rule)
+            except ConformanceError as e:
+                raise ConformanceError(f"{where} ({feature}): {e}") from e
+        _LOGGER.debug(f"loaded {len(rules)} tolerance rules for {data['rendering']} from {path}")
+        return cls(data["rendering"], data["range"], rules)
 
 
 def check(
@@ -410,6 +512,7 @@ def check(
     warp: Sample | None = None,
     select: str | None = None,
     grid: Grid | None = None,
+    tolerance: Tolerance | None = None,
 ) -> Report:
     """
     Sample every selected case and compare it with its reference.
@@ -423,7 +526,11 @@ def check(
     :param select: An `fnmatch` pattern over case ids.
     :param grid: The rendering's grid entry point; with it, a case on a point set with ``from`` is sampled through it,
         so ``sample_grid`` is checked.
+    :param tolerance: Judges every hog case by its feature's rule instead of the manifest's; with ``bound``, or a
+        reference other than ``"hog"``, a ValueError.
     """
+    if tolerance is not None and (bound is not None or reference != "hog"):
+        raise ValueError("a tolerance judges the hog set alone and replaces its bounds: no bound, reference='hog'")
     data = vectors if isinstance(vectors, Vectors) else load(vectors)
     sets = {"hog": ("hog",), "original": ("original",), "both": ("hog", "original")}[reference]
     verdicts = compare.Verdicts(data.root / "accepted.json")
@@ -431,7 +538,9 @@ def check(
     for case in data.cases:
         if case.set not in sets or (select is not None and not fnmatch.fnmatchcase(case.id, select)):
             continue
-        results.append(_check_case(case, data.point_sets[case.point_set], sample, warp, bound, verdicts, grid))
+        results.append(
+            _check_case(case, data.point_sets[case.point_set], sample, warp, bound, verdicts, grid, tolerance)
+        )
     report = Report(tuple(results))
     _LOGGER.info(
         f"checked {len(results)} cases against {reference}: {report.count('fail')} failed, "
@@ -448,6 +557,7 @@ def _check_case(
     bound: Bound | None,
     verdicts: compare.Verdicts,
     grid: Grid | None = None,
+    tolerance: Tolerance | None = None,
 ) -> CaseResult:
     kind = str(case.compare["kind"])
     fn = warp if case.output == "warp" else sample
@@ -471,6 +581,11 @@ def _check_case(
         return CaseResult(case.id, kind, "unsupported", detail=str(e))
     if ours.shape != case.values.shape:
         return CaseResult(case.id, kind, "fail", detail=f"shape {ours.shape}, expected {case.values.shape}")
+    if tolerance is not None:
+        rule = tolerance.rule_for(case)
+        if rule is None:
+            return CaseResult(case.id, kind, "fail", detail="no tolerance rule", rule="none")
+        return _points(case, ps, ours, None, rule)
     if kind == "points":
         return _points(case, ps, ours, bound)
     if kind == "shape":
@@ -487,8 +602,11 @@ def _check_case(
     )
 
 
-def _points(case: Case, ps: PointSet, ours: NDArray[np.float32], bound: Bound | None) -> CaseResult:
-    rule = case.compare
+def _points(
+    case: Case, ps: PointSet, ours: NDArray[np.float32], bound: Bound | None, rule: Mapping[str, object] | None = None
+) -> CaseResult:
+    """Judge ``ours`` by ``rule`` (a tolerance's points rule), else the case's own; ``bound`` replaces its bound."""
+    rule = case.compare if rule is None else rule
     b = bound or Bound(float(rule["bound"]["scale"]), bool(rule["bound"].get("coordinate_scaled", False)))
     diff = np.abs(ours.astype(np.float64) - case.values.astype(np.float64))
     if diff.ndim == 2:
@@ -517,6 +635,7 @@ def _points(case: Case, ps: PointSet, ours: NDArray[np.float32], bound: Bound | 
         float(diff.max()),
         float(normalised_difference(diff, allowed).max()),
         "; ".join(failures),
+        rule=str(rule.get("rule", "manifest")),
     )
 
 
@@ -603,9 +722,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--select", default=None, help="an fnmatch pattern over case ids")
     parser.add_argument("--bound", type=float, default=None, help="replace every points case's bound")
     parser.add_argument("--coordinate-scaled", action="store_true", help="scale --bound per point")
+    parser.add_argument(
+        "--tolerance", type=Path, default=None, help="a tolerance file for the rendering: judges the hog set by it"
+    )
     args = parser.parse_args(argv)
     if args.coordinate_scaled and args.bound is None:
         parser.error("--coordinate-scaled needs --bound")
+    if args.tolerance is not None and (args.bound is not None or args.reference != "hog"):
+        parser.error("--tolerance judges the hog set alone: no --bound, and --reference hog")
     _logging.basicConfig(level=_logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     from hog_noise.backends import BackendUnavailable, registered
     from hog_noise.samplers import CAPABILITY, make_sampler
@@ -616,6 +740,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         make_sampler(NoiseParams(), backend=args.rendering)  # a rendering not installed here fails now, not mid-run
         vectors = load(args.vectors)
+        tolerance = Tolerance.load(args.tolerance, vectors) if args.tolerance is not None else None
     except (BackendUnavailable, ConformanceError) as e:
         parser.exit(2, f"{parser.prog}: error: {e}\n")
     sample, warp = renderings(args.rendering)
@@ -628,6 +753,7 @@ def main(argv: list[str] | None = None) -> int:
         warp=warp,
         select=args.select,
         grid=grid_rendering(args.rendering),
+        tolerance=tolerance,
     )
     print(report.table())
     return 0 if report.ok else 1

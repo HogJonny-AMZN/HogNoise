@@ -673,3 +673,149 @@ def test_a_shape_rules_finite_must_be_true_or_false(tmp_path, value):
     _rewrite(root, manifest)
     with pytest.raises(conformance.ConformanceError, match="finite"):
         conformance.load(root)
+
+
+def write_tolerance(root: Path, rules: list, /, **top) -> Path:
+    """A tolerance file in ``root``; ``top`` replaces its top-level keys, ``rules`` among them."""
+    data = {
+        "format": 1,
+        "rendering": "test",
+        "range": {"frequency": [0.01], "noise_coordinate_max": 20.0},
+        "rules": rules,
+    }
+    data.update(top)
+    path = root / "tolerance.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+CONTINUOUS = {"feature": "t/f", "kind": "continuous", "bound": {"scale": 1e-3, "coordinate_scaled": True}}
+
+
+def test_a_continuous_rule_judges_its_features_cases_and_names_itself(tmp_path):
+    ref = np.zeros(4, np.float32)
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    v = conformance.load(root)
+    tol = conformance.Tolerance.load(write_tolerance(root, [CONTINUOUS]), v)
+    ok = conformance.check(_values(np.array([5e-4, 9e-3, 2e-3, 1.5e-2], np.float32)), v, tolerance=tol)
+    assert ok.ok and ok.results[0].rule == "continuous", ok.table()
+    assert "| continuous |" in ok.table()
+    bad = conformance.check(_values(np.array([2e-3, 0, 0, 0], np.float32)), v, tolerance=tol)
+    assert not bad.ok
+
+
+def test_a_case_no_rule_covers_fails_with_no_tolerance_rule(tmp_path):
+    """Acceptance 3: a feature with no rule cannot pass by default."""
+    cases = [a_case("hog/t/f/p3", "h/f.f32"), a_case("hog/t/g/p3", "h/g.f32")]
+    root = make_vectors(tmp_path, cases, {"h/f.f32": np.zeros(4, np.float32), "h/g.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    report = conformance.check(
+        _values(np.zeros(4, np.float32)),
+        v,
+        tolerance=conformance.Tolerance.load(write_tolerance(root, [CONTINUOUS]), v),
+    )
+    by_id = {r.id: r for r in report.results}
+    assert by_id["hog/t/f/p3"].status == "pass"
+    assert by_id["hog/t/g/p3"].status == "fail" and by_id["hog/t/g/p3"].detail == "no tolerance rule"
+
+
+def test_a_discrete_rule_counts_flips_against_its_fraction(tmp_path):
+    """Acceptance 3: one point of four flipped; a fraction of 0.75 holds it, one set above what was measured fails."""
+    ref = np.array([0.1, 0.2, 0.3, 0.4], np.float32)
+    flipped = ref + np.array([0.0, 0.0, 0.0, 1.0], np.float32)
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": ref})
+    v = conformance.load(root)
+
+    def rule(fraction):
+        return {
+            "feature": "t/f",
+            "kind": "discrete",
+            "bound": {"scale": 2.0, "coordinate_scaled": False},
+            "within": {"scale": 1e-3, "coordinate_scaled": True, "fraction": fraction},
+            "min_correlation": 0.5,
+        }
+
+    held = conformance.check(
+        _values(flipped), v, tolerance=conformance.Tolerance.load(write_tolerance(root, [rule(0.75)]), v)
+    )
+    assert held.ok and held.results[0].rule == "discrete", held.table()
+    above = conformance.check(
+        _values(flipped), v, tolerance=conformance.Tolerance.load(write_tolerance(root, [rule(0.8)]), v)
+    )
+    assert not above.ok
+
+
+def test_separate_noise_and_warp_rules_load_and_each_judges_its_output(tmp_path):
+    cases = [a_case("hog/t/f/p3", "h/f.f32"), a_case("hog/t/f/p2/warp", "h/w.f32", point_set="p2", output="warp")]
+    root = make_vectors(tmp_path, cases, {"h/f.f32": np.zeros(4, np.float32), "h/w.f32": np.zeros(8, np.float32)})
+    v = conformance.load(root)
+    rules = [
+        dict(CONTINUOUS, output="noise"),
+        {
+            "feature": "t/f",
+            "output": "warp",
+            "kind": "continuous",
+            "bound": {"scale": 1e-3, "coordinate_scaled": False},
+        },
+    ]
+    tol = conformance.Tolerance.load(write_tolerance(root, rules), v)
+    assert tol.rule_for(v.case("hog/t/f/p2/warp"))["bound"]["coordinate_scaled"] is False
+    assert tol.rule_for(v.case("hog/t/f/p3"))["bound"]["coordinate_scaled"] is True
+
+
+@pytest.mark.parametrize(
+    "rules, top, says",
+    [
+        ([dict(CONTINUOUS, feature="t/nope")], {}, "names no hog feature"),
+        ([CONTINUOUS, dict(CONTINUOUS, output="warp")], {}, "already has a rule"),
+        ([CONTINUOUS, CONTINUOUS], {}, "already has a rule"),
+        ([dict(CONTINUOUS, output="both")], {}, "output 'both'"),
+        ([dict(CONTINUOUS, kind="loose")], {}, "kind 'loose'"),
+        ([dict(CONTINUOUS, min_correlation=0.9)], {}, "a continuous rule has a bound and nothing else"),
+        ([dict(CONTINUOUS, kind="discrete")], {}, "a discrete rule needs"),
+        ([dict(CONTINUOUS, bound={"scale": -1.0})], {}, "bound.scale"),
+        (["t/f"], {}, "not an object"),
+        ([CONTINUOUS], {"format": 2}, "tolerance format 2"),
+        ([CONTINUOUS], {"rules": {}}, "a 'rules' list"),
+    ],
+)
+def test_a_malformed_tolerance_fails_at_load_naming_the_part(tmp_path, rules, top, says):
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    with pytest.raises(conformance.ConformanceError, match=says):
+        conformance.Tolerance.load(write_tolerance(root, rules, **top), v)
+
+
+def test_a_tolerance_judges_the_hog_set_alone_and_takes_no_bound(tmp_path):
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    tol = conformance.Tolerance.load(write_tolerance(root, [CONTINUOUS]), v)
+    zero = _values(np.zeros(4, np.float32))
+    with pytest.raises(ValueError, match="hog set alone"):
+        conformance.check(zero, v, reference="both", tolerance=tol)
+    with pytest.raises(ValueError, match="hog set alone"):
+        conformance.check(zero, v, bound=Bound(1.0), tolerance=tol)
+
+
+def test_the_command_line_takes_a_tolerance(tmp_path):
+    from hog_noise import NoiseParams, NumpySampler
+
+    case = a_case("hog/t/f/p3", "h/f.f32")
+    xs, ys, zs = (
+        np.array(v, np.float32) for v in ([10.0, -1000.0, 0.0, 5.0], [0.0, 2.0, 300.0, -1.0], [-3.0, 4.0, 0.5, 2000.0])
+    )
+    ref = NumpySampler(NoiseParams.from_dict(case["params"])).sample_points(xs, ys, zs, np.empty(4, np.float32))
+    root = make_vectors(tmp_path, [case], {"h/f.f32": ref})
+    path = write_tolerance(root, [CONTINUOUS])
+    run = subprocess.run(
+        [sys.executable, "-m", "hog_noise.conformance", str(root), "--rendering", "numpy", "--tolerance", str(path)],
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0 and "| continuous |" in run.stdout, run.stderr
+    bad = subprocess.run(
+        [sys.executable, "-m", "hog_noise.conformance", str(root), "--tolerance", str(path), "--bound", "1"],
+        capture_output=True,
+        text=True,
+    )
+    assert bad.returncode == 2 and "hog set alone" in bad.stderr
