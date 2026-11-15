@@ -853,7 +853,7 @@
         "coordinate_scaled": true,
         "fraction": 1.0
       },
-      "min_correlation": 1.0
+      "min_correlation": 0.999
     },
     {
       "feature": "fns/cellular_natural_distance",

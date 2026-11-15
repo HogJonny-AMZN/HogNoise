@@ -43,6 +43,9 @@ CANDIDATE_KEYS = [f"{c:.0e}" for c in CANDIDATES]
 DISCRETE = ("cellvalue", "noiselookup", "whitenoise", "genasgrid")
 #: Past this, a doubled worst is no longer drift: the derivation stops and the owner decides.
 LARGEST = 1e-2
+#: The highest correlation a discrete rule asks for: np.corrcoef of two identical arrays is 1.0 on one run and
+#: 0.9999999999999998 on another (the owner's decision, 2026-11-15). Precision is the rule's `within`.
+MAX_CORRELATION = 0.999
 
 
 class Finding(Exception):
@@ -164,7 +167,7 @@ def derive(records: list[dict]) -> list[dict]:
                 kind="discrete",
                 bound={"scale": step_up(max(s["ref_range"] for s in stats)), "coordinate_scaled": False},
                 within={"scale": within, "coordinate_scaled": True, "fraction": floor3(1.0 - 2.0 * outside)},
-                min_correlation=floor3(min(s["correlation"] for s in stats)),
+                min_correlation=min(MAX_CORRELATION, floor3(min(s["correlation"] for s in stats))),
             )
         else:
             scale = step_up(2.0 * max(s["max_normalised"] for s in stats))

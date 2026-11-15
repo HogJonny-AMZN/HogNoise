@@ -97,6 +97,25 @@ def test_a_discrete_rule_takes_its_tight_bound_from_the_99th_percentile():
     ]
 
 
+def test_a_discrete_rule_never_asks_for_a_correlation_above_0_999():
+    """
+    np.corrcoef of two identical arrays is 1.0 on one run and 0.9999999999999998 on another: CI's llvmpipe leg failed
+    a bit-exact cell value against a derived 1.0 (the owner's decision, 2026-11-15: cap at 0.999).
+    """
+    outside = {key: 0.0 for key in m.CANDIDATE_KEYS}
+    records = [
+        record(
+            "a",
+            {
+                "hog/fns/cellular_natural_cellvalue/scatter_3d": stats(
+                    "fns/cellular_natural_cellvalue", p99_normalised=0.0, outside=outside, correlation=1.0
+                )
+            },
+        )
+    ]
+    assert m.derive(records)[0]["min_correlation"] == m.MAX_CORRELATION == 0.999
+
+
 def test_a_feature_with_noise_and_warp_gets_a_rule_for_each_and_the_warp_rule_is_absolute():
     records = [
         record(
