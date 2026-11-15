@@ -789,6 +789,270 @@ fn value_cubic3(seed : i32, x : f32, y : f32, z : f32) -> f32 {
 }
 
 // -------------------------------------------------------------------------
+// cellular (Worley) noise
+
+// scalar.py: _cellular_finish (881)
+fn _cellular_finish(dist_func : i32, ret_type : i32, distance0_in : f32, distance1_in : f32, closest_hash : i32) -> f32 {
+    var distance0 = distance0_in;
+    var distance1 = distance1_in;
+    if (dist_func == CELL_DIST_EUCLIDEAN && ret_type >= CELL_RET_DISTANCE) {
+        distance0 = sqrt(distance0);
+        if (ret_type >= CELL_RET_DISTANCE2) {
+            distance1 = sqrt(distance1);
+        }
+    }
+    if (ret_type == CELL_RET_CELL_VALUE) {
+        return f32(closest_hash) * (1.0 / 2147483648.0);
+    }
+    if (ret_type == CELL_RET_DISTANCE) {
+        return distance0 - 1.0;
+    }
+    if (ret_type == CELL_RET_DISTANCE2) {
+        return distance1 - 1.0;
+    }
+    if (ret_type == CELL_RET_DISTANCE2_ADD) {
+        return (distance1 + distance0) * 0.5 - 1.0;
+    }
+    if (ret_type == CELL_RET_DISTANCE2_SUB) {
+        return distance1 - distance0 - 1.0;
+    }
+    if (ret_type == CELL_RET_DISTANCE2_MUL) {
+        return distance1 * distance0 * 0.5 - 1.0;
+    }
+    if (ret_type == CELL_RET_DISTANCE2_DIV) {
+        return distance0 / distance1 - 1.0;
+    }
+    return 0.0;
+}
+
+// scalar.py: _lookup_single2 (904). The noise a NoiseLookup cell samples, any type but cellular: it calls the leaf
+// noises directly, never noise_single2, so the call graph has no cycle. White noise and classic Simplex arrive in
+// Task 10 (gpu._check_ported refuses them as the lookup type until then).
+fn _lookup_single2(noise_type : i32, seed : i32, x_in : f32, y_in : f32) -> f32 {
+    let s = _transform2(noise_type, x_in, y_in);
+    let x = s.x;
+    let y = s.y;
+    if (noise_type == NOISE_OPEN_SIMPLEX2) {
+        return simplex2(seed, x, y);
+    }
+    if (noise_type == NOISE_OPEN_SIMPLEX2S) {
+        return simplex2s(seed, x, y);
+    }
+    if (noise_type == NOISE_PERLIN) {
+        return perlin2(seed, x, y);
+    }
+    if (noise_type == NOISE_VALUE_CUBIC) {
+        return value_cubic2(seed, x, y);
+    }
+    if (noise_type == NOISE_VALUE) {
+        return value2(seed, x, y);
+    }
+    if (noise_type == NOISE_WHITE_NOISE) {
+        return 0.0;  // white_noise2: Task 10
+    }
+    if (noise_type == NOISE_SIMPLEX_CLASSIC) {
+        return 0.0;  // simplex_classic2: Task 10
+    }
+    return 0.0;
+}
+
+// scalar.py: _lookup_single3 (925). As _lookup_single2; the simplex family is rotated by TRANSFORM_DEFAULT_OS2.
+fn _lookup_single3(noise_type : i32, seed : i32, x_in : f32, y_in : f32, z_in : f32) -> f32 {
+    var x = x_in;
+    var y = y_in;
+    var z = z_in;
+    if (noise_type == NOISE_OPEN_SIMPLEX2 || noise_type == NOISE_OPEN_SIMPLEX2S) {
+        let r = _transform3(TRANSFORM_DEFAULT_OS2, x, y, z);
+        x = r.x;
+        y = r.y;
+        z = r.z;
+    }
+    if (noise_type == NOISE_OPEN_SIMPLEX2) {
+        return opensimplex2_3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_OPEN_SIMPLEX2S) {
+        return opensimplex2s_3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_PERLIN) {
+        return perlin3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_VALUE_CUBIC) {
+        return value_cubic3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_VALUE) {
+        return value3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_WHITE_NOISE) {
+        return 0.0;  // white_noise3: Task 10
+    }
+    if (noise_type == NOISE_SIMPLEX_CLASSIC) {
+        return 0.0;  // simplex_classic3: Task 10
+    }
+    return 0.0;
+}
+
+// scalar.py: _cellular2_scan's tuple (946)
+struct Cellular2Scan {
+    distance0 : f32,
+    distance1 : f32,
+    closest_hash : i32,
+    cell_x : f32,
+    cell_y : f32,
+};
+
+// scalar.py: _cellular2_scan (946). The 3 x 3 scan: the two nearest distances, the nearest cell's hash and its jittered
+// point.
+fn _cellular2_scan(seed : i32, x : f32, y : f32, dist_func : i32, jitter_mod : f32) -> Cellular2Scan {
+    let xr = _fast_round(x);
+    let yr = _fast_round(y);
+    var distance0 = 1e10;
+    var distance1 = 1e10;
+    var closest_hash = 0;
+    var cell_x = 0.0;
+    var cell_y = 0.0;
+    let jitter = 0.43701595 * jitter_mod;
+    var x_primed = (xr - 1) * PRIME_X;
+    let y_primed_base = (yr - 1) * PRIME_Y;
+    for (var xi = xr - 1; xi < xr + 2; xi++) {
+        var y_primed = y_primed_base;
+        for (var yi = yr - 1; yi < yr + 2; yi++) {
+            let h = _hash2(seed, x_primed, y_primed);
+            let idx = h & (255 << 1);
+            let vec_x = (f32(xi) - x) + rand_vecs_2d(idx) * jitter;
+            let vec_y = (f32(yi) - y) + rand_vecs_2d(idx | 1) * jitter;
+            var new_distance : f32;
+            if (dist_func == CELL_DIST_MANHATTAN) {
+                new_distance = abs(vec_x) + abs(vec_y);
+            } else if (dist_func == CELL_DIST_HYBRID) {
+                new_distance = (abs(vec_x) + abs(vec_y)) + (vec_x * vec_x + vec_y * vec_y);
+            } else if (dist_func == CELL_DIST_NATURAL) {
+                new_distance = (abs(vec_x) + abs(vec_y)) * (vec_x * vec_x + vec_y * vec_y);
+            } else {
+                new_distance = vec_x * vec_x + vec_y * vec_y;
+            }
+            distance1 = max(min(distance1, new_distance), distance0);
+            if (new_distance < distance0) {
+                distance0 = new_distance;
+                closest_hash = h;
+                cell_x = f32(xi) + rand_vecs_2d(idx) * jitter;
+                cell_y = f32(yi) + rand_vecs_2d(idx | 1) * jitter;
+            }
+            y_primed = y_primed + PRIME_Y;
+        }
+        x_primed = x_primed + PRIME_X;
+    }
+    return Cellular2Scan(distance0, distance1, closest_hash, cell_x, cell_y);
+}
+
+// scalar.py: cellular2 (985)
+fn cellular2(
+    seed : i32, x : f32, y : f32, dist_func : i32, ret_type : i32, jitter_mod : f32, lookup_type : i32,
+    lookup_freq : f32,
+) -> f32 {
+    if (ret_type == CELL_RET_DISTANCE2_CAVE) {
+        // FastNoiseSIMD: the lesser of two Distance2Div fields, the second half a cell over and one seed on
+        let a = _cellular2_scan(seed, x, y, dist_func, jitter_mod);
+        let c0 = _cellular_finish(dist_func, CELL_RET_DISTANCE2_DIV, a.distance0, a.distance1, a.closest_hash);
+        let b = _cellular2_scan(seed + 1, x + 0.5, y + 0.5, dist_func, jitter_mod);
+        let c1 = _cellular_finish(dist_func, CELL_RET_DISTANCE2_DIV, b.distance0, b.distance1, b.closest_hash);
+        return min(c0, c1);
+    }
+    let s = _cellular2_scan(seed, x, y, dist_func, jitter_mod);
+    if (ret_type == CELL_RET_NOISE_LOOKUP) {
+        // FastNoiseSIMD: the lookup noise at the nearest cell point, at its own frequency
+        return _lookup_single2(lookup_type, seed, s.cell_x * lookup_freq, s.cell_y * lookup_freq);
+    }
+    return _cellular_finish(dist_func, ret_type, s.distance0, s.distance1, s.closest_hash);
+}
+
+// scalar.py: _cellular3_scan's tuple (1001)
+struct Cellular3Scan {
+    distance0 : f32,
+    distance1 : f32,
+    closest_hash : i32,
+    cell_x : f32,
+    cell_y : f32,
+    cell_z : f32,
+};
+
+// scalar.py: _cellular3_scan (1001)
+fn _cellular3_scan(seed : i32, x : f32, y : f32, z : f32, dist_func : i32, jitter_mod : f32) -> Cellular3Scan {
+    let xr = _fast_round(x);
+    let yr = _fast_round(y);
+    let zr = _fast_round(z);
+    var distance0 = 1e10;
+    var distance1 = 1e10;
+    var closest_hash = 0;
+    var cell_x = 0.0;
+    var cell_y = 0.0;
+    var cell_z = 0.0;
+    let jitter = 0.39614353 * jitter_mod;
+    var x_primed = (xr - 1) * PRIME_X;
+    let y_primed_base = (yr - 1) * PRIME_Y;
+    let z_primed_base = (zr - 1) * PRIME_Z;
+    for (var xi = xr - 1; xi < xr + 2; xi++) {
+        var y_primed = y_primed_base;
+        for (var yi = yr - 1; yi < yr + 2; yi++) {
+            var z_primed = z_primed_base;
+            for (var zi = zr - 1; zi < zr + 2; zi++) {
+                let h = _hash3(seed, x_primed, y_primed, z_primed);
+                let idx = h & (255 << 2);
+                let vec_x = (f32(xi) - x) + rand_vecs_3d(idx) * jitter;
+                let vec_y = (f32(yi) - y) + rand_vecs_3d(idx | 1) * jitter;
+                let vec_z = (f32(zi) - z) + rand_vecs_3d(idx | 2) * jitter;
+                var new_distance : f32;
+                if (dist_func == CELL_DIST_MANHATTAN) {
+                    new_distance = abs(vec_x) + abs(vec_y) + abs(vec_z);
+                } else if (dist_func == CELL_DIST_HYBRID) {
+                    new_distance = (abs(vec_x) + abs(vec_y) + abs(vec_z)) + (
+                        vec_x * vec_x + vec_y * vec_y + vec_z * vec_z
+                    );
+                } else if (dist_func == CELL_DIST_NATURAL) {
+                    new_distance = (abs(vec_x) + abs(vec_y) + abs(vec_z)) * (
+                        vec_x * vec_x + vec_y * vec_y + vec_z * vec_z
+                    );
+                } else {
+                    new_distance = vec_x * vec_x + vec_y * vec_y + vec_z * vec_z;
+                }
+                distance1 = max(min(distance1, new_distance), distance0);
+                if (new_distance < distance0) {
+                    distance0 = new_distance;
+                    closest_hash = h;
+                    cell_x = f32(xi) + rand_vecs_3d(idx) * jitter;
+                    cell_y = f32(yi) + rand_vecs_3d(idx | 1) * jitter;
+                    cell_z = f32(zi) + rand_vecs_3d(idx | 2) * jitter;
+                }
+                z_primed = z_primed + PRIME_Z;
+            }
+            y_primed = y_primed + PRIME_Y;
+        }
+        x_primed = x_primed + PRIME_X;
+    }
+    return Cellular3Scan(distance0, distance1, closest_hash, cell_x, cell_y, cell_z);
+}
+
+// scalar.py: cellular3 (1051)
+fn cellular3(
+    seed : i32, x : f32, y : f32, z : f32, dist_func : i32, ret_type : i32, jitter_mod : f32, lookup_type : i32,
+    lookup_freq : f32,
+) -> f32 {
+    if (ret_type == CELL_RET_DISTANCE2_CAVE) {
+        let a = _cellular3_scan(seed, x, y, z, dist_func, jitter_mod);
+        let c0 = _cellular_finish(dist_func, CELL_RET_DISTANCE2_DIV, a.distance0, a.distance1, a.closest_hash);
+        let b = _cellular3_scan(seed + 1, x + 0.5, y + 0.5, z + 0.5, dist_func, jitter_mod);
+        let c1 = _cellular_finish(dist_func, CELL_RET_DISTANCE2_DIV, b.distance0, b.distance1, b.closest_hash);
+        return min(c0, c1);
+    }
+    let s = _cellular3_scan(seed, x, y, z, dist_func, jitter_mod);
+    if (ret_type == CELL_RET_NOISE_LOOKUP) {
+        return _lookup_single3(
+            lookup_type, seed, s.cell_x * lookup_freq, s.cell_y * lookup_freq, s.cell_z * lookup_freq,
+        );
+    }
+    return _cellular_finish(dist_func, ret_type, s.distance0, s.distance1, s.closest_hash);
+}
+
+// -------------------------------------------------------------------------
 // dispatch, transforms, fractals
 
 // scalar.py: noise_single2 (1662)
@@ -801,6 +1065,9 @@ fn noise_single2(
     }
     if (noise_type == NOISE_OPEN_SIMPLEX2S) {
         return simplex2s(seed, x, y);
+    }
+    if (noise_type == NOISE_CELLULAR) {
+        return cellular2(seed, x, y, cell_dist, cell_ret, cell_jitter, lookup_type, lookup_freq);
     }
     if (noise_type == NOISE_PERLIN) {
         return perlin2(seed, x, y);
@@ -824,6 +1091,9 @@ fn noise_single3(
     }
     if (noise_type == NOISE_OPEN_SIMPLEX2S) {
         return opensimplex2s_3(seed, x, y, z);
+    }
+    if (noise_type == NOISE_CELLULAR) {
+        return cellular3(seed, x, y, z, cell_dist, cell_ret, cell_jitter, lookup_type, lookup_freq);
     }
     if (noise_type == NOISE_PERLIN) {
         return perlin3(seed, x, y, z);

@@ -140,6 +140,7 @@ def _workgroups(n: int) -> tuple[int, int, int]:
 _PORTED_NOISE = {
     NoiseType.OPEN_SIMPLEX2,
     NoiseType.OPEN_SIMPLEX2S,
+    NoiseType.CELLULAR,
     NoiseType.PERLIN,
     NoiseType.VALUE,
     NoiseType.VALUE_CUBIC,
@@ -152,6 +153,8 @@ def _check_ported(params: NoiseParams) -> None:
     missing = []
     if params.noise_type not in _PORTED_NOISE:
         missing.append(f"noise_type {params.noise_type.name}")
+    if params.cellular_lookup_type not in _PORTED_NOISE:  # _lookup_single2/3 call the leaf noises themselves
+        missing.append(f"cellular_lookup_type {params.cellular_lookup_type.name}")
     if params.fractal_type not in _PORTED_FRACTAL:
         missing.append(f"fractal_type {params.fractal_type.name}")
     if params.domain_warp != DomainWarpType.NONE:

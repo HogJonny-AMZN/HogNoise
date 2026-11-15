@@ -175,7 +175,17 @@ def close_to_the_cpu(select: str) -> int:
     return checked
 
 
-@pytest.mark.parametrize("select", ["hog/fnl/simplex_*", "hog/fnl/perlin_*", "hog/fnl/value_*", "hog/fnl/cubic_*"])
+@pytest.mark.parametrize(
+    "select",
+    [
+        "hog/fnl/simplex_*",
+        "hog/fnl/perlin_*",
+        "hog/fnl/value_*",
+        "hog/fnl/cubic_*",
+        "hog/fnl/cellular_*",
+        "hog/fns/cellular_*",
+    ],
+)
 def test_the_gpu_matches_the_cpu(device, select):
     close_to_the_cpu(select)
 
@@ -201,4 +211,7 @@ def test_a_feature_not_yet_ported_is_unsupported_not_wrong(device, monkeypatch):
     the test holds whatever the port has reached; Task 13 deletes both."""
     monkeypatch.setattr(gpu, "_PORTED_NOISE", set())
     with pytest.raises(NotImplementedError, match="not yet ported to WGSL: noise_type OPEN_SIMPLEX2"):
+        gpu.GpuSampler(NoiseParams())
+    # A NoiseLookup's own noise is gated too: _lookup_single2/3 call the leaf noises directly.
+    with pytest.raises(NotImplementedError, match="cellular_lookup_type OPEN_SIMPLEX2"):
         gpu.GpuSampler(NoiseParams())
