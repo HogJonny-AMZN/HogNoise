@@ -136,8 +136,9 @@ def test_an_installed_wgpu_never_changes_the_ladder(device):
 
 #: The port's working check, ~50x the spike's measured drift. The measured rules replace it in Task 15.
 DEV_SCALE = 1e-4
-#: Features whose output jumps where float32 flips a choice: held at 99% of points during the port.
-DEV_DISCRETE = ("cellvalue", "noiselookup", "whitenoise")
+#: Features whose output jumps where float32 flips a choice: held at 99% of points during the port. A grid's points
+#: sit on the lattice, where a corner choice ties and float32 and float64 round it apart (owner's decision, 2026-11-14).
+DEV_DISCRETE = ("cellvalue", "noiselookup", "whitenoise", "genasgrid")
 
 
 def close_to_the_cpu(select: str) -> int:
@@ -192,6 +193,8 @@ def close_to_the_cpu(select: str) -> int:
         "hog/fns/value_*",
         "hog/fns/cubic_*",
         "hog/fns/whitenoise_none/*",
+        "hog/fns/genasgrid_*",
+        "hog/fnl/genasgrid_*",
     ],
 )
 def test_the_gpu_matches_the_cpu(device, select):
