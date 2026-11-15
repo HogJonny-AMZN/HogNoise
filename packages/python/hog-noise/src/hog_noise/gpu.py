@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 from hog_noise import tables
 from hog_noise.backends import Backend, register
-from hog_noise.params import DomainWarpType, FractalType, NoiseParams, NoiseType
+from hog_noise.params import FractalType, NoiseParams, NoiseType
 from hog_noise.samplers import CAPABILITY
 
 _MODULE_NAME = "hog_noise.gpu"
@@ -154,13 +154,15 @@ _PORTED_FRACTAL = {
     FractalType.PING_PONG,
     FractalType.BILLOW,
     FractalType.RIGID_MULTI,
+    FractalType.DOMAIN_WARP_PROGRESSIVE,
+    FractalType.DOMAIN_WARP_INDEPENDENT,
 }
 
 
 def _check_ported(params: NoiseParams) -> None:
     """
     Refuse, as not implemented, parameters that reach a branch noise.wgsl does not have yet (Tasks 6 to 12). Every
-    perturb is ported (Task 11).
+    perturb (Task 11) and every domain warp (Task 12) is ported.
     """
     missing = []
     if params.noise_type not in _PORTED_NOISE:
@@ -169,8 +171,6 @@ def _check_ported(params: NoiseParams) -> None:
         missing.append(f"cellular_lookup_type {params.cellular_lookup_type.name}")
     if params.fractal_type not in _PORTED_FRACTAL:
         missing.append(f"fractal_type {params.fractal_type.name}")
-    if params.domain_warp != DomainWarpType.NONE:
-        missing.append(f"domain_warp {params.domain_warp.name}")
     if missing:
         raise NotImplementedError("not yet ported to WGSL: " + ", ".join(missing))
 
@@ -279,13 +279,11 @@ class GpuSampler:
         return self._gpu.run("sample_grid", self._params, (), math.prod(shape), 1, grid).reshape(shape)
 
     def warp_points(self, xs, ys, zs) -> NDArray[np.float32]:
-        """The warped raw coordinates, ``(N, 3)``. Refused until Task 12 ports the warp."""
-        raise NotImplementedError("not yet ported to WGSL: the warp entry points")  # Task 12 removes this line
+        """The warped raw coordinates, ``(N, 3)``: the reference's ``DomainWarp`` alone, as `scalar.warp_3d` gives."""
         return self._gpu.run("warp_points_3d", self._params, (xs, ys, zs), len(xs), 3).reshape(len(xs), 3)
 
     def warp_points_2d(self, xs, ys) -> NDArray[np.float32]:
-        """The warped raw coordinates, ``(N, 2)``. Refused until Task 12 ports the warp."""
-        raise NotImplementedError("not yet ported to WGSL: the warp entry points")  # Task 12 removes this line
+        """The warped raw coordinates, ``(N, 2)``: the 2D twin of `warp_points`."""
         return self._gpu.run("warp_points_2d", self._params, (xs, ys), len(xs), 2).reshape(len(xs), 2)
 
     def sample(self, x: float, y: float, z: float = 0.0) -> float:

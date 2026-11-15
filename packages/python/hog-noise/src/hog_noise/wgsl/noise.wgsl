@@ -1180,9 +1180,404 @@ fn simplex_classic2(seed : i32, x : f32, y : f32) -> f32 {
 }
 
 // -------------------------------------------------------------------------
+// domain warp: FastNoiseLite's DomainWarp, applied to the raw coordinates before the noise. The CPU computes it in
+// float64 on the raw coordinate; here it is f32, so its drift follows the coordinate, not the coordinate times
+// frequency.
+
+// scalar.py: _grad_out2 (1208)
+fn _grad_out2(seed : i32, xp : i32, yp : i32) -> vec2<f32> {
+    let h = _hash2(seed, xp, yp) & (255 << 1u);
+    return vec2<f32>(rand_vecs_2d(h), rand_vecs_2d(h | 1));
+}
+
+// scalar.py: _grad_out3 (1214)
+fn _grad_out3(seed : i32, xp : i32, yp : i32, zp : i32) -> vec3<f32> {
+    let h = _hash3(seed, xp, yp, zp) & (255 << 2u);
+    return vec3<f32>(rand_vecs_3d(h), rand_vecs_3d(h | 1), rand_vecs_3d(h | 2));
+}
+
+// scalar.py: _grad_dual2 (1220)
+fn _grad_dual2(seed : i32, xp : i32, yp : i32, xd : f32, yd : f32) -> vec2<f32> {
+    let h = _hash2(seed, xp, yp);
+    let i1 = h & (127 << 1u);
+    let i2 = (h >> 7u) & (255 << 1u);
+    let v = xd * gradients_2d(i1) + yd * gradients_2d(i1 | 1);
+    return vec2<f32>(v * rand_vecs_2d(i2), v * rand_vecs_2d(i2 | 1));
+}
+
+// scalar.py: _grad_dual3 (1229)
+fn _grad_dual3(seed : i32, xp : i32, yp : i32, zp : i32, xd : f32, yd : f32, zd : f32) -> vec3<f32> {
+    let h = _hash3(seed, xp, yp, zp);
+    let i1 = h & (63 << 2u);
+    let i2 = (h >> 6u) & (255 << 2u);
+    let v = xd * gradients_3d(i1) + yd * gradients_3d(i1 | 1) + zd * gradients_3d(i1 | 2);
+    return vec3<f32>(v * rand_vecs_3d(i2), v * rand_vecs_3d(i2 | 1), v * rand_vecs_3d(i2 | 2));
+}
+
+// scalar.py: _rv2 (1238). The CPU promotes the float32 table value to float64 before its lerp; here it stays f32.
+fn _rv2(i : i32) -> f32 {
+    return rand_vecs_2d(i);
+}
+
+// scalar.py: _rv3 (1245)
+fn _rv3(i : i32) -> f32 {
+    return rand_vecs_3d(i);
+}
+
+// scalar.py: _warp_basic_grid2 (1250)
+fn _warp_basic_grid2(seed : i32, amp : f32, freq : f32, x : f32, y : f32) -> vec2<f32> {
+    let xf = x * freq;
+    let yf = y * freq;
+    var x0 = _fast_floor(xf);
+    var y0 = _fast_floor(yf);
+    let xs = _interp_hermite(xf - f32(x0));
+    let ys = _interp_hermite(yf - f32(y0));
+    x0 = x0 * PRIME_X;
+    y0 = y0 * PRIME_Y;
+    let x1 = x0 + PRIME_X;
+    let y1 = y0 + PRIME_Y;
+
+    var h0 = _hash2(seed, x0, y0) & (255 << 1u);
+    var h1 = _hash2(seed, x1, y0) & (255 << 1u);
+    let lx0x = _lerp(_rv2(h0), _rv2(h1), xs);
+    let ly0x = _lerp(_rv2(h0 | 1), _rv2(h1 | 1), xs);
+    h0 = _hash2(seed, x0, y1) & (255 << 1u);
+    h1 = _hash2(seed, x1, y1) & (255 << 1u);
+    let lx1x = _lerp(_rv2(h0), _rv2(h1), xs);
+    let ly1x = _lerp(_rv2(h0 | 1), _rv2(h1 | 1), xs);
+    return vec2<f32>(_lerp(lx0x, lx1x, ys) * amp, _lerp(ly0x, ly1x, ys) * amp);
+}
+
+// scalar.py: _warp_basic_grid3 (1274)
+fn _warp_basic_grid3(seed : i32, amp : f32, freq : f32, x : f32, y : f32, z : f32) -> vec3<f32> {
+    let xf = x * freq;
+    let yf = y * freq;
+    let zf = z * freq;
+    var x0 = _fast_floor(xf);
+    var y0 = _fast_floor(yf);
+    var z0 = _fast_floor(zf);
+    let xs = _interp_hermite(xf - f32(x0));
+    let ys = _interp_hermite(yf - f32(y0));
+    let zs = _interp_hermite(zf - f32(z0));
+    x0 = x0 * PRIME_X;
+    y0 = y0 * PRIME_Y;
+    z0 = z0 * PRIME_Z;
+    let x1 = x0 + PRIME_X;
+    let y1 = y0 + PRIME_Y;
+    let z1 = z0 + PRIME_Z;
+
+    var h0 = _hash3(seed, x0, y0, z0) & (255 << 2u);
+    var h1 = _hash3(seed, x1, y0, z0) & (255 << 2u);
+    var lx0x = _lerp(_rv3(h0), _rv3(h1), xs);
+    var ly0x = _lerp(_rv3(h0 | 1), _rv3(h1 | 1), xs);
+    var lz0x = _lerp(_rv3(h0 | 2), _rv3(h1 | 2), xs);
+    h0 = _hash3(seed, x0, y1, z0) & (255 << 2u);
+    h1 = _hash3(seed, x1, y1, z0) & (255 << 2u);
+    var lx1x = _lerp(_rv3(h0), _rv3(h1), xs);
+    var ly1x = _lerp(_rv3(h0 | 1), _rv3(h1 | 1), xs);
+    var lz1x = _lerp(_rv3(h0 | 2), _rv3(h1 | 2), xs);
+    let lx0y = _lerp(lx0x, lx1x, ys);
+    let ly0y = _lerp(ly0x, ly1x, ys);
+    let lz0y = _lerp(lz0x, lz1x, ys);
+
+    h0 = _hash3(seed, x0, y0, z1) & (255 << 2u);
+    h1 = _hash3(seed, x1, y0, z1) & (255 << 2u);
+    lx0x = _lerp(_rv3(h0), _rv3(h1), xs);
+    ly0x = _lerp(_rv3(h0 | 1), _rv3(h1 | 1), xs);
+    lz0x = _lerp(_rv3(h0 | 2), _rv3(h1 | 2), xs);
+    h0 = _hash3(seed, x0, y1, z1) & (255 << 2u);
+    h1 = _hash3(seed, x1, y1, z1) & (255 << 2u);
+    lx1x = _lerp(_rv3(h0), _rv3(h1), xs);
+    ly1x = _lerp(_rv3(h0 | 1), _rv3(h1 | 1), xs);
+    lz1x = _lerp(_rv3(h0 | 2), _rv3(h1 | 2), xs);
+    return vec3<f32>(
+        _lerp(lx0y, _lerp(lx0x, lx1x, ys), zs) * amp,
+        _lerp(ly0y, _lerp(ly0x, ly1x, ys), zs) * amp,
+        _lerp(lz0y, _lerp(lz0x, lz1x, ys), zs) * amp,
+    );
+}
+
+// scalar.py: _warp_simplex_grad2 (1323). OpenSimplex2 gradient warp, 2D. x, y are skewed already; grad_only is the
+// Reduced variant.
+fn _warp_simplex_grad2(seed : i32, amp : f32, freq : f32, x_in : f32, y_in : f32, grad_only : bool) -> vec2<f32> {
+    let x = x_in * freq;
+    let y = y_in * freq;
+    var i = _fast_floor(x);
+    var j = _fast_floor(y);
+    let xi = x - f32(i);
+    let yi = y - f32(j);
+    let t = (xi + yi) * G2;
+    let x0 = xi - t;
+    let y0 = yi - t;
+    i = i * PRIME_X;
+    j = j * PRIME_Y;
+
+    var v = vec2<f32>(0.0, 0.0);
+    let a = 0.5 - x0 * x0 - y0 * y0;
+    if (a > 0.0) {
+        let aaaa = (a * a) * (a * a);
+        var o : vec2<f32>;
+        if (grad_only) {
+            o = _grad_out2(seed, i, j);
+        } else {
+            o = _grad_dual2(seed, i, j, x0, y0);
+        }
+        v += aaaa * o;
+    }
+
+    let c = (2.0 * (1.0 - 2.0 * G2) * (1.0 / G2 - 2.0)) * t + ((-2.0 * (1.0 - 2.0 * G2) * (1.0 - 2.0 * G2)) + a);
+    if (c > 0.0) {
+        let x2 = x0 + (2.0 * G2 - 1.0);
+        let y2 = y0 + (2.0 * G2 - 1.0);
+        let cccc = (c * c) * (c * c);
+        var o : vec2<f32>;
+        if (grad_only) {
+            o = _grad_out2(seed, i + PRIME_X, j + PRIME_Y);
+        } else {
+            o = _grad_dual2(seed, i + PRIME_X, j + PRIME_Y, x2, y2);
+        }
+        v += cccc * o;
+    }
+
+    if (y0 > x0) {
+        let x1 = x0 + G2;
+        let y1 = y0 + (G2 - 1.0);
+        let b = 0.5 - x1 * x1 - y1 * y1;
+        if (b > 0.0) {
+            let bbbb = (b * b) * (b * b);
+            var o : vec2<f32>;
+            if (grad_only) {
+                o = _grad_out2(seed, i, j + PRIME_Y);
+            } else {
+                o = _grad_dual2(seed, i, j + PRIME_Y, x1, y1);
+            }
+            v += bbbb * o;
+        }
+    } else {
+        let x1 = x0 + (G2 - 1.0);
+        let y1 = y0 + G2;
+        let b = 0.5 - x1 * x1 - y1 * y1;
+        if (b > 0.0) {
+            let bbbb = (b * b) * (b * b);
+            var o : vec2<f32>;
+            if (grad_only) {
+                o = _grad_out2(seed, i + PRIME_X, j);
+            } else {
+                o = _grad_dual2(seed, i + PRIME_X, j, x1, y1);
+            }
+            v += bbbb * o;
+        }
+    }
+
+    return v * amp;
+}
+
+// scalar.py: _warp_simplex_grad3 (1390). OpenSimplex2 gradient warp, 3D. x, y, z are rotated already; grad_only is the
+// Reduced variant. Its second lattice's seed is seed + 1293373, where opensimplex2_3's is ~seed, as on the CPU.
+fn _warp_simplex_grad3(
+    seed_in : i32, amp : f32, freq : f32, x_in : f32, y_in : f32, z_in : f32, grad_only : bool,
+) -> vec3<f32> {
+    var seed = seed_in;
+    let x = x_in * freq;
+    let y = y_in * freq;
+    let z = z_in * freq;
+    var i = _fast_round(x);
+    var j = _fast_round(y);
+    var k = _fast_round(z);
+    var x0 = x - f32(i);
+    var y0 = y - f32(j);
+    var z0 = z - f32(k);
+
+    var x_nsign = i32(-x0 - 1.0) | 1;
+    var y_nsign = i32(-y0 - 1.0) | 1;
+    var z_nsign = i32(-z0 - 1.0) | 1;
+
+    var ax0 = f32(x_nsign) * -x0;
+    var ay0 = f32(y_nsign) * -y0;
+    var az0 = f32(z_nsign) * -z0;
+
+    i = i * PRIME_X;
+    j = j * PRIME_Y;
+    k = k * PRIME_Z;
+
+    var v = vec3<f32>(0.0, 0.0, 0.0);
+    var a = (0.6 - x0 * x0) - (y0 * y0 + z0 * z0);
+    for (var step = 0; step < 2; step++) {
+        if (a > 0.0) {
+            let aaaa = (a * a) * (a * a);
+            var o : vec3<f32>;
+            if (grad_only) {
+                o = _grad_out3(seed, i, j, k);
+            } else {
+                o = _grad_dual3(seed, i, j, k, x0, y0, z0);
+            }
+            v += aaaa * o;
+        }
+
+        var b = a + 1.0;
+        var i1 = i;
+        var j1 = j;
+        var k1 = k;
+        var x1 = x0;
+        var y1 = y0;
+        var z1 = z0;
+        if (ax0 >= ay0 && ax0 >= az0) {
+            x1 += f32(x_nsign);
+            b -= f32(x_nsign) * 2.0 * x1;
+            i1 = i1 - x_nsign * PRIME_X;
+        } else if (ay0 > ax0 && ay0 >= az0) {
+            y1 += f32(y_nsign);
+            b -= f32(y_nsign) * 2.0 * y1;
+            j1 = j1 - y_nsign * PRIME_Y;
+        } else {
+            z1 += f32(z_nsign);
+            b -= f32(z_nsign) * 2.0 * z1;
+            k1 = k1 - z_nsign * PRIME_Z;
+        }
+
+        if (b > 0.0) {
+            let bbbb = (b * b) * (b * b);
+            var o : vec3<f32>;
+            if (grad_only) {
+                o = _grad_out3(seed, i1, j1, k1);
+            } else {
+                o = _grad_dual3(seed, i1, j1, k1, x1, y1, z1);
+            }
+            v += bbbb * o;
+        }
+
+        if (step == 1) {
+            break;
+        }
+
+        ax0 = 0.5 - ax0;
+        ay0 = 0.5 - ay0;
+        az0 = 0.5 - az0;
+        x0 = f32(x_nsign) * ax0;
+        y0 = f32(y_nsign) * ay0;
+        z0 = f32(z_nsign) * az0;
+        a += (0.75 - ax0) - (ay0 + az0);
+        i = i + ((x_nsign >> 1u) & PRIME_X);
+        j = j + ((y_nsign >> 1u) & PRIME_Y);
+        k = k + ((z_nsign >> 1u) & PRIME_Z);
+        x_nsign = -x_nsign;
+        y_nsign = -y_nsign;
+        z_nsign = -z_nsign;
+        seed = seed + 1293373;
+    }
+
+    return v * amp;
+}
+
+// scalar.py: _warp_transform2 (1481). The warp's own skew: by warp type, not noise type.
+fn _warp_transform2(warp_type : i32, x : f32, y : f32) -> vec2<f32> {
+    if (warp_type == WARP_OPEN_SIMPLEX2 || warp_type == WARP_OPEN_SIMPLEX2_REDUCED) {
+        let t = (x + y) * F2;
+        return vec2<f32>(x + t, y + t);
+    }
+    return vec2<f32>(x, y);
+}
+
+// scalar.py: _do_warp2 (1489)
+fn _do_warp2(warp_type : i32, seed : i32, amp : f32, freq : f32, x : f32, y : f32) -> vec2<f32> {
+    if (warp_type == WARP_OPEN_SIMPLEX2) {
+        return _warp_simplex_grad2(seed, amp * 38.283687591552734375, freq, x, y, false);
+    }
+    if (warp_type == WARP_OPEN_SIMPLEX2_REDUCED) {
+        return _warp_simplex_grad2(seed, amp * 16.0, freq, x, y, true);
+    }
+    return _warp_basic_grid2(seed, amp, freq, x, y);
+}
+
+// scalar.py: _do_warp3 (1498)
+fn _do_warp3(warp_type : i32, seed : i32, amp : f32, freq : f32, x : f32, y : f32, z : f32) -> vec3<f32> {
+    if (warp_type == WARP_OPEN_SIMPLEX2) {
+        return _warp_simplex_grad3(seed, amp * 32.69428253173828125, freq, x, y, z, false);
+    }
+    if (warp_type == WARP_OPEN_SIMPLEX2_REDUCED) {
+        return _warp_simplex_grad3(seed, amp * 7.71604938271605, freq, x, y, z, true);
+    }
+    return _warp_basic_grid3(seed, amp, freq, x, y, z);
+}
+
+// scalar.py: warp2 (1507). The reference's DomainWarp(x, y): x, y raw (unscaled) coordinates, warped. amp is the warp
+// amplitude already scaled by the fractal bounding; freq the base frequency. A single warp uses the first octave's
+// seed, amplitude and frequency; progressive re-transforms the running warped point each octave; independent
+// transforms the original once.
+// One shape differs from the CPU's: the single warp is the progressive loop run once (the same arithmetic: transform,
+// one _do_warp2 at the first octave's seed, amplitude and frequency, add), not a branch of its own. WARP (D3D12,
+// 10.0.26100.9818) computed the CPU-shaped single branch of warp3 wrongly inside sample_one_3d, and differently from
+// run to run, while the same warp3 was right through warp_points_3d (Task 12); warp2 takes the same shape so the two
+// stay twins.
+fn warp2(
+    warp_type : i32, warp_fractal : i32, seed_in : i32, amp_in : f32, freq_in : f32, octaves : i32, lacunarity : f32,
+    gain : f32, x_in : f32, y_in : f32,
+) -> vec2<f32> {
+    var p = vec2<f32>(x_in, y_in);
+    if (warp_type == WARP_NONE) {  // no warp configured: the raw point, not the BasicGrid fallback
+        return p;
+    }
+    var seed = seed_in;
+    var amp = amp_in;
+    var freq = freq_in;
+    if (warp_fractal == WARP_SINGLE || warp_fractal == WARP_PROGRESSIVE) {
+        let count = select(octaves, 1, warp_fractal == WARP_SINGLE);
+        for (var octave = 0; octave < count; octave++) {
+            let s = _warp_transform2(warp_type, p.x, p.y);
+            p += _do_warp2(warp_type, seed, amp, freq, s.x, s.y);
+            seed += 1;
+            amp *= gain;
+            freq *= lacunarity;
+        }
+        return p;
+    }
+    let s = _warp_transform2(warp_type, p.x, p.y);
+    for (var octave = 0; octave < octaves; octave++) {
+        p += _do_warp2(warp_type, seed, amp, freq, s.x, s.y);
+        seed += 1;
+        amp *= gain;
+        freq *= lacunarity;
+    }
+    return p;
+}
+
+// scalar.py: warp3 (1543). The reference's DomainWarp(x, y, z); warp_transform is the warp's own Transform3D. The
+// single warp is the progressive loop run once, as in warp2.
+fn warp3(
+    warp_type : i32, warp_fractal : i32, warp_transform : i32, seed_in : i32, amp_in : f32, freq_in : f32,
+    octaves : i32, lacunarity : f32, gain : f32, x_in : f32, y_in : f32, z_in : f32,
+) -> vec3<f32> {
+    var p = vec3<f32>(x_in, y_in, z_in);
+    if (warp_type == WARP_NONE) {  // no warp configured: the raw point, not the BasicGrid fallback
+        return p;
+    }
+    var seed = seed_in;
+    var amp = amp_in;
+    var freq = freq_in;
+    if (warp_fractal == WARP_SINGLE || warp_fractal == WARP_PROGRESSIVE) {
+        let count = select(octaves, 1, warp_fractal == WARP_SINGLE);
+        for (var octave = 0; octave < count; octave++) {
+            let s = _transform3(warp_transform, p.x, p.y, p.z);
+            p += _do_warp3(warp_type, seed, amp, freq, s.x, s.y, s.z);
+            seed += 1;
+            amp *= gain;
+            freq *= lacunarity;
+        }
+        return p;
+    }
+    let s = _transform3(warp_transform, p.x, p.y, p.z);
+    for (var octave = 0; octave < octaves; octave++) {
+        p += _do_warp3(warp_type, seed, amp, freq, s.x, s.y, s.z);
+        seed += 1;
+        amp *= gain;
+        freq *= lacunarity;
+    }
+    return p;
+}
+
+// -------------------------------------------------------------------------
 // gradient perturb: FastNoiseSIMD's GradientPerturbSingle and its PERTURB_SWITCH, on the frequency-scaled point, with
-// its own frequency and octaves; the normalise modes rescale the point. (The CPU's domain warp, 1208-1572, sits
-// between simplex_classic2 and these; Task 12 ports it above this section.)
+// its own frequency and octaves; the normalise modes rescale the point.
 
 // scalar.py: _fns_grad_vec (1578). HashHB (no shift-xor), ten bits per axis, centred: an unnormalised random vector.
 fn _fns_grad_vec(seed : i32, xp : i32, yp : i32, zp : i32) -> vec3<f32> {
@@ -1470,13 +1865,24 @@ fn fractal3(
 // -------------------------------------------------------------------------
 // single-point entry points: the coordinates are arguments, every other scalar is read from P
 
-// scalar.py: sample_one_2d (1830), without the warp branch (Task 12). The seed is already wrapped to i32 by
-// gpu.pack_params. x * frequency is the CPU's float32 product exactly. The perturb's normalise length is multiplied by
-// the frequency, as the CPU passes it (1889).
+// scalar.py: sample_one_2d (1830). The seed is already wrapped to i32 by gpu.pack_params. Without a warp, x * frequency
+// is the CPU's float32 product exactly; with one, the raw point is warped, then multiplied by the frequency, as the CPU
+// does in float64 (1861-1875). The perturb's normalise length is multiplied by the frequency, as the CPU passes it
+// (1889).
 fn sample_one_2d(x : f32, y : f32) -> f32 {
     let seed = P.seed;
-    var xf = x * P.frequency;
-    var yf = y * P.frequency;
+    var xf : f32;
+    var yf : f32;
+    if (P.domain_warp != WARP_NONE) {
+        let w = warp2(
+            P.domain_warp, P.warp_fractal, seed, P.warp_amp, P.frequency, P.octaves, P.lacunarity, P.gain, x, y,
+        );
+        xf = w.x * P.frequency;
+        yf = w.y * P.frequency;
+    } else {
+        xf = x * P.frequency;
+        yf = y * P.frequency;
+    }
     if (P.perturb != PERTURB_NONE) {
         let p = perturb2(
             P.perturb, seed, P.fractal_bounding, P.perturb_amp, P.perturb_frequency, P.perturb_octaves,
@@ -1493,12 +1899,26 @@ fn sample_one_2d(x : f32, y : f32) -> f32 {
     );
 }
 
-// scalar.py: sample_one_3d (1915), without the warp branch (Task 12). The perturb as in sample_one_2d (1981).
+// scalar.py: sample_one_3d (1915). The warp as in sample_one_2d (1949-1966), with the warp's own Transform3D; the
+// perturb as there (1981).
 fn sample_one_3d(x : f32, y : f32, z : f32) -> f32 {
     let seed = P.seed;
-    var xf = x * P.frequency;
-    var yf = y * P.frequency;
-    var zf = z * P.frequency;
+    var xf : f32;
+    var yf : f32;
+    var zf : f32;
+    if (P.domain_warp != WARP_NONE) {
+        let w = warp3(
+            P.domain_warp, P.warp_fractal, P.warp_transform_3d, seed, P.warp_amp, P.frequency, P.octaves,
+            P.lacunarity, P.gain, x, y, z,
+        );
+        xf = w.x * P.frequency;
+        yf = w.y * P.frequency;
+        zf = w.z * P.frequency;
+    } else {
+        xf = x * P.frequency;
+        yf = y * P.frequency;
+        zf = z * P.frequency;
+    }
     if (P.perturb != PERTURB_NONE) {
         let p = perturb3(
             P.perturb, seed, P.fractal_bounding, P.perturb_amp, P.perturb_frequency, P.perturb_octaves,
@@ -1551,20 +1971,28 @@ fn sample_grid(@builtin(global_invocation_id) gid : vec3<u32>) {
     OUT[i] = sample_one_3d(x, y, z);
 }
 
-// The warp entry points are ported in Task 12; gpu.py refuses them until then.
+// scalar.py: warp_3d (2228). The warped raw coordinates alone, three floats per point; the seed is wrapped already.
 @compute @workgroup_size(64)
 fn warp_points_3d(@builtin(global_invocation_id) gid : vec3<u32>) {
     let i = point_index(gid);
     if (3u * i >= arrayLength(&OUT)) { return; }
-    OUT[3u * i] = XS[i];
-    OUT[3u * i + 1u] = YS[i];
-    OUT[3u * i + 2u] = ZS[i];
+    let w = warp3(
+        P.domain_warp, P.warp_fractal, P.warp_transform_3d, P.seed, P.warp_amp, P.frequency, P.octaves, P.lacunarity,
+        P.gain, XS[i], YS[i], ZS[i],
+    );
+    OUT[3u * i] = w.x;
+    OUT[3u * i + 1u] = w.y;
+    OUT[3u * i + 2u] = w.z;
 }
 
+// scalar.py: warp_2d (2206). Two floats per point.
 @compute @workgroup_size(64)
 fn warp_points_2d(@builtin(global_invocation_id) gid : vec3<u32>) {
     let i = point_index(gid);
     if (2u * i >= arrayLength(&OUT)) { return; }
-    OUT[2u * i] = XS[i];
-    OUT[2u * i + 1u] = YS[i];
+    let w = warp2(
+        P.domain_warp, P.warp_fractal, P.seed, P.warp_amp, P.frequency, P.octaves, P.lacunarity, P.gain, XS[i], YS[i],
+    );
+    OUT[2u * i] = w.x;
+    OUT[2u * i + 1u] = w.y;
 }

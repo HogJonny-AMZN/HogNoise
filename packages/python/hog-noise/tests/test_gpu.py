@@ -196,6 +196,7 @@ def close_to_the_cpu(select: str) -> int:
         "hog/fns/genasgrid_*",
         "hog/fnl/genasgrid_*",
         "hog/fns/simplex_fbm_perturb_*",
+        "hog/fnl/warp_*",
     ],
 )
 def test_the_gpu_matches_the_cpu(device, select):
