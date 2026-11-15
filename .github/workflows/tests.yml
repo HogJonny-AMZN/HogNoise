@@ -44,3 +44,16 @@ jobs:
         env:
           HOG_NOISE_REQUIRE_GPU: ${{ matrix.gpu && '1' || '0' }}
         run: pytest
+      - name: Measure the wgpu rung
+        if: matrix.gpu
+        env:
+          # a pull_request run checks out a merge commit; the record names the branch head the owner can check out
+          HOG_NOISE_MEASURED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          HOG_NOISE_MEASURE_HOST: ci-${{ runner.os == 'Windows' && 'windows' || 'ubuntu' }}
+        run: python tools/measure_gpu.py run --out measured
+      - name: Keep the measurement
+        if: matrix.gpu
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-measurement-${{ runner.os }}
+          path: measured/
