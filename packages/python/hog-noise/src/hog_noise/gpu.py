@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 from hog_noise import tables
 from hog_noise.backends import Backend, register
-from hog_noise.params import DomainWarpType, FractalType, NoiseParams, NoiseType, PerturbType
+from hog_noise.params import DomainWarpType, FractalType, NoiseParams, NoiseType
 from hog_noise.samplers import CAPABILITY
 
 _MODULE_NAME = "hog_noise.gpu"
@@ -158,7 +158,10 @@ _PORTED_FRACTAL = {
 
 
 def _check_ported(params: NoiseParams) -> None:
-    """Refuse, as not implemented, parameters that reach a branch noise.wgsl does not have yet (Tasks 6 to 12)."""
+    """
+    Refuse, as not implemented, parameters that reach a branch noise.wgsl does not have yet (Tasks 6 to 12). Every
+    perturb is ported (Task 11).
+    """
     missing = []
     if params.noise_type not in _PORTED_NOISE:
         missing.append(f"noise_type {params.noise_type.name}")
@@ -168,8 +171,6 @@ def _check_ported(params: NoiseParams) -> None:
         missing.append(f"fractal_type {params.fractal_type.name}")
     if params.domain_warp != DomainWarpType.NONE:
         missing.append(f"domain_warp {params.domain_warp.name}")
-    if params.perturb != PerturbType.NONE:
-        missing.append(f"perturb {params.perturb.name}")
     if missing:
         raise NotImplementedError("not yet ported to WGSL: " + ", ".join(missing))
 

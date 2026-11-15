@@ -1180,6 +1180,98 @@ fn simplex_classic2(seed : i32, x : f32, y : f32) -> f32 {
 }
 
 // -------------------------------------------------------------------------
+// gradient perturb: FastNoiseSIMD's GradientPerturbSingle and its PERTURB_SWITCH, on the frequency-scaled point, with
+// its own frequency and octaves; the normalise modes rescale the point. (The CPU's domain warp, 1208-1572, sits
+// between simplex_classic2 and these; Task 12 ports it above this section.)
+
+// scalar.py: _fns_grad_vec (1578). HashHB (no shift-xor), ten bits per axis, centred: an unnormalised random vector.
+fn _fns_grad_vec(seed : i32, xp : i32, yp : i32, zp : i32) -> vec3<f32> {
+    var h = seed ^ xp ^ yp ^ zp;
+    h = h * h * FNS_HASH_MUL * h;
+    return vec3<f32>(f32(h & 1023) - 511.5, f32((h >> 10u) & 1023) - 511.5, f32((h >> 20u) & 1023) - 511.5);
+}
+
+// scalar.py: _perturb_single3 (1586)
+fn _perturb_single3(seed : i32, amp : f32, freq : f32, x : f32, y : f32, z : f32) -> vec3<f32> {
+    let xf = x * freq;
+    let yf = y * freq;
+    let zf = z * freq;
+    let xfl = floor(xf);
+    let yfl = floor(yf);
+    let zfl = floor(zf);
+    let x0 = i32(xfl) * FNS_PRIME_X;
+    let y0 = i32(yfl) * FNS_PRIME_Y;
+    let z0 = i32(zfl) * FNS_PRIME_Z;
+    let x1 = x0 + FNS_PRIME_X;
+    let y1 = y0 + FNS_PRIME_Y;
+    let z1 = z0 + FNS_PRIME_Z;
+    let xs = _interp_quintic(xf - xfl);
+    let ys = _interp_quintic(yf - yfl);
+    let zs = _interp_quintic(zf - zfl);
+
+    let v000 = _fns_grad_vec(seed, x0, y0, z0);
+    let v001 = _fns_grad_vec(seed, x0, y0, z1);
+    let v010 = _fns_grad_vec(seed, x0, y1, z0);
+    let v011 = _fns_grad_vec(seed, x0, y1, z1);
+    let v100 = _fns_grad_vec(seed, x1, y0, z0);
+    let v101 = _fns_grad_vec(seed, x1, y0, z1);
+    let v110 = _fns_grad_vec(seed, x1, y1, z0);
+    let v111 = _fns_grad_vec(seed, x1, y1, z1);
+
+    let x0y = _lerp(_lerp(v000.x, v100.x, xs), _lerp(v010.x, v110.x, xs), ys);
+    let y0y = _lerp(_lerp(v000.y, v100.y, xs), _lerp(v010.y, v110.y, xs), ys);
+    let z0y = _lerp(_lerp(v000.z, v100.z, xs), _lerp(v010.z, v110.z, xs), ys);
+    let x1y = _lerp(_lerp(v001.x, v101.x, xs), _lerp(v011.x, v111.x, xs), ys);
+    let y1y = _lerp(_lerp(v001.y, v101.y, xs), _lerp(v011.y, v111.y, xs), ys);
+    let z1y = _lerp(_lerp(v001.z, v101.z, xs), _lerp(v011.z, v111.z, xs), ys);
+    return vec3<f32>(_lerp(x0y, x1y, zs) * amp + x, _lerp(y0y, y1y, zs) * amp + y, _lerp(z0y, z1y, zs) * amp + z);
+}
+
+// scalar.py: perturb3 (1622). The reference's PERTURB_SWITCH on a frequency-scaled point. normalise is the normalise
+// length already multiplied by the noise frequency; bounding is the noise's fractal bounding, which the reference (not
+// its own perturb bounding) multiplies into a fractal perturb's amplitude.
+fn perturb3(
+    ptype : i32, seed : i32, bounding : f32, amp_in : f32, freq : f32, octaves : i32, lacunarity : f32, gain : f32,
+    normalise : f32, x_in : f32, y_in : f32, z_in : f32,
+) -> vec3<f32> {
+    let amp = amp_in / 511.5;  // the reference's SetPerturbAmp: its random vectors are ten bits wide, +-511.5
+    var p = vec3<f32>(x_in, y_in, z_in);
+    if (ptype == PERTURB_GRADIENT || ptype == PERTURB_GRADIENT_NORMALISE) {
+        p = _perturb_single3(seed - 1, amp, freq, p.x, p.y, p.z);
+    } else if (ptype == PERTURB_GRADIENT_FRACTAL || ptype == PERTURB_GRADIENT_FRACTAL_NORMALISE) {
+        var seed_f = seed - 1;
+        var freq_f = freq;
+        var amp_f = amp * bounding;
+        p = _perturb_single3(seed_f, amp_f, freq_f, p.x, p.y, p.z);
+        for (var octave = 1; octave < octaves; octave++) {
+            freq_f *= lacunarity;
+            seed_f -= 1;
+            amp_f *= gain;
+            p = _perturb_single3(seed_f, amp_f, freq_f, p.x, p.y, p.z);
+        }
+    }
+    if (ptype >= PERTURB_NORMALISE) {
+        // The reference used an approximate rsqrt and made NaN of the origin; a zero-length point stays where it is.
+        let len = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+        var inv = 0.0;
+        if (len > 0.0) {
+            inv = normalise / len;
+        }
+        p = p * inv;
+    }
+    return p;
+}
+
+// scalar.py: perturb2 (1653). The reference was 3D only; its 2D use was z = 0, and the z displacement is dropped
+// (after the normalise modes have counted it in the length, as the CPU's does).
+fn perturb2(
+    ptype : i32, seed : i32, bounding : f32, amp : f32, freq : f32, octaves : i32, lacunarity : f32, gain : f32,
+    normalise : f32, x : f32, y : f32,
+) -> vec2<f32> {
+    return perturb3(ptype, seed, bounding, amp, freq, octaves, lacunarity, gain, normalise, x, y, 0.0).xy;
+}
+
+// -------------------------------------------------------------------------
 // dispatch, transforms, fractals
 
 // scalar.py: noise_single2 (1662)
@@ -1378,12 +1470,21 @@ fn fractal3(
 // -------------------------------------------------------------------------
 // single-point entry points: the coordinates are arguments, every other scalar is read from P
 
-// scalar.py: sample_one_2d (1830), without the warp and perturb branches (Tasks 11 and 12). The seed is already
-// wrapped to i32 by gpu.pack_params. x * frequency is the CPU's float32 product exactly.
+// scalar.py: sample_one_2d (1830), without the warp branch (Task 12). The seed is already wrapped to i32 by
+// gpu.pack_params. x * frequency is the CPU's float32 product exactly. The perturb's normalise length is multiplied by
+// the frequency, as the CPU passes it (1889).
 fn sample_one_2d(x : f32, y : f32) -> f32 {
     let seed = P.seed;
-    let xf = x * P.frequency;
-    let yf = y * P.frequency;
+    var xf = x * P.frequency;
+    var yf = y * P.frequency;
+    if (P.perturb != PERTURB_NONE) {
+        let p = perturb2(
+            P.perturb, seed, P.fractal_bounding, P.perturb_amp, P.perturb_frequency, P.perturb_octaves,
+            P.perturb_lacunarity, P.perturb_gain, P.perturb_normalise_length * P.frequency, xf, yf,
+        );
+        xf = p.x;
+        yf = p.y;
+    }
     let s = _transform2(P.noise_type, xf, yf);
     return fractal2(
         P.noise_type, P.fractal_type, seed, s.x, s.y, P.octaves, P.lacunarity, P.gain, P.weighted_strength,
@@ -1392,12 +1493,21 @@ fn sample_one_2d(x : f32, y : f32) -> f32 {
     );
 }
 
-// scalar.py: sample_one_3d (1915), without the warp and perturb branches (Tasks 11 and 12).
+// scalar.py: sample_one_3d (1915), without the warp branch (Task 12). The perturb as in sample_one_2d (1981).
 fn sample_one_3d(x : f32, y : f32, z : f32) -> f32 {
     let seed = P.seed;
-    let xf = x * P.frequency;
-    let yf = y * P.frequency;
-    let zf = z * P.frequency;
+    var xf = x * P.frequency;
+    var yf = y * P.frequency;
+    var zf = z * P.frequency;
+    if (P.perturb != PERTURB_NONE) {
+        let p = perturb3(
+            P.perturb, seed, P.fractal_bounding, P.perturb_amp, P.perturb_frequency, P.perturb_octaves,
+            P.perturb_lacunarity, P.perturb_gain, P.perturb_normalise_length * P.frequency, xf, yf, zf,
+        );
+        xf = p.x;
+        yf = p.y;
+        zf = p.z;
+    }
     let r = _transform3(P.transform_3d, xf, yf, zf);
     return fractal3(
         P.noise_type, P.fractal_type, seed, r.x, r.y, r.z, P.octaves, P.lacunarity, P.gain, P.weighted_strength,
