@@ -419,6 +419,17 @@ def real():
     return conformance.load(REAL)
 
 
+def test_the_hog_set_has_the_48_hog_only_cases(real):
+    """The GPU port's spec, *The vectors grow*: 46 FastNoiseSIMD features in 2D and the odd grid twice."""
+    hog_only = [c for c in real.cases if c.source.get("hog_only")]
+    assert sum(c.point_set == "scatter_2d" and c.id.startswith("hog/fns/") for c in hog_only) == 46
+    assert sorted(c.id for c in hog_only if c.point_set == "genasgrid_0.7_1.0_1.3") == [
+        "hog/fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+        "hog/fns/genasgrid_simplex_fbm_scales_0.7_1.0_1.3/genasgrid_0.7_1.0_1.3",
+    ]
+    assert len(hog_only) == 48
+
+
 def test_a_seed_off_by_one_fails_hog(real):
     sample, _ = conformance.renderings("numpy")
 
@@ -426,7 +437,7 @@ def test_a_seed_off_by_one_fails_hog(real):
         return sample(params.replace(seed=params.seed + 1), xs, ys, zs)
 
     report = conformance.check(off, real, select="hog/fns/whitenoise_none/*")
-    assert len(report.results) == 2 and not report.ok
+    assert len(report.results) == 3 and not report.ok
 
 
 def test_one_value_nudged_by_1e_5_fails_the_white_noise_original(real):
