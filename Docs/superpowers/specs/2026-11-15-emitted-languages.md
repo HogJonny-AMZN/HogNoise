@@ -1,6 +1,6 @@
 # Spec: the emitted languages, HLSL, GLSL and SPIR-V from the WGSL by naga
 
-**Status:** Proposed 2026-11-15, for the owner to accept with its six decisions. Written from
+**Status:** Accepted 2026-11-15 (the owner: "all your recommendations make sense to me"), with the six decisions as recommended. Written from
 [the GPU fast track](../../design/2026-11-01-gpu-fast-track.md) (Accepted 2026-11-01), its stage 3, after stage 2 landed in
 [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22).
 **Board:** [`2026-11-01-gpu-fast-track`](../../plan/board/2026-11-01-gpu-fast-track.md)
@@ -123,6 +123,8 @@ workgroup size, and the dispatch rule (`point_index`: `gid.x + gid.y * 65535 * 6
 - **PyPI.** The release stays the owner's go.
 
 ## Decisions for the owner
+
+Accepted 2026-11-15, each as recommended.
 
 | # | Decision | Recommended | Alternative |
 | --- | --- | --- | --- |
