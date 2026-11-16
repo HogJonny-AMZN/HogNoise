@@ -1,6 +1,9 @@
 # Spec: the emitted languages, HLSL, GLSL and SPIR-V from the WGSL by naga
 
-**Status:** Accepted 2026-11-15 (the owner: "all your recommendations make sense to me"), with the six decisions as recommended. Written from
+**Status:** Accepted 2026-11-15 (the owner: "all your recommendations make sense to me"), with the six decisions as recommended. Copilot's review on
+[PR #26](https://github.com/HogJonny-AMZN/HogNoise/pull/26) then tightened three details, each marked *Amended
+2026-11-15*: line endings in the hashes, an accessor for the tables, and the regeneration job's trigger; no decision
+changed. Written from
 [the GPU fast track](../../design/2026-11-01-gpu-fast-track.md) (Accepted 2026-11-01), its stage 3, after stage 2 landed in
 [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22).
 **Board:** [`2026-11-01-gpu-fast-track`](../../plan/board/2026-11-01-gpu-fast-track.md)
@@ -81,12 +84,22 @@ pull request.
 binding table above per language (the HLSL register, the GLSL block and variable name, the SPIR-V set and binding), the
 workgroup size, and the dispatch rule (`point_index`: `gid.x + gid.y * 65535 * 64`).
 
+*Amended 2026-11-15 (review):* **one byte form per file on every checkout.** `.gitattributes` says `* text=auto`, so a
+Windows checkout has CRLF where Ubuntu has LF (`git ls-files --eol` shows `noise.wgsl` as `i/lf w/crlf` on the owner's
+machine), and a hash of the raw bytes would differ between them with no shader changed. So: `.gitattributes` gains
+`*.wgsl`, `*.hlsl` and `*.comp` as `text eol=lf` and `*.spv` as `binary` (`*.f32` is binary already); the emitter writes
+text with `newline="\n"`; and every hash of a text file, in the emitter and in the drift test alike, is taken over its
+bytes with `\r\n` replaced by `\n`, so a checkout that predates the attributes still agrees. Binary files are hashed as
+they are.
+
 ## The package surface
 
 - **`hog_noise.shaders`**, a new module with no dependencies beyond the standard library:
-  `path(language, entry_point=None) -> Path`, `source(language, entry_point=None) -> str | bytes` (bytes for SPIR-V and the
-  tables), `manifest() -> dict`, and `LANGUAGES = ("wgsl", "hlsl", "glsl", "spirv")`. An unknown language or entry point
-  raises `ValueError` naming the known ones.
+  `path(language, entry_point=None) -> Path`, `source(language, entry_point=None) -> str | bytes` (bytes for SPIR-V),
+  `tables() -> bytes` (the 8,192 bytes of `tables.f32`, for binding 1), `manifest() -> dict`, and
+  `LANGUAGES = ("wgsl", "hlsl", "glsl", "spirv")`. An unknown language or entry point raises `ValueError` naming the
+  known ones. *Amended 2026-11-15 (review):* the tables have their own accessor; they were promised through `source`,
+  which no language in `LANGUAGES` selects.
 - **`gpu.pack_params` and `gpu.pack_grid`** become part of the documented surface: they are how a host fills the two
   uniforms. They stay in `gpu.py` (moving them is churn for no reader); the shaders README links them.
 - **`shaders/README.md`**, shipped: the binding table per language, the dispatch rule, how to pack the uniforms and the
@@ -96,11 +109,16 @@ workgroup size, and the dispatch rule (`point_index`: `gid.x + gid.y * 65535 * 6
 ## The checks
 
 1. **The drift test** (`test_shaders.py`, in the package's tests, no naga needed): the manifest's WGSL hash equals the
-   current `noise.wgsl`'s, and each file's hash equals its manifest entry. A failure says to run `make shaders`. Proven to
-   fail once by changing one byte of the WGSL (the golden rule on instruments).
-2. **The surface test** (same file): every language and entry point `shaders.source` names exists; an unknown one raises.
-3. **The regeneration job** in CI (Ubuntu): installs the pinned naga-cli (cached), runs the emitter, and fails on
-   `git diff --exit-code`. This catches a hand edit the hashes would not, since the hashes are written by the same run.
+   current `noise.wgsl`'s, each file's hash equals its manifest entry, and `tables.f32` equals the bytes built from
+   `tables.py` at test time (so a change to the tables alone fails here, with no naga). Hashes as the manifest section says.
+   A failure says to run `make shaders`. Proven to fail once by changing one byte of the WGSL (the golden rule on
+   instruments).
+2. **The surface test** (same file): every language and entry point `shaders.source` names exists; `shaders.tables()`
+   returns 8,192 bytes; an unknown language or entry point raises.
+3. **The regeneration job** in CI (Ubuntu), on every push: installs the pinned naga-cli (cached), runs the emitter, and
+   fails on `git diff --exit-code`. This catches a hand edit the hashes would not, a shader and its manifest hash edited
+   together included, since the hashes are written by the same run. *Amended 2026-11-15 (review):* unconditional; the
+   path filter the first draft offered as a fallback would have skipped a change to `tables.py` alone.
 4. **The compile jobs** in CI: `fxc -T cs_5_0` and `dxc -T cs_6_0` on every HLSL entry point (Windows);
    `glslangValidator` on each GLSL file and `spirv-val` on `noise.spv` (Ubuntu). Each compiler's version printed in the log.
 5. **The emitter's tests** (in the app): a missing or wrong naga version refuses with nothing written; a naga failure on one
@@ -143,8 +161,10 @@ Accepted 2026-11-15, each as recommended.
 - **naga 29 versus 30.** Every fact above is from 30.0.1. The plan's first task installs 29.0.x and repeats the
   facts' commands. If 29 differs in what matters here (an error, padding, the binding names), decision 2 comes back to the
   owner with the difference.
-- **cargo in CI.** `cargo install naga-cli` builds from source, minutes on a hosted runner. Cached by the version; if that is
-  still too slow, the regeneration job runs only when `noise.wgsl` or the emitter changes.
+- **cargo in CI.** `cargo install naga-cli` builds from source, minutes on a hosted runner, so the binary is cached by the
+  version. If that is still too slow, a path filter may narrow the job only if it lists every input and every output:
+  `noise.wgsl`, `tables.py`, `gpu.py` (the table order), the emitter, the naga pin, `.gitattributes` and the whole
+  `shaders/` directory, manifest included; the plan's task says which, and the owner hears of it.
 - **Hand-held hosts.** A host must bind GLSL blocks by naga's generated names. The manifest records them, and a rename in a
   naga bump is caught by the regeneration job's diff.
 
