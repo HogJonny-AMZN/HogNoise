@@ -19,3 +19,8 @@ vectors/manifest.json.new
 
 # Agent worktrees (template 0.9.0)
 .worktrees/
+
+# The rendered pages: make board and make journal write them; the row files and session files are the source
+# (Docs/standards/updating.md, a release that adds a renderer)
+Docs/plan/BOARD.md
+Docs/journal/INDEX.md
