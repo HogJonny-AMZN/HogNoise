@@ -168,6 +168,22 @@ and malformed inputs, and assert the committed files are byte-identical afterwar
 test covered it; the deliberate review on [PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22) probed it. Fixed
 with a check of the records against the hog set and atomic writes; P-2 covers a test that writes, this covers a tool.
 
+### P-14 · A rule already written down, broken again: a script run from stdin
+
+**Trigger:** you are about to run Python on a script written into the command itself: a heredoc piped to `python -`,
+`uv run python -`, or any interpreter given a lone `-`.
+**Do:** write the script to a file (in the scratchpad when it is not part of the repository) and run the file. Its text
+is then something a reviewer can read, and nothing waits on stdin.
+**Because:** HogShade's ledger has the rule as its P-5, and the agent's memory carried it; in the session that wrote
+stage 3's spec ([PR #26](https://github.com/HogJonny-AMZN/HogNoise/pull/26)) a command still began with a bare
+`python -`, the heredoc did not reach it, and it waited on stdin until it was stopped. It changed nothing. A rule in
+a ledger and in memory had not held, so the class is mechanised: a Claude Code `PreToolUse` hook in the owner's user
+settings, on the Bash and PowerShell tools, refuses the command before it runs
+(`~/.claude/hooks/refuse_bare_python_stdin.py`, with a `--self-test`; proven on 2026-11-17 by sending it a bare
+`python -` through each tool). Its first pattern also refused this entry's own commit, whose message said "the bare
+python - rule"; it now matches an interpreter only in command position, and the self-test holds both cases. **Mechanised on the owner's machine only:** the hook is not in this repository, so
+another machine, another person or another agent is not covered, and the rule above still applies to them.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
