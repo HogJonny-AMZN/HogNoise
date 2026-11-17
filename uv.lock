@@ -130,14 +130,14 @@ name = "hog-noise-tools"
 version = "0.1.0"
 source = { editable = "apps/hog-noise-tools" }
 dependencies = [
-    { name = "hog-noise" },
+    { name = "hog-noise", extra = ["reference", "sheets"] },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "hog-noise", editable = "packages/python/hog-noise" },
+    { name = "hog-noise", extras = ["reference", "sheets"], editable = "packages/python/hog-noise" },
     { name = "numpy", specifier = ">=1.26.0" },
 ]
 

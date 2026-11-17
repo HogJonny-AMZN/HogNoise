@@ -8,8 +8,11 @@ requires-python = ">=3.11,<3.14"
 authors = [
     {name = "HogJonny", email = "hogjonny-github@protonmail.com"},
 ]
+# What the tools import: Pillow for the gallery's sheets, pyfastnoiselite for `hog-noise-vectors --set original
+# --source fnl`. Not pyfastnoisesimd (`--source fns`): it has no wheel past Python 3.9 and is built from source
+# (ADR-007). Not wgpu: the GPU measurement runs under `uv run --group gpu`.
 dependencies = [
-    "hog-noise",
+    "hog-noise[reference,sheets]",
     "numpy>=1.26.0",
 ]
 
