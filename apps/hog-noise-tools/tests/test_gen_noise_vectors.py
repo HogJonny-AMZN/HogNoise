@@ -1,6 +1,6 @@
 """
 HogNoise: the vector writer and the rules that make a captured array a case.
-Package: tests/test_gen_noise_vectors
+Package: apps/hog-noise-tools/tests/test_gen_noise_vectors
 """
 
 import json
@@ -9,9 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import _tools_path  # noqa: F401  (puts tools/ on sys.path)
-import gen_noise_vectors as gen
 from hog_noise import NoiseType, conformance
+from hog_noise_tools import gen_noise_vectors as gen
 
 
 def coords():

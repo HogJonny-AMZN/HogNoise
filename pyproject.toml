@@ -8,6 +8,7 @@ members = ["apps/*", "packages/python/*"]
 # suite.
 dev = [
     "hog-noise[fast,reference,sheets]",
+    "hog-noise-tools",
     "pytest>=8",
     "ruff>=0.17.5",
 ]
@@ -16,6 +17,7 @@ gpu = ["hog-noise[gpu]"]
 
 [tool.uv.sources]
 hog-noise = { workspace = true }
+hog-noise-tools = { workspace = true }
 
 # =========================================================================
 # Code Quality Tools

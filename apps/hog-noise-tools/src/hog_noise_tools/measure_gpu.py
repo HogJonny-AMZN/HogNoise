@@ -1,15 +1,16 @@
 """
 HogNoise: measure the wgpu rung against the hog set on this machine's adapter, and derive the tolerance file from every
 adapter's measurement (the GPU port's spec, *How a number is fixed*).
-Package: tools/measure_gpu
+Package: hog_noise_tools.measure_gpu
 
-    uv run --group gpu python tools/measure_gpu.py run                  # this adapter -> vectors/reports/gpu/<commit>/
-    uv run python tools/measure_gpu.py derive vectors/reports/gpu/<commit>   # every adapter -> the rules and the tables
+    uv run --group gpu hog-noise-measure-gpu run                  # this adapter -> vectors/reports/gpu/<commit>/
+    uv run hog-noise-measure-gpu derive vectors/reports/gpu/<commit>   # every adapter -> the rules and the tables
 
 `run` writes one measurement record (a JSON file) per GPU adapter, so the owner's GPU, WARP and CI's llvmpipe each add
 their own (``--out`` elsewhere for a trial). `derive` reads them all and writes `vectors/tolerance/wgpu.json`,
 `vectors/portability-gpu.md` and the folder's `record.md`; the folder must be under `vectors/`, which the tolerance file
-names. The rules follow from the records alone, so tests/test_measure_gpu.py can recompute every committed number.
+names. The rules follow from the records alone, so apps/hog-noise-tools/tests/test_measure_gpu.py can recompute every
+committed number.
 """
 
 from __future__ import annotations
@@ -31,13 +32,13 @@ import numpy as np
 
 from hog_noise import compare, conformance
 from hog_noise.conformance import Bound
+from hog_noise_tools.repo import REPO_ROOT as ROOT
 
-_MODULE_NAME = "tools.measure_gpu"
+_MODULE_NAME = "hog_noise_tools.measure_gpu"
 __version__ = "0.1.0"
 __updated__ = "2026-11-14"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
-ROOT = Path(__file__).resolve().parents[1]
 VECTORS = ROOT / "vectors"
 #: Every 1, 2 or 5 step from 1e-7 to 1e-2: the tight bounds a discrete rule may take.
 CANDIDATES = [float(f"{m}e{e}") for e in range(-7, -2) for m in (1, 2, 5)] + [1e-2]
@@ -396,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
 
     :return: 0, or 1 on a measurement finding, which is logged for the owner.
     """
-    parser = argparse.ArgumentParser(prog="measure_gpu", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(prog="hog-noise-measure-gpu", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
     run_p = sub.add_parser("run", help="measure this machine's adapter")
     run_p.add_argument("--out", type=Path, default=None, help="default: vectors/reports/gpu/<commit>/")

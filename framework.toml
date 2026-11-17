@@ -23,4 +23,4 @@ enabled = ["claude", "copilot"]
 handoff_max_lines = 150
 
 [layers]
-order = ["hog_noise"]
+order = ["hog_noise", "hog_noise_tools"]

@@ -1,16 +1,17 @@
 """
 HogNoise: the noise gallery, every ported noise rendered once, and the comparisons against the oracles.
-Package: tools/noise_gallery
+Package: hog_noise_tools.noise_gallery
 
 Writes contact sheets under ``Docs/noise/gallery/`` and the page that embeds them, ``Docs/noise/GALLERY.md``.
 The families come from the kernel record's own enums (``IMPLEMENTED_NOISE_TYPES``, ``IMPLEMENTED_FRACTAL_TYPES``,
 `CellularDistance`, `CellularReturn`, `DomainWarpType`, `PerturbType`), so a noise ported later appears here
-by regenerating, and ``tests/test_noise_gallery.py`` fails when the committed page falls behind the enums.
+by regenerating, and ``apps/hog-noise-tools/tests/test_noise_gallery.py`` fails when the committed page falls behind
+the enums.
 
 Run from the repo root::
 
-    python tools/noise_gallery.py            # regenerate the sheets and the page
-    python tools/noise_gallery.py --check    # exit 1 if the committed page differs from a fresh render
+    hog-noise-gallery            # regenerate the sheets and the page
+    hog-noise-gallery --check    # exit 1 if the committed page differs from a fresh render
 
 Every tile is a 96 x 96 heightfield over x and z at y = 0 through `sample_grid`, seed 12345, the frequency
 in the caption, mapped to grey over the tile's own range (printed) so a cellular distance and a signed
@@ -26,18 +27,16 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "Build" / "ArtTools" / "hog-py-packages"))
-
-from hog_noise import (  # noqa: E402
+from hog_noise import (
     NoiseParams,
     NumpySampler,
     compare,
     conformance,
 )
-from hog_noise.families import FAMILIES, enum_name  # noqa: E402
+from hog_noise.families import FAMILIES, enum_name
+from hog_noise_tools.repo import REPO_ROOT as ROOT
 
-_MODULE_NAME = "tools.noise_gallery"
+_MODULE_NAME = "hog_noise_tools.noise_gallery"
 __version__ = "0.1.0"
 __updated__ = "2026-11-13"
 _LOGGER = _logging.getLogger(_MODULE_NAME)

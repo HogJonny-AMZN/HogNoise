@@ -1,18 +1,11 @@
 """
 HogNoise: the noise gallery page tracks the kernel record's enums, and the committed page is current.
-Package: tests/test_noise_gallery
+Package: apps/hog-noise-tools/tests/test_noise_gallery
 """
-
-from pathlib import Path
 
 import pytest
 
-import _tools_path  # noqa: F401  (puts tools/ on sys.path -- see that module; ledger entry 23)
-import noise_gallery  # noqa: E402
-
-ROOT = Path(__file__).resolve().parents[1]
-
-from hog_noise import (  # noqa: E402
+from hog_noise import (
     CELLULAR_RETURN_NAMES,
     DOMAIN_WARP_NAMES,
     FRACTAL_TYPE_NAMES,
@@ -26,6 +19,7 @@ from hog_noise import (  # noqa: E402
     PerturbType,
     enum_name,
 )
+from hog_noise_tools import noise_gallery
 
 
 @pytest.fixture(scope="module")
