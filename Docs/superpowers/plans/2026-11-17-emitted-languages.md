@@ -349,12 +349,12 @@ def test_no_marker_says_which_and_where(tmp_path):
 
 ### Task 4: the move's records, the gate, out of draft
 
-- [ ] The Icebox row `2026-11-13-project-tools-into-an-app.md` is pulled forward and lands, per the board README's
+- [x] The Icebox row `2026-11-13-project-tools-into-an-app.md` is pulled forward and lands, per the board README's
   *Moving a row*: `Section: now`, `Owner: @HogJonny-AMZN`, `State: Landed <date> in [PR #<n>](...)`: the app, its three
   scripts and launchers, `measure_gpu.py` and the oracle with them.
-- [ ] The journal: a new entry in the build's session file. The handoff: the GPU row says the move landed and the emitter
+- [x] The journal: a new entry in the build's session file. The handoff: the GPU row says the move landed and the emitter
   is next.
-- [ ] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
+- [x] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
   `hog_noise`, and both packages are in `[layers]` from Task 2, Step 7).
 - [ ] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
   `gh pr checks <n> --watch` green on every leg, the probe jobs included. The owner merges.

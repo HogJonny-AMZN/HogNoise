@@ -36,7 +36,7 @@ from hog_noise_tools.repo import REPO_ROOT as ROOT
 
 _MODULE_NAME = "hog_noise_tools.measure_gpu"
 __version__ = "0.1.0"
-__updated__ = "2026-11-14"
+__updated__ = "2026-11-17"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 VECTORS = ROOT / "vectors"

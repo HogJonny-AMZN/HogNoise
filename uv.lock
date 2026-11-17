@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -15,7 +15,6 @@ members = [
 [manifest.dependency-groups]
 dev = [
     { name = "hog-noise", extras = ["fast", "reference", "sheets"], editable = "packages/python/hog-noise" },
-    { name = "hog-noise-tools", editable = "apps/hog-noise-tools" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.17.5" },
 ]

@@ -7,5 +7,11 @@ The reference-vector generator (``hog-noise-vectors``), the gallery (``hog-noise
 finds it.
 """
 
+from __future__ import annotations
+
+import logging as _logging
+
 _MODULE_NAME = "hog_noise_tools"
 __version__ = "0.1.0"
+__updated__ = "2026-11-17"
+_LOGGER = _logging.getLogger(_MODULE_NAME)
