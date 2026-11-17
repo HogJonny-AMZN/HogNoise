@@ -1,6 +1,6 @@
 # The emitted languages: implementation plan
 
-**Status:** Proposed 2026-11-17, for the owner to accept with its five decisions. Written from
+**Status:** Accepted 2026-11-17 by the owner with its five decisions as recommended ("best recommendations"). Written from
 [the spec](../specs/2026-11-15-emitted-languages.md), Accepted 2026-11-15 with its six decisions as recommended. The build
 ticks each step as it lands.
 **Board:** [`2026-11-01-gpu-fast-track`](../../plan/board/2026-11-01-gpu-fast-track.md)
@@ -143,7 +143,7 @@ to build there. Answered by CI before anything depends on it.
 
 **Files:** create `.github/workflows/shaders.yml`.
 
-- [ ] **Step 1:** Write the probe workflow:
+- [x] **Step 1:** Write the probe workflow:
 
 ```yaml
 name: shaders
