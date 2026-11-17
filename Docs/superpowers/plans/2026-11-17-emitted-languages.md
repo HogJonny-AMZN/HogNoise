@@ -102,7 +102,7 @@ The spec leaves these to the plan. Each is reversible, and each is recorded here
 
 | File | Task |
 | --- | --- |
-| `apps/hog-noise-tools/pyproject.toml`, `apps/hog-noise-tools/README.md`, `uv.lock` | 2 |
+| `apps/hog-noise-tools/pyproject.toml`, `apps/hog-noise-tools/README.md`, `uv.lock`, `framework.toml` (`[layers]`) | 2 |
 | `apps/hog-noise-tools/src/hog_noise_tools/__init__.py`, `repo.py` | 2 |
 | `apps/hog-noise-tools/src/hog_noise_tools/{gen_noise_vectors,noise_gallery,measure_gpu}.py` (moved from `tools/`) | 2 |
 | `apps/hog-noise-tools/noise_oracle/` (moved from `tools/noise_oracle/`) | 2 |
@@ -310,11 +310,17 @@ def test_no_marker_says_which_and_where(tmp_path):
         repo.above(tmp_path, "framework.toml")
 ```
 
-- [ ] **Step 7:** `uv sync --group dev`, then `uv run pytest apps/hog-noise-tools -q`. Expected: the moved tests' count
+- [ ] **Step 7: the layer order.** `framework.toml`'s `[layers]` gains the app's package after the library's,
+  `order = ["hog_noise", "hog_noise_tools"]`: the app may import the library, never the reverse. Without it the
+  boundary check reports `hog_noise_tools` as `unlisted` (`tools/boundaries.py:449-458`, a package in neither
+  `layers.order` nor `layers.unlayered`), and the gate's tests stage fails through
+  `tests/test_boundaries.py::test_the_repositorys_own_workspace_keeps_its_own_layers`. Then
+  `uv run python tools/boundaries.py`: expected, `boundaries: clean`.
+- [ ] **Step 8:** `uv sync --group dev`, then `uv run pytest apps/hog-noise-tools -q`. Expected: the moved tests' count
   before the move, plus 3, all passing or skipped with the same reasons as before (compare with
   `uv run pytest tests/test_gen_noise_vectors.py tests/test_noise_gallery.py tests/test_measure_gpu.py -q` run on
   `origin/main` first, and write both counts in the pull request).
-- [ ] **Step 8:** `uv run hog-noise-gallery --check` and `uv run hog-noise-vectors --help`: the console scripts run, and
+- [ ] **Step 9:** `uv run hog-noise-gallery --check` and `uv run hog-noise-vectors --help`: the console scripts run, and
   the gallery's committed page is still current. **Commit** ("HogNoise's tools move into an app").
 
 ### Task 3: launchers, CI and every path that named the old place
@@ -348,8 +354,8 @@ def test_no_marker_says_which_and_where(tmp_path):
   scripts and launchers, `measure_gpu.py` and the oracle with them.
 - [ ] The journal: a new entry in the build's session file. The handoff: the GPU row says the move landed and the emitter
   is next.
-- [ ] `uv run python tools/check.py`, unpiped: every stage passes, the `boundaries` findings included (the app imports
-  only `hog_noise`).
+- [ ] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
+  `hog_noise`, and both packages are in `[layers]` from Task 2, Step 7).
 - [ ] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
   `gh pr checks <n> --watch` green on every leg, the probe jobs included. The owner merges.
 
@@ -604,6 +610,13 @@ def test_a_wrong_naga_version_refuses_and_writes_nothing(tmp_path, dest):
     assert snapshot(dest) == before
 
 
+def test_a_naga_that_prints_no_version_refuses_and_writes_nothing(tmp_path, dest):
+    before = snapshot(dest)
+    with pytest.raises(e.EmitError, match=r"printed no version.*cargo install naga-cli --version 29\.0\.2"):
+        e.emit(fake_naga(tmp_path, version=""), dest, pin="29.0.2")
+    assert snapshot(dest) == before
+
+
 def test_a_naga_failure_on_one_file_leaves_every_file_as_it_was(tmp_path, dest):
     before = snapshot(dest)
     with pytest.raises(e.EmitError, match=r"noise\.sample_grid\.comp"):
@@ -722,6 +735,10 @@ def check_naga(naga: Sequence[str], pin: str) -> None:
     except (OSError, subprocess.CalledProcessError) as exc:
         install = f"cargo install naga-cli --version {pin} --locked"
         raise EmitError(f"cannot run naga ({' '.join(naga)}): {exc}; {install}") from exc
+    if not found.split():
+        raise EmitError(
+            f"{' '.join(naga)} printed no version for --version; cargo install naga-cli --version {pin} --locked"
+        )
     if found.split()[-1] != pin:
         raise EmitError(
             f"naga {found} at {' '.join(naga)}, but the pin is {pin}: cargo install naga-cli --version {pin} --locked "
@@ -1184,7 +1201,7 @@ jobs:
 | 2. The surface test | `test_every_language_and_entry_point_has_its_file`, the `ValueError` tests (Task 6) |
 | 3. The regeneration job | `shaders.yml` `regenerate`, proven able to fail (Task 10, Step 3) |
 | 4. The compile jobs | `shaders.yml` `hlsl` and `glsl-spirv`, through `compile_shaders.py` |
-| 5. The emitter's tests | `test_emit_shaders.py`: version, failure, empty output, idempotence, stale files |
+| 5. The emitter's tests | `test_emit_shaders.py`: a wrong version, no version, a naga failure, an empty output, idempotence, stale files |
 
 ## Decisions for the owner
 
