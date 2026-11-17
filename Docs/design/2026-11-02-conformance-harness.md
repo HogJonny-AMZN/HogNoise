@@ -88,7 +88,7 @@ assert report.ok, report.table()  # a markdown table, one row per case
 - **Language-neutral, proven**: a test reads `manifest.json` and one case with the standard library only (`json` and `array`),
   no numpy, and gets the same numbers.
 - The existing advisory comparisons, sheets and `portability.md` are generated from the new files and come out unchanged.
-- `tools/gen_noise_vectors.py --set hog` regenerates *hog*; a test fails if the committed *hog* values differ from the numpy
+- `hog-noise-vectors --set hog` regenerates *hog*; a test fails if the committed *hog* values differ from the numpy
   rendering, so a kernel change cannot leave them stale.
 
 ## Cost

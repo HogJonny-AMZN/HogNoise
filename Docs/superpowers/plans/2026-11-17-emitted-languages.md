@@ -325,9 +325,9 @@ def test_no_marker_says_which_and_where(tmp_path):
 
 ### Task 3: launchers, CI and every path that named the old place
 
-- [ ] **Step 1:** For each of the three scripts, `launchers/<name>.cmd` (`@uv run <name> %*`) and `launchers/<name>.sh`
+- [x] **Step 1:** For each of the three scripts, `launchers/<name>.cmd` (`@uv run <name> %*`) and `launchers/<name>.sh`
   (`#!/bin/sh` then `exec uv run <name> "$@"`), then `git add --chmod=+x launchers/*.sh` (layout.md, *Launchers*).
-- [ ] **Step 2:** `tests.yml`: the install line also installs the app, and the measurement uses its script:
+- [x] **Step 2:** `tests.yml`: the install line also installs the app, and the measurement uses its script:
 
 ```yaml
           python -m pip install -e "packages/python/hog-noise[${{ matrix.extras }}]" -e apps/hog-noise-tools "${{ matrix.numpy }}"
@@ -339,13 +339,13 @@ def test_no_marker_says_which_and_where(tmp_path):
 
   pip takes the library from the editable install in the same command; the CI run of Task 4 proves it on every leg,
   the floor's numpy 1.26 included.
-- [ ] **Step 3:** Rerun the `git grep` from *Facts* and change every hit to the new place, except the ledger's entries
+- [x] **Step 3:** Rerun the `git grep` from *Facts* and change every hit to the new place, except the ledger's entries
   (append-only, they say where things were) and `Docs/PYTHON_UPGRADE_AND_FASTNOISE.md` (a carried record). The
   generated two are regenerated, not edited: `uv run hog-noise-gallery` rewrites `Docs/noise/GALLERY.md` after its
   strings change; for `vectors/portability-gpu.md`, change the string in `measure_gpu.py:321` and the same line in the
   committed file, and `test_measure_gpu.py`'s derivation tests prove the two agree. `NOTICE` and the member's copy
   change together (`test_member_files.py` holds them level).
-- [ ] **Step 4:** Rerun the `git grep`. Expected: hits only in the ledger and the carried record. **Commit**.
+- [x] **Step 4:** Rerun the `git grep`. Expected: hits only in the ledger and the carried record. **Commit**.
 
 ### Task 4: the move's records, the gate, out of draft
 

@@ -319,7 +319,7 @@ def _tables(records: list[dict[str, Any]], rules: list[dict[str, Any]]) -> tuple
     """``record.md`` (per case and adapter) and ``portability-gpu.md`` (per feature and adapter)."""
     adapters = [label(r) for r in records]
     tight = {r["feature"]: f"{r['within']['scale']:.0e}" for r in rules if r["kind"] == "discrete"}
-    lines = ["# The wgpu rung against the hog set, per feature", "", "Written by `tools/measure_gpu.py derive`.", "",
+    lines = ["# The wgpu rung against the hog set, per feature", "", "Written by `hog-noise-measure-gpu derive`.", "",
              "| Feature | " + " | ".join(adapters) + " |", "| --- |" + " --- |" * len(adapters)]  # fmt: skip
     per_case = ["# The measurement, per case", "", "| Case | Adapter | Max abs | Max / unit | p99 / unit | Corr |",
                 "| --- | --- | --- | --- | --- | --- |"]  # fmt: skip

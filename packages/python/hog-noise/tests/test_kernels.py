@@ -159,7 +159,7 @@ def test_kernels_against_fastnoiselite_vectors(feature, vectors, coords):
 def test_domain_warp_field_matches_the_reference(feature, vectors, coords):
     """
     The warped coordinates themselves (the reference's ``DomainWarp``), from the C++ oracle in
-    tools/noise_oracle since the binding does not expose the call. Exact between our rungs; against
+    apps/hog-noise-tools/noise_oracle since the binding does not expose the call. Exact between our rungs; against
     the oracle, within float32 rounding of the coordinates (about 1 ulp at 4096, so 5e-4), which is the
     oracle's own precision, not ours: that comparison is the harness's (the warp cases, at 4e-3), in
     `test_the_renderings_pass_every_gating_case_and_the_hog_set`. Here: a real displacement, and exact rungs.
@@ -343,7 +343,7 @@ def test_noise_lookup_is_constant_within_a_cell_and_is_the_lookup_noise(coords):
 # the `shape` cases on original/fns/cellular_*/scatter_3d.
 
 #: FastNoiseSIMD's own Simplex, hash and all, so its vectors compare by point: the bounds (the harness's, in
-#: tools/gen_noise_vectors.py) are the float32 arithmetic the retired library ran in, growing with the octave sums.
+#: hog-noise-vectors) are the float32 arithmetic the retired library ran in, growing with the octave sums.
 CLASSIC_SIMPLEX_VECTORS = ("simplex_billow", "simplex_fbm", "simplex_none", "simplex_rigidmulti")
 
 

@@ -6,24 +6,24 @@
 
 [`vectors/`](../../vectors/README.md) holds two reference sets as raw float32 and one manifest: `original/`, captured from
 the original libraries (`fnl/` from `pyfastnoiselite`, `fns/` from `pyfastnoisesimd`, the domain warp from the C++ harness in
-`tools/noise_oracle`), and `hog/`, this package's numpy rendering, which every rendering must match bit for bit. The suite
+`apps/hog-noise-tools/noise_oracle`), and `hog/`, this package's numpy rendering, which every rendering must match bit for bit. The suite
 reads them through `hog_noise.conformance`. An advisory difference past `tight` (or with correlation below 0.99) writes a
 comparison sheet under `vectors/reports/` and waits for a human verdict in `accepted.json`; it never fails the build.
 **Never loosen a bound or edit a vector to make a test pass.** A kernel change that moves a value fails the hog set until
-`uv run python tools/gen_noise_vectors.py` (the hog set) is rerun, and that rerun is a decision the pull request records.
+`uv run hog-noise-vectors` (the hog set) is rerun, and that rerun is a decision the pull request records.
 [NOTICE](../../NOTICE) says where each original set came from.
 
 ## Generated files are never edited by hand
 
-- `Docs/noise/GALLERY.md` and its sheets come from `uv run python tools/noise_gallery.py`; `tests/test_noise_gallery.py`
+- `Docs/noise/GALLERY.md` and its sheets come from `uv run hog-noise-gallery`; `apps/hog-noise-tools/tests/test_noise_gallery.py`
   fails when the page falls behind the enums.
-- `vectors/manifest.json` and every `.f32` file come from `tools/gen_noise_vectors.py` (`--set hog` anywhere numpy is;
+- `vectors/manifest.json` and every `.f32` file come from `hog-noise-vectors` (`--set hog` anywhere numpy is;
   `--set original` where the bindings are), which recomputes every digest; `load` refuses a hand-edited file.
 - `vectors/portability.md` is rewritten by a full-environment test run (numba and `pyfastnoiselite` both
   installed). A partial run skips the writer on purpose, so a numpy-only run cannot replace the full table with a partial one.
 - `vectors/tolerance/wgpu.json`, `vectors/portability-gpu.md` and a GPU record's `record.md` come from
-  `tools/measure_gpu.py derive`, and each GPU adapter's measurement record under `vectors/reports/gpu/<commit>/` from
-  `tools/measure_gpu.py run`.
+  `hog-noise-measure-gpu derive`, and each GPU adapter's measurement record under `vectors/reports/gpu/<commit>/` from
+  `hog-noise-measure-gpu run`.
 
 ## The environments that must pass
 
@@ -34,7 +34,7 @@ best rung it expects computes it from what is installed (`HAVE_NUMBA`, `_have_fa
 And two for the `wgpu` rung, each Python 3.13 with the `dev` and `gpu` extras on a software GPU adapter, so CI runs the
 GPU tests with no GPU: Windows with Direct3D 12's WARP ("Microsoft Basic Render Driver"), and Ubuntu with Mesa's
 llvmpipe Vulkan driver (`mesa-vulkan-drivers`). Both set `HOG_NOISE_REQUIRE_GPU=1`, print the adapter they found, and
-after the tests measure the rung with `tools/measure_gpu.py run`, kept as the run's artifact. The other legs install no `wgpu`,
+after the tests measure the rung with `hog-noise-measure-gpu run`, kept as the run's artifact. The other legs install no `wgpu`,
 and their GPU tests skip with the reason.
 
 ## The GPU tests
@@ -52,11 +52,11 @@ naming why ("wgpu is not installed: install hog-noise[gpu]", "no adapter: ...").
   A name that matches nothing is "no adapter", naming the ones found. One device is made per process, so set it before
   the run.
 - **The judge is `vectors/tolerance/wgpu.json`**, through `conformance.check(..., tolerance=...)`. Its numbers come only
-  from `tools/measure_gpu.py derive` over the committed record, and `tests/test_measure_gpu.py` recomputes them: a number
+  from `hog-noise-measure-gpu derive` over the committed record, and `apps/hog-noise-tools/tests/test_measure_gpu.py` recomputes them: a number
   edited by hand fails it. A rule a GPU adapter fails is a measurement finding to record, never a number to loosen in
   the same change ([vectors/README.md](../../vectors/README.md), *Tolerance files*). Re-measuring is
-  `uv run --group gpu python tools/measure_gpu.py run` on each local adapter, CI's two records downloaded into the same `vectors/reports/gpu/<commit>/`,
-  then `uv run python tools/measure_gpu.py derive vectors/reports/gpu/<commit>`.
+  `uv run --group gpu hog-noise-measure-gpu run` on each local adapter, CI's two records downloaded into the same `vectors/reports/gpu/<commit>/`,
+  then `uv run hog-noise-measure-gpu derive vectors/reports/gpu/<commit>`.
 
 What the GPU tests do not show, found while building the rung
 ([the plan](../superpowers/plans/2026-11-14-gpu-port.md), Tasks 7, 10 and 12):

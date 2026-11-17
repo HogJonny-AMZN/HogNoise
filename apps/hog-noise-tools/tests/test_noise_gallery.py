@@ -45,9 +45,9 @@ def test_every_implemented_noise_and_fractal_is_on_the_page(page):
 
 
 def test_the_committed_page_is_current(page):
-    """Regenerate after porting a noise: `python tools/noise_gallery.py`. The sheets must exist too."""
+    """Regenerate after porting a noise: `hog-noise-gallery`. The sheets must exist too."""
     committed = noise_gallery.PAGE.read_text(encoding="utf-8")
-    assert committed == page, "Docs/noise/GALLERY.md is behind the enums; run python tools/noise_gallery.py"
+    assert committed == page, "Docs/noise/GALLERY.md is behind the enums; run hog-noise-gallery"
     for key, _title, _builder, _columns in noise_gallery.FAMILIES:
         assert (noise_gallery.OUT_DIR / f"{key}.png").exists(), key
     assert (noise_gallery.OUT_DIR / "comparisons.png").exists()
