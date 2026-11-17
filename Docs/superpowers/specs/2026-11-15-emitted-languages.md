@@ -160,7 +160,10 @@ Accepted 2026-11-15, each as recommended.
   installs DXC from its GitHub release, and FXC's check is dropped and the pull request says so.
 - **naga 29 versus 30.** Every fact above is from 30.0.1. The plan's first task installs 29.0.x and repeats the
   facts' commands. If 29 differs in what matters here (an error, padding, the binding names), decision 2 comes back to the
-  owner with the difference.
+  owner with the difference. *Amended 2026-11-17 (plan):* answered before the plan. There is no naga-cli 29.0.1;
+  29.0.2 (naga 29.0.2) repeats every fact above that a host binds, and FXC and DXC accept its HLSL; only naga's
+  numbering of temporaries differs from 30.0.1. [The plan](../plans/2026-11-17-emitted-languages.md) holds the numbers
+  and pins 29.0.2.
 - **cargo in CI.** `cargo install naga-cli` builds from source, minutes on a hosted runner, so the binary is cached by the
   version. If that is still too slow, a path filter may narrow the job only if it lists every input and every output:
   `noise.wgsl`, `tables.py`, `gpu.py` (the table order), the emitter, the naga pin, `.gitattributes` and the whole
