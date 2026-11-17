@@ -9,6 +9,8 @@
 | [superpowers/specs/2026-11-11-conformance-harness.md](superpowers/specs/2026-11-11-conformance-harness.md) | the conformance harness spec: the folder, the manifest, the cases, the module, the acceptance checks (Accepted 2026-11-12; built) |
 | [superpowers/plans/2026-11-14-gpu-port.md](superpowers/plans/2026-11-14-gpu-port.md) | the GPU port plan: eighteen tasks, test first, from the CI adapter probe to the measured tolerance (Accepted 2026-11-14) |
 | [superpowers/plans/2026-11-12-conformance-harness.md](superpowers/plans/2026-11-12-conformance-harness.md) | the conformance harness plan: fifteen tasks, test first, from `NoiseParams.to_dict` to the pull request (Accepted 2026-11-12; built) |
+| [superpowers/specs/2026-11-15-emitted-languages.md](superpowers/specs/2026-11-15-emitted-languages.md) | stage 3's spec: HLSL, GLSL and SPIR-V from the WGSL by naga, shipped in the package, checked in CI (Accepted 2026-11-15) |
+| [superpowers/plans/2026-11-17-emitted-languages.md](superpowers/plans/2026-11-17-emitted-languages.md) | stage 3's plan: the tools into an app, then the emitter, the shaders module and the CI jobs, in two pull requests (Proposed) |
 | [superpowers/specs/2026-11-14-gpu-port.md](superpowers/specs/2026-11-14-gpu-port.md) | the GPU port spec: the `wgpu` rung, the WGSL shader, the tolerance file, CI on software adapters, the acceptance checks (Accepted 2026-11-14) |
 | [../vectors/README.md](../vectors/README.md) | the reference vectors' format, for a reader with no Python: files, manifest, case ids, comparisons, bounds |
 | [findability.md](findability.md) | who searches for HogNoise and why, and the surfaces (README, topics, metadata, llms.txt) that must say so |
