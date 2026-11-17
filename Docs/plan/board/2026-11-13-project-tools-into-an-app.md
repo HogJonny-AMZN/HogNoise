@@ -1,8 +1,8 @@
 # HogNoise's own tools out of the framework's tools/, into an app
 
-**Section:** icebox
-**Owner:** none
-**State:** Iceboxed
+**Section:** now
+**Owner:** @HogJonny-AMZN
+**State:** Landed 2026-11-17 in [PR #33](https://github.com/HogJonny-AMZN/HogNoise/pull/33), pulled forward as stage 3's first pull request (its plan's Tasks 1 to 4): the app `apps/hog-noise-tools/`, its three console scripts (`hog-noise-vectors`, `hog-noise-gallery`, `hog-noise-measure-gpu`) and their launchers, `measure_gpu.py` and the C++ oracle with them, the repository found by its marker
 **Cost:** 0.5 d (`git mv` of three tools and two tests, an app manifest, two launchers, the paths in the docs)
 **Verdict:** Good, later
 **Raised:** [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), its review
