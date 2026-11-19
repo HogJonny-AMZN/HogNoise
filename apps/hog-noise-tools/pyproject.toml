@@ -21,6 +21,7 @@ hog-noise-vectors = "hog_noise_tools.gen_noise_vectors:main"
 hog-noise-gallery = "hog_noise_tools.noise_gallery:main"
 hog-noise-measure-gpu = "hog_noise_tools.measure_gpu:main"
 hog-noise-emit-shaders = "hog_noise_tools.emit_shaders:main"
+hog-noise-compile-shaders = "hog_noise_tools.compile_shaders:main"
 
 [tool.uv.sources]
 hog-noise = { workspace = true }

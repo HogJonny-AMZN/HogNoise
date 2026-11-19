@@ -938,7 +938,7 @@ def test_the_shaders_need_no_wgpu():
 **Files:** create `apps/hog-noise-tools/src/hog_noise_tools/compile_shaders.py` and its test; the app's scripts gain
 `hog-noise-compile-shaders = "hog_noise_tools.compile_shaders:main"`.
 
-- [ ] **Step 1: the failing tests**, with `subprocess.run` and the finder replaced:
+- [x] **Step 1: the failing tests**, with `subprocess.run` and the finder replaced:
 
 ```python
 """
@@ -995,8 +995,8 @@ def test_a_compile_error_fails_with_its_output(monkeypatch, calls, capsys):
     assert "X3000" in capsys.readouterr().err
 ```
 
-- [ ] **Step 2:** Run them. Expected: FAIL at import.
-- [ ] **Step 3:** Write `compile_shaders.py`:
+- [x] **Step 2:** Run them. Expected: FAIL at import.
+- [x] **Step 3:** Write `compile_shaders.py`:
 
 ```python
 """
@@ -1083,7 +1083,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4:** The tests pass. On this machine, `uv run hog-noise-compile-shaders hlsl` (the real fxc and dxc):
+- [x] **Step 4:** The tests pass. On this machine, `uv run hog-noise-compile-shaders hlsl` (the real fxc and dxc):
   exit 0, ten `ok` lines; paste them into the pull request. `glsl` and `spirv` exit 2 here (not installed) and run in CI.
   **Commit**.
 
