@@ -8,6 +8,13 @@
 *.yml     text
 *.yaml    text
 *.txt     text
+
+# The WGSL and the shaders naga writes from it: LF on every checkout, so a hash is the same everywhere (the stage 3 spec).
+*.wgsl    text eol=lf
+*.hlsl    text eol=lf
+*.comp    text eol=lf
+*.spv     binary
+
 Makefile  text eol=lf
 
 # Shell scripts and the git hooks (no extension, so autodetection would give them CRLF on Windows, which sh cannot run)

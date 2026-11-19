@@ -4,6 +4,7 @@ Package: packages/python/hog-noise/tests/test_shaders
 """
 
 import ast
+import subprocess
 import sys
 
 import numpy as np
@@ -56,3 +57,52 @@ def test_a_whole_module_language_refuses_an_entry_point():
 def test_wgsl_is_the_rungs_source():
     assert shaders.path("wgsl").name == "noise.wgsl"
     assert "@compute" in shaders.source("wgsl")
+
+
+def test_the_manifest_names_the_current_wgsl():
+    current = shaders.sha256(shaders.path("wgsl").read_bytes(), text=True)
+    assert shaders.manifest()["wgsl"]["sha256"] == current, (
+        "noise.wgsl changed since the shaders were emitted: make shaders"
+    )
+
+
+def test_every_emitted_file_matches_its_manifest_entry():
+    folder = shaders.path("hlsl").parent
+    for name, entry in shaders.manifest()["files"].items():
+        data = (folder / name).read_bytes()
+        assert shaders.sha256(data, text=entry["text"]) == entry["sha256"], (
+            f"{name} differs from its manifest: make shaders"
+        )
+
+
+def test_the_tables_file_is_the_tables_module():
+    assert shaders.tables() == tables.binding_table().astype("<f4").tobytes(), "tables.py changed: make shaders"
+
+
+def test_every_language_and_entry_point_has_its_file():
+    for lang in shaders.LANGUAGES:
+        for ep in shaders.ENTRY_POINTS if lang == "glsl" else (None,):
+            assert shaders.source(lang, ep), (lang, ep)
+    assert len(shaders.tables()) == 8192
+
+
+def test_the_bindings_name_each_languages_slot():
+    rows = shaders.manifest()["bindings"]
+    assert [r["binding"] for r in rows] == list(range(7))
+    assert [r["hlsl"] for r in rows] == ["b0", "t1", "t2", "t3", "t4", "u5", "b6"]
+    for r in rows:
+        var = r["glsl"]["variable"]
+        assert var == f"_group_0_binding_{r['binding']}_cs"
+        using = {ep for ep in shaders.ENTRY_POINTS if var in shaders.source("glsl", ep)}
+        assert using and set(r["glsl"]["blocks"]) == using, (r["binding"], using)
+        assert r["spirv"] == {"set": 0, "binding": r["binding"]}
+
+
+def test_the_shaders_need_no_wgpu(tmp_path):
+    script = tmp_path / "no_wgpu.py"
+    script.write_text(
+        "import sys\nsys.modules['wgpu'] = None\nfrom hog_noise import shaders\nprint(len(shaders.source('hlsl')))\n",
+        encoding="utf-8",
+    )
+    done = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, check=True)
+    assert int(done.stdout) > 100_000

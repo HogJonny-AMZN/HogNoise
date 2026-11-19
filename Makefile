@@ -15,7 +15,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help sync check fast test lint format docs adapters journal board hooks hooks-check
+.PHONY: help sync check fast test lint format docs adapters journal board hooks hooks-check shaders
 
 help:
 	@echo Every task is a thin wrapper over uv. Without make, each is one uv command, and Docs/standards/tooling.md lists them
@@ -31,6 +31,7 @@ help:
 	@echo   make board       - render the board page from its row files, which is git-ignored and never committed
 	@echo   make hooks       - install the git hooks in this clone, once
 	@echo   make hooks-check - say whether the git hooks are installed
+	@echo   make shaders     - write the HLSL, GLSL, SPIR-V, tables and manifest from noise.wgsl with the pinned naga
 
 sync:
 	uv sync --group dev
@@ -67,3 +68,6 @@ hooks:
 
 hooks-check:
 	uv run python tools/install_hooks.py --check
+
+shaders:
+	uv run hog-noise-emit-shaders

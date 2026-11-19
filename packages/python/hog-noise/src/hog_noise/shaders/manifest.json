@@ -1,0 +1,187 @@
+{
+  "bindings": [
+    {
+      "binding": 0,
+      "glsl": {
+        "blocks": {
+          "sample_grid": "Params_block_0Compute",
+          "sample_points_2d": "Params_block_0Compute",
+          "sample_points_3d": "Params_block_0Compute",
+          "warp_points_2d": "Params_block_0Compute",
+          "warp_points_3d": "Params_block_0Compute"
+        },
+        "variable": "_group_0_binding_0_cs"
+      },
+      "hlsl": "b0",
+      "spirv": {
+        "binding": 0,
+        "set": 0
+      },
+      "wgsl": "P"
+    },
+    {
+      "binding": 1,
+      "glsl": {
+        "blocks": {
+          "sample_grid": "type_3_block_1Compute",
+          "sample_points_2d": "type_3_block_1Compute",
+          "sample_points_3d": "type_3_block_1Compute",
+          "warp_points_2d": "type_3_block_1Compute",
+          "warp_points_3d": "type_3_block_1Compute"
+        },
+        "variable": "_group_0_binding_1_cs"
+      },
+      "hlsl": "t1",
+      "spirv": {
+        "binding": 1,
+        "set": 0
+      },
+      "wgsl": "T"
+    },
+    {
+      "binding": 2,
+      "glsl": {
+        "blocks": {
+          "sample_points_2d": "type_4_block_2Compute",
+          "sample_points_3d": "type_4_block_2Compute",
+          "warp_points_2d": "type_4_block_2Compute",
+          "warp_points_3d": "type_4_block_2Compute"
+        },
+        "variable": "_group_0_binding_2_cs"
+      },
+      "hlsl": "t2",
+      "spirv": {
+        "binding": 2,
+        "set": 0
+      },
+      "wgsl": "XS"
+    },
+    {
+      "binding": 3,
+      "glsl": {
+        "blocks": {
+          "sample_points_2d": "type_4_block_3Compute",
+          "sample_points_3d": "type_4_block_3Compute",
+          "warp_points_2d": "type_4_block_3Compute",
+          "warp_points_3d": "type_4_block_3Compute"
+        },
+        "variable": "_group_0_binding_3_cs"
+      },
+      "hlsl": "t3",
+      "spirv": {
+        "binding": 3,
+        "set": 0
+      },
+      "wgsl": "YS"
+    },
+    {
+      "binding": 4,
+      "glsl": {
+        "blocks": {
+          "sample_points_3d": "type_4_block_4Compute",
+          "warp_points_3d": "type_4_block_4Compute"
+        },
+        "variable": "_group_0_binding_4_cs"
+      },
+      "hlsl": "t4",
+      "spirv": {
+        "binding": 4,
+        "set": 0
+      },
+      "wgsl": "ZS"
+    },
+    {
+      "binding": 5,
+      "glsl": {
+        "blocks": {
+          "sample_grid": "type_4_block_2Compute",
+          "sample_points_2d": "type_4_block_4Compute",
+          "sample_points_3d": "type_4_block_5Compute",
+          "warp_points_2d": "type_4_block_4Compute",
+          "warp_points_3d": "type_4_block_5Compute"
+        },
+        "variable": "_group_0_binding_5_cs"
+      },
+      "hlsl": "u5",
+      "spirv": {
+        "binding": 5,
+        "set": 0
+      },
+      "wgsl": "OUT"
+    },
+    {
+      "binding": 6,
+      "glsl": {
+        "blocks": {
+          "sample_grid": "Grid_block_3Compute"
+        },
+        "variable": "_group_0_binding_6_cs"
+      },
+      "hlsl": "b6",
+      "spirv": {
+        "binding": 6,
+        "set": 0
+      },
+      "wgsl": "G"
+    }
+  ],
+  "dispatch": "point_index = gid.x + gid.y * 65535 * 64",
+  "files": {
+    "noise.hlsl": {
+      "bytes": 133502,
+      "command": "naga noise.wgsl noise.hlsl",
+      "sha256": "acc401fc4388d28bbb865cf2a443e2b15aad48300f819b583d1d636e6c32ec63",
+      "text": true
+    },
+    "noise.sample_grid.comp": {
+      "bytes": 118993,
+      "command": "naga --profile core430 --entry-point sample_grid --shader-stage compute noise.wgsl noise.sample_grid.comp",
+      "sha256": "e3d6145e68fe88ac06e58aff5c4f80508dc58c5100264da4e13fc8933d4f4e5b",
+      "text": true
+    },
+    "noise.sample_points_2d.comp": {
+      "bytes": 118460,
+      "command": "naga --profile core430 --entry-point sample_points_2d --shader-stage compute noise.wgsl noise.sample_points_2d.comp",
+      "sha256": "7afb0dc556bd73bfc3e8904d72a8f95fe00a925fb4da7df5f9c9e5eba8e1fda9",
+      "text": true
+    },
+    "noise.sample_points_3d.comp": {
+      "bytes": 118597,
+      "command": "naga --profile core430 --entry-point sample_points_3d --shader-stage compute noise.wgsl noise.sample_points_3d.comp",
+      "sha256": "62bbe66ad0893f9b9c664e535797c995bd5ccc2636ec2ca148d4cf88810b4a93",
+      "text": true
+    },
+    "noise.spv": {
+      "bytes": 113180,
+      "command": "naga noise.wgsl noise.spv",
+      "sha256": "bd08ccab94d229cfd68ee246be0aa9e2ff22a72e599991b6c24e123d959b50a2",
+      "text": false
+    },
+    "noise.warp_points_2d.comp": {
+      "bytes": 118956,
+      "command": "naga --profile core430 --entry-point warp_points_2d --shader-stage compute noise.wgsl noise.warp_points_2d.comp",
+      "sha256": "ea11305a6b3cd35622013d6caf7a0ee88ea037b3e27054fc5ad9354c0c5b2b8f",
+      "text": true
+    },
+    "noise.warp_points_3d.comp": {
+      "bytes": 119214,
+      "command": "naga --profile core430 --entry-point warp_points_3d --shader-stage compute noise.wgsl noise.warp_points_3d.comp",
+      "sha256": "d4897e8600a8ba0b8f0c865949ccda70a127f7b2e6f2b4816353dd079dd13a19",
+      "text": true
+    },
+    "tables.f32": {
+      "bytes": 8192,
+      "command": "hog_noise.tables.binding_table(), float32 little-endian",
+      "sha256": "505cd75c490342e734f7adb1cb01181dcbfebf538165c0fd34245c9bb3a4b05d",
+      "text": false
+    }
+  },
+  "generator": "hog_noise_tools.emit_shaders",
+  "glsl_profile": "core430",
+  "naga": "29.0.2",
+  "wgsl": {
+    "path": "packages/python/hog-noise/src/hog_noise/wgsl/noise.wgsl",
+    "sha256": "b8a212a133a51da235df38ee3b932b1fbefa56e2f305bdac45a1f9dedf200cc8"
+  },
+  "workgroup_size": 64
+}

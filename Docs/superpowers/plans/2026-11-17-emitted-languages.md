@@ -856,7 +856,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4:** The tests pass. Then a test of `bindings` on the real emitted files waits for Task 8; there, append to
+- [x] **Step 4:** The tests pass. Then a test of `bindings` on the real emitted files waits for Task 8; there, append to
   `test_shaders.py` a check that the manifest's `bindings` give HLSL `b0, t1, t2, t3, t4, u5, b6` for bindings 0 to 6
   and the GLSL variable `_group_0_binding_<n>_cs` for each, with a block named in every entry point that uses it.
   **Commit**.
@@ -866,7 +866,7 @@ if __name__ == "__main__":
 **Files:** modify `.gitattributes`, `Makefile`; create `packages/python/hog-noise/src/hog_noise/shaders/*` (generated);
 extend `test_shaders.py`.
 
-- [ ] **Step 1:** `.gitattributes`, after the `*.py` block:
+- [x] **Step 1:** `.gitattributes`, after the `*.py` block:
 
 ```text
 # The WGSL and the shaders naga writes from it: LF on every checkout, so a hash is the same everywhere (the stage 3 spec).
@@ -878,10 +878,10 @@ extend `test_shaders.py`.
 
   then `git add --renormalize .` and `git status`: expected, nothing but `.gitattributes` (the WGSL is already LF in the
   index).
-- [ ] **Step 2:** `Makefile`: `shaders` joins `.PHONY`, the help gains
+- [x] **Step 2:** `Makefile`: `shaders` joins `.PHONY`, the help gains
   `@echo   make shaders     - write the HLSL, GLSL, SPIR-V, tables and manifest from noise.wgsl with the pinned naga`,
   and the recipe is `uv run hog-noise-emit-shaders`. `uv run pytest tests/test_tooling.py -q` passes.
-- [ ] **Step 3:** Build the pinned naga outside `PATH` and emit:
+- [x] **Step 3:** Build the pinned naga outside `PATH` and emit:
 
 ```bash
 cargo install naga-cli --version "$(cat apps/hog-noise-tools/naga-version.txt)" --locked --root "$HOME/.naga-29"
@@ -890,7 +890,7 @@ HOG_NOISE_NAGA="$HOME/.naga-29/bin/naga" make shaders && git status --short pack
 ```
 
   Expected: the first run writes nine files; the second changes nothing (spec acceptance 1).
-- [ ] **Step 4: the drift tests.** Append to `test_shaders.py`:
+- [x] **Step 4: the drift tests.** Append to `test_shaders.py`:
 
 ```python
 def test_the_manifest_names_the_current_wgsl():
@@ -926,12 +926,12 @@ def test_the_shaders_need_no_wgpu():
     assert int(done.stdout) > 100_000
 ```
 
-- [ ] **Step 5:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`: all pass.
-- [ ] **Step 6: prove the instrument** (spec acceptance 3). Change one byte of `noise.wgsl` (a digit in a comment), run
+- [x] **Step 5:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`: all pass.
+- [x] **Step 6: prove the instrument** (spec acceptance 3). Change one byte of `noise.wgsl` (a digit in a comment), run
   the drift tests: expected, `test_the_manifest_names_the_current_wgsl` FAILS with "make shaders". Revert with
   `git checkout -- packages/python/hog-noise/src/hog_noise/wgsl/noise.wgsl`; they pass. Paste both outputs into the pull
   request. Then the same for one float in `tables.py`, failing `test_the_tables_file_is_the_tables_module`; revert.
-- [ ] **Step 7:** **Commit** the generated files with the attributes and the Makefile ("The emitted shaders").
+- [x] **Step 7:** **Commit** the generated files with the attributes and the Makefile ("The emitted shaders").
 
 ### Task 9: the compile script
 
