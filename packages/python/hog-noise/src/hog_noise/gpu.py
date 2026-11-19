@@ -129,7 +129,10 @@ ENTRY_POINTS = ("sample_points_3d", "sample_points_2d", "sample_grid", "warp_poi
 
 
 def pack_params(params: NoiseParams) -> bytes:
-    """The ``Params`` uniform: `kernel_args()` with the seed wrapped to i32, little-endian, padded to 16 bytes."""
+    """The ``Params`` uniform: `kernel_args()` with the seed wrapped to i32, little-endian, padded to 16 bytes.
+
+    The documented way a host running the emitted shaders fills binding 0; needs no ``wgpu`` (``shaders/README.md``).
+    """
     args = list(params.kernel_args())
     args[0] = ((int(args[0]) + 0x80000000) & 0xFFFFFFFF) - 0x80000000
     values = [int(a) if kind == "i" else float(a) for kind, a in zip(PARAM_KINDS, args, strict=True)]
@@ -138,7 +141,11 @@ def pack_params(params: NoiseParams) -> bytes:
 
 
 def pack_grid(start: Sequence[int], shape: Sequence[int], scales: Sequence[float]) -> bytes:
-    """The ``Grid`` uniform: the start cell, the shape and the per-axis scales, padded to 16 bytes."""
+    """The ``Grid`` uniform: the start cell, the shape and the per-axis scales, padded to 16 bytes.
+
+    The documented way a host running the emitted shaders fills binding 6 for ``sample_grid``; needs no ``wgpu``
+    (``shaders/README.md``).
+    """
     data = struct.pack("<iiiIIIfff", *(int(v) for v in start), *(int(n) for n in shape), *(float(s) for s in scales))
     return data + bytes(-len(data) % 16)
 

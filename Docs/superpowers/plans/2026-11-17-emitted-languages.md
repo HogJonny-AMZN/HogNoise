@@ -1146,15 +1146,15 @@ jobs:
 
 ### Task 11: the shipped README and the wheel
 
-- [ ] **Step 1:** Write `packages/python/hog-noise/src/hog_noise/shaders/README.md`: the files and that they are
+- [x] **Step 1:** Write `packages/python/hog-noise/src/hog_noise/shaders/README.md`: the files and that they are
   generated (`make shaders`, never edited); the binding table per language (from `manifest.json`'s `bindings`, the
   HLSL register, the GLSL variable, the SPIR-V set and binding); the workgroup size and the dispatch rule; how to fill
   the two uniforms (`hog_noise.gpu.pack_params(params)`, `pack_grid(start, shape, scales)`, which need no `wgpu`) and
   binding 1 (`shaders.tables()`, or `tables.f32` from a host with no Python); GLSL binds by naga's names, and Metal is not
   shipped (the spec's decision 1).
-- [ ] **Step 2:** `gpu.pack_params` and `gpu.pack_grid` docstrings say they are the documented way a host fills the
+- [x] **Step 2:** `gpu.pack_params` and `gpu.pack_grid` docstrings say they are the documented way a host fills the
   uniforms, linking the README.
-- [ ] **Step 3:** `uv build --package hog-noise --out-dir dist-check`, then list the wheel with a script file (P-14, never
+- [x] **Step 3:** `uv build --package hog-noise --out-dir dist-check`, then list the wheel with a script file (P-14, never
   `python -`) that opens it with `zipfile` and prints every name under `hog_noise/shaders/`. Expected: `__init__.py`,
   `README.md` and the nine emitted files. Delete `dist-check/`. **Commit**.
 
