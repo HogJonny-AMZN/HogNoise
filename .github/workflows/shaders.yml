@@ -1,0 +1,29 @@
+name: shaders
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  probe-windows:
+    name: compilers (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Find FXC and DXC
+        shell: pwsh
+        run: |
+          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Include fxc.exe,dxc.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\' } | ForEach-Object { $_.FullName }
+          Get-Command dxc.exe -ErrorAction SilentlyContinue | ForEach-Object { "on PATH: $($_.Source)" }
+  probe-ubuntu:
+    name: compilers and naga (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install glslang and SPIR-V tools
+        run: sudo apt-get update && sudo apt-get install -y glslang-tools spirv-tools
+      - name: Versions
+        run: glslangValidator --version && spirv-val --version
+      - name: Build naga-cli 29.0.2, timed
+        run: time cargo install naga-cli --version 29.0.2 --locked

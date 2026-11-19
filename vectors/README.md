@@ -31,7 +31,7 @@ reports/gpu/<commit>/     the measurement records the tolerance file was derived
 
 Every `.f32` file is raw little-endian IEEE 754 float32 with no header. A noise output holds one value per point. A warp
 output holds `dims` values per point, row-major: x, y (and z) for the first point, then the next. Nothing here is edited
-by hand: `tools/gen_noise_vectors.py` writes the files and the manifest, and `tools/measure_gpu.py` the tolerance file,
+by hand: `hog-noise-vectors` writes the files and the manifest, and `hog-noise-measure-gpu` the tolerance file,
 `portability-gpu.md` and the GPU records.
 
 ## The manifest
@@ -93,7 +93,7 @@ in its `source`. There are 48:
   (`fnl/genasgrid_opensimplex2_fbm_scales_0.7_1.0_1.3`). On a grid point set a rendering may compute the coordinates
   itself from `from`, and at these scales its float32 coordinate can differ in the last bit from the file's.
 
-`tools/gen_noise_vectors.py --set hog` writes them with the rest of the hog set, and they are compared like every hog
+`hog-noise-vectors --set hog` writes them with the rest of the hog set, and they are compared like every hog
 case.
 
 ## Tolerance files
@@ -136,10 +136,10 @@ set only; the original cases keep their own rules for every rendering.
   coordinate (`coordinate * frequency`). The file claims nothing outside it.
 - **`measured`** names the record the rules were derived from and the adapters in it.
 
-**How a number is set.** `tools/measure_gpu.py run` samples every hog case on one machine's adapter and writes a JSON
+**How a number is set.** `hog-noise-measure-gpu run` samples every hog case on one machine's adapter and writes a JSON
 record to `reports/gpu/<commit>/`: per case, the largest difference, the largest over its coordinate-scaled allowance,
 the 99th percentile of that, the correlation, and the fraction of points outside each 1, 2 or 5 step from 1e-7 to
-1e-2. `tools/measure_gpu.py derive reports/gpu/<commit>` reads every adapter's record and writes the rules: twice the
+1e-2. `hog-noise-measure-gpu derive reports/gpu/<commit>` reads every adapter's record and writes the rules: twice the
 worst over every adapter, rounded up to a 1, 2 or 5 step (the 99th percentile, for a discrete rule's `within`, whose
 `fraction` is one minus twice the worst fraction outside and whose `min_correlation` is the worst correlation, each
 rounded down to three places, the correlation to at most 0.999). A

@@ -1,6 +1,6 @@
 """
 HogNoise: the GPU measurement and the rules derived from it (the GPU port's spec, *How a number is fixed*).
-Package: tests/test_measure_gpu
+Package: apps/hog-noise-tools/tests/test_measure_gpu
 """
 
 import json
@@ -8,8 +8,7 @@ import subprocess
 
 import pytest
 
-import _tools_path  # noqa: F401  (puts tools/ on sys.path)
-import measure_gpu as m
+from hog_noise_tools import measure_gpu as m
 
 
 @pytest.mark.parametrize(

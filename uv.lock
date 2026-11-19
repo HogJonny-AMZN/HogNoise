@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "hog-noise",
+    "hog-noise-tools",
 ]
 
 [manifest.dependency-groups]
@@ -123,6 +124,22 @@ requires-dist = [
     { name = "wgpu", marker = "extra == 'gpu'", specifier = ">=0.33,<0.34" },
 ]
 provides-extras = ["fast", "reference", "sheets", "test", "gpu", "dev"]
+
+[[package]]
+name = "hog-noise-tools"
+version = "0.1.0"
+source = { editable = "apps/hog-noise-tools" }
+dependencies = [
+    { name = "hog-noise", extra = ["reference", "sheets"] },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "hog-noise", extras = ["reference", "sheets"], editable = "packages/python/hog-noise" },
+    { name = "numpy", specifier = ">=1.26.0" },
+]
 
 [[package]]
 name = "iniconfig"

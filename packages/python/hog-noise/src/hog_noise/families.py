@@ -2,7 +2,7 @@
 HogNoise: the parameter families every ported noise is shown in: the gallery's sheets and an app's presets.
 Package: hog_noise/families
 
-One list per family of `NoiseParams`, each row captioned. `tools/noise_gallery.py` renders them as contact
+One list per family of `NoiseParams`, each row captioned. `hog-noise-gallery` renders them as contact
 sheets for `Docs/noise/GALLERY.md`; an app can offer them as presets. They are built from
 the enums, so a newly ported noise appears in both the moment its enum is implemented.
 """

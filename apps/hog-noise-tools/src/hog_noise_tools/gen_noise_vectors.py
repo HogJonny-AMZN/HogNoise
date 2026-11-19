@@ -1,6 +1,6 @@
 """
 HogNoise: generate the reference vectors, raw float32 and one manifest under ``vectors/``.
-Package: tools/gen_noise_vectors
+Package: hog_noise_tools.gen_noise_vectors
 
 The format and the rules are the conformance harness spec's (Docs/superpowers/specs/2026-11-11-conformance-harness.md):
 every coordinate and value file is raw little-endian float32, and ``vectors/manifest.json`` names each case, its
@@ -12,14 +12,14 @@ Two sets:
 - ``--set hog`` (the default): for every distinct (parameters, point set, output) among the original cases, the numpy
   rendering's output, compared bit for bit. Any environment with numpy; rerun it when a kernel change moves a value.
 - ``--set original``: captures from the original libraries, as they always were. ``fnl`` is `pyfastnoiselite`, the
-  FastNoiseLite reference, plus the domain-warp vectors from the C++ oracle harness in ``tools/noise_oracle`` (the
-  binding does not expose ``DomainWarp``; the harness is built on first use and reproduces the binding's
-  ``gen_from_coords`` bit for bit). ``fns`` is `pyfastnoisesimd`, FastNoiseSIMD: its wheels stop at Python 3.9 and this
-  tool now needs the package's own floor (3.11), so a capture needs a source build, which ADR-007 records working on
-  3.12 and 3.13 with bit-identical output. Then the hog set is regenerated.
+  FastNoiseLite reference, plus the domain-warp vectors from the C++ oracle harness in
+  ``apps/hog-noise-tools/noise_oracle`` (the binding does not expose ``DomainWarp``; the harness is built on first use
+  and reproduces the binding's ``gen_from_coords`` bit for bit). ``fns`` is `pyfastnoisesimd`, FastNoiseSIMD: its
+  wheels stop at Python 3.9 and this tool now needs the package's own floor (3.11), so a capture needs a source
+  build, which ADR-007 records working on 3.12 and 3.13 with bit-identical output. Then the hog set is regenerated.
 
-    python tools/gen_noise_vectors.py                          # the hog set
-    python tools/gen_noise_vectors.py --set original --source fnl
+    hog-noise-vectors                          # the hog set
+    hog-noise-vectors --set original --source fnl
 
 Coordinates are fixed by seed. Scattered samples: 4096 points, x and z in [-4096, 4096], y in [-256, 256]. Grid:
 128 x 128 over x, z in [-2048, 2048] at y = 0, the XZ-plane heightfield case. The two ``genasgrid`` grids, and the
@@ -53,13 +53,14 @@ from hog_noise import (
     parse_perturb,
 )
 from hog_noise.samplers import grid_points
+from hog_noise_tools.repo import APP_ROOT
+from hog_noise_tools.repo import REPO_ROOT as ROOT
 
-_MODULE_NAME = "tools.gen_noise_vectors"
+_MODULE_NAME = "hog_noise_tools.gen_noise_vectors"
 __version__ = "0.1.0"
-__updated__ = "2026-11-14"
+__updated__ = "2026-11-17"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
-ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "vectors"
 N_SCATTER = 4096
 GRID = 128
@@ -706,7 +707,7 @@ def generate_fnl(coords: dict[str, np.ndarray]) -> list[Capture]:
 
 # -------------------------------------------------------------------------
 # FastNoiseLite domain warp, through the C++ oracle (the binding does not expose DomainWarp)
-ORACLE_DIR = ROOT / "tools" / "noise_oracle"
+ORACLE_DIR = APP_ROOT / "noise_oracle"
 ORACLE_EXE = ORACLE_DIR / "fnl_oracle.exe"
 WARP_TYPES = {"opensimplex2": 0, "opensimplex2reduced": 1, "basicgrid": 2}
 WARP_FRACTALS = {"none": 0, "domain_warp_progressive": 4, "domain_warp_independent": 5}

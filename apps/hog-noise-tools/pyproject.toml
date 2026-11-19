@@ -1,0 +1,29 @@
+# hog-noise-tools: HogNoise's own tools, an app member (Docs/standards/layout.md): the vector generator, the gallery,
+# the GPU measurement and, from stage 3, the shader emitter. Never published.
+[project]
+name = "hog-noise-tools"
+version = "0.1.0"
+description = "HogNoise's own tools: reference vectors, the gallery, the GPU measurement, the emitted shaders"
+requires-python = ">=3.11,<3.14"
+authors = [
+    {name = "HogJonny", email = "hogjonny-github@protonmail.com"},
+]
+# What the tools import: Pillow for the gallery's sheets, pyfastnoiselite for `hog-noise-vectors --set original
+# --source fnl`. Not pyfastnoisesimd (`--source fns`): it has no wheel past Python 3.9 and is built from source
+# (ADR-007). Not wgpu: the GPU measurement runs under `uv run --group gpu`.
+dependencies = [
+    "hog-noise[reference,sheets]",
+    "numpy>=1.26.0",
+]
+
+[project.scripts]
+hog-noise-vectors = "hog_noise_tools.gen_noise_vectors:main"
+hog-noise-gallery = "hog_noise_tools.noise_gallery:main"
+hog-noise-measure-gpu = "hog_noise_tools.measure_gpu:main"
+
+[tool.uv.sources]
+hog-noise = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.13.8,<0.14"]
+build-backend = "uv_build"

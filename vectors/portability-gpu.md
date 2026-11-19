@@ -1,6 +1,6 @@
 # The wgpu rung against the hog set, per feature
 
-Written by `tools/measure_gpu.py derive`.
+Written by `hog-noise-measure-gpu derive`.
 
 | Feature | llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan) on ci-ubuntu | Microsoft Basic Render Driver (D3D12) on ci-windows | Microsoft Basic Render Driver (D3D12) on local | NVIDIA GeForce RTX 5090 (Vulkan) on local |
 | --- | --- | --- | --- | --- |

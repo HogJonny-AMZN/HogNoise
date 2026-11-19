@@ -1,6 +1,6 @@
 # The emitted languages: implementation plan
 
-**Status:** Proposed 2026-11-17, for the owner to accept with its five decisions. Written from
+**Status:** Accepted 2026-11-17 by the owner with its five decisions as recommended ("best recommendations"). Written from
 [the spec](../specs/2026-11-15-emitted-languages.md), Accepted 2026-11-15 with its six decisions as recommended. The build
 ticks each step as it lands.
 **Board:** [`2026-11-01-gpu-fast-track`](../../plan/board/2026-11-01-gpu-fast-track.md)
@@ -143,7 +143,7 @@ to build there. Answered by CI before anything depends on it.
 
 **Files:** create `.github/workflows/shaders.yml`.
 
-- [ ] **Step 1:** Write the probe workflow:
+- [x] **Step 1:** Write the probe workflow:
 
 ```yaml
 name: shaders
@@ -177,10 +177,10 @@ jobs:
         run: time cargo install naga-cli --version 29.0.2 --locked
 ```
 
-- [ ] **Step 2:** Branch `feat/hog-noise-tools-app` from `origin/main`, commit, push, open the pull request as a draft
+- [x] **Step 2:** Branch `feat/hog-noise-tools-app` from `origin/main`, commit, push, open the pull request as a draft
   titled "HogNoise's own tools move into an app" (its body from `.github/pull_request_template.md`; *Not covered*: the
   move is Tasks 2 to 4).
-- [ ] **Step 3:** `gh pr checks <n> --watch`, then read each probe's log. Record in the pull request: the SDK folder that
+- [x] **Step 3:** `gh pr checks <n> --watch`, then read each probe's log. Record in the pull request: the SDK folder that
   holds `x64/fxc.exe` and `x64/dxc.exe` (the newest one), the two Ubuntu versions, and the naga build's wall time.
   **If either Windows compiler is missing**, stop and tell the owner; the spec's fallback (DXC from its GitHub release,
   FXC's check dropped) is theirs to accept.
@@ -189,7 +189,7 @@ jobs:
 
 **Files:** see the table, rows for Task 2.
 
-- [ ] **Step 1:** Move with history:
+- [x] **Step 1:** Move with history:
 
 ```bash
 mkdir -p apps/hog-noise-tools/src/hog_noise_tools apps/hog-noise-tools/tests
@@ -198,7 +198,7 @@ git mv tools/noise_oracle apps/hog-noise-tools/noise_oracle
 git mv tests/test_gen_noise_vectors.py tests/test_noise_gallery.py tests/test_measure_gpu.py apps/hog-noise-tools/tests/
 ```
 
-- [ ] **Step 2:** Write `apps/hog-noise-tools/pyproject.toml`:
+- [x] **Step 2:** Write `apps/hog-noise-tools/pyproject.toml`:
 
 ```toml
 # hog-noise-tools: HogNoise's own tools, an app member (Docs/standards/layout.md): the vector generator, the gallery,
@@ -231,7 +231,7 @@ build-backend = "uv_build"
 
   The email is the one the library's manifest already names (the handoff's open question about it covers both).
 
-- [ ] **Step 3:** Write `apps/hog-noise-tools/src/hog_noise_tools/__init__.py` (a docstring naming the app, `_MODULE_NAME
+- [x] **Step 3:** Write `apps/hog-noise-tools/src/hog_noise_tools/__init__.py` (a docstring naming the app, `_MODULE_NAME
   = "hog_noise_tools"`, `__version__ = "0.1.0"`) and `repo.py`, the marker walk the member's tests already use:
 
 ```python
@@ -272,18 +272,18 @@ if __name__ == "__main__":
     print(f"repository {REPO_ROOT}\napp        {APP_ROOT}\nvectors    {VECTORS}")
 ```
 
-- [ ] **Step 4:** In each moved tool, replace the counted root with `from hog_noise_tools.repo import REPO_ROOT as ROOT`
+- [x] **Step 4:** In each moved tool, replace the counted root with `from hog_noise_tools.repo import REPO_ROOT as ROOT`
   (keeping the name `ROOT`, so every later use is unchanged), and set its `Package:` line and `_MODULE_NAME` to
   `hog_noise_tools.<module>`. In `noise_gallery.py` delete line 30 (the LargeWorlds `sys.path.insert`) and the
   `# noqa: E402` it forced on the imports after it. In `gen_noise_vectors.py:709`, `ORACLE_DIR = ROOT / "tools" /
   "noise_oracle"` becomes `ORACLE_DIR = APP_ROOT / "noise_oracle"` (import `APP_ROOT` too). Usage lines in the
   docstrings become the console scripts (`hog-noise-vectors --set original --source fnl`, `hog-noise-gallery --check`,
   `uv run --group gpu hog-noise-measure-gpu run`).
-- [ ] **Step 5:** In each moved test, replace `import _tools_path` and `import <tool>` with
+- [x] **Step 5:** In each moved test, replace `import _tools_path` and `import <tool>` with
   `from hog_noise_tools import <tool>` (keeping each test's alias: `as gen`, `as m`); `test_noise_gallery.py:13`'s
   `ROOT` becomes `from hog_noise_tools.repo import REPO_ROOT as ROOT`. Each `Package:` line becomes
   `apps/hog-noise-tools/tests/<file>`.
-- [ ] **Step 6:** Write `apps/hog-noise-tools/tests/test_repo.py`:
+- [x] **Step 6:** Write `apps/hog-noise-tools/tests/test_repo.py`:
 
 ```python
 """
@@ -310,24 +310,24 @@ def test_no_marker_says_which_and_where(tmp_path):
         repo.above(tmp_path, "framework.toml")
 ```
 
-- [ ] **Step 7: the layer order.** `framework.toml`'s `[layers]` gains the app's package after the library's,
+- [x] **Step 7: the layer order.** `framework.toml`'s `[layers]` gains the app's package after the library's,
   `order = ["hog_noise", "hog_noise_tools"]`: the app may import the library, never the reverse. Without it the
   boundary check reports `hog_noise_tools` as `unlisted` (`tools/boundaries.py:449-458`, a package in neither
   `layers.order` nor `layers.unlayered`), and the gate's tests stage fails through
   `tests/test_boundaries.py::test_the_repositorys_own_workspace_keeps_its_own_layers`. Then
   `uv run python tools/boundaries.py`: expected, `boundaries: clean`.
-- [ ] **Step 8:** `uv sync --group dev`, then `uv run pytest apps/hog-noise-tools -q`. Expected: the moved tests' count
+- [x] **Step 8:** `uv sync --group dev`, then `uv run pytest apps/hog-noise-tools -q`. Expected: the moved tests' count
   before the move, plus 3, all passing or skipped with the same reasons as before (compare with
   `uv run pytest tests/test_gen_noise_vectors.py tests/test_noise_gallery.py tests/test_measure_gpu.py -q` run on
   `origin/main` first, and write both counts in the pull request).
-- [ ] **Step 9:** `uv run hog-noise-gallery --check` and `uv run hog-noise-vectors --help`: the console scripts run, and
+- [x] **Step 9:** `uv run hog-noise-gallery --check` and `uv run hog-noise-vectors --help`: the console scripts run, and
   the gallery's committed page is still current. **Commit** ("HogNoise's tools move into an app").
 
 ### Task 3: launchers, CI and every path that named the old place
 
-- [ ] **Step 1:** For each of the three scripts, `launchers/<name>.cmd` (`@uv run <name> %*`) and `launchers/<name>.sh`
+- [x] **Step 1:** For each of the three scripts, `launchers/<name>.cmd` (`@uv run <name> %*`) and `launchers/<name>.sh`
   (`#!/bin/sh` then `exec uv run <name> "$@"`), then `git add --chmod=+x launchers/*.sh` (layout.md, *Launchers*).
-- [ ] **Step 2:** `tests.yml`: the install line also installs the app, and the measurement uses its script:
+- [x] **Step 2:** `tests.yml`: the install line also installs the app, and the measurement uses its script:
 
 ```yaml
           python -m pip install -e "packages/python/hog-noise[${{ matrix.extras }}]" -e apps/hog-noise-tools "${{ matrix.numpy }}"
@@ -339,22 +339,22 @@ def test_no_marker_says_which_and_where(tmp_path):
 
   pip takes the library from the editable install in the same command; the CI run of Task 4 proves it on every leg,
   the floor's numpy 1.26 included.
-- [ ] **Step 3:** Rerun the `git grep` from *Facts* and change every hit to the new place, except the ledger's entries
+- [x] **Step 3:** Rerun the `git grep` from *Facts* and change every hit to the new place, except the ledger's entries
   (append-only, they say where things were) and `Docs/PYTHON_UPGRADE_AND_FASTNOISE.md` (a carried record). The
   generated two are regenerated, not edited: `uv run hog-noise-gallery` rewrites `Docs/noise/GALLERY.md` after its
   strings change; for `vectors/portability-gpu.md`, change the string in `measure_gpu.py:321` and the same line in the
   committed file, and `test_measure_gpu.py`'s derivation tests prove the two agree. `NOTICE` and the member's copy
   change together (`test_member_files.py` holds them level).
-- [ ] **Step 4:** Rerun the `git grep`. Expected: hits only in the ledger and the carried record. **Commit**.
+- [x] **Step 4:** Rerun the `git grep`. Expected: hits only in the ledger and the carried record. **Commit**.
 
 ### Task 4: the move's records, the gate, out of draft
 
-- [ ] The Icebox row `2026-11-13-project-tools-into-an-app.md` is pulled forward and lands, per the board README's
+- [x] The Icebox row `2026-11-13-project-tools-into-an-app.md` is pulled forward and lands, per the board README's
   *Moving a row*: `Section: now`, `Owner: @HogJonny-AMZN`, `State: Landed <date> in [PR #<n>](...)`: the app, its three
   scripts and launchers, `measure_gpu.py` and the oracle with them.
-- [ ] The journal: a new entry in the build's session file. The handoff: the GPU row says the move landed and the emitter
+- [x] The journal: a new entry in the build's session file. The handoff: the GPU row says the move landed and the emitter
   is next.
-- [ ] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
+- [x] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
   `hog_noise`, and both packages are in `[layers]` from Task 2, Step 7).
 - [ ] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
   `gh pr checks <n> --watch` green on every leg, the probe jobs included. The owner merges.

@@ -11,9 +11,9 @@ dist/
 .numba_cache/
 *.nbi
 *.nbc
-tools/noise_oracle/*.exe
-tools/noise_oracle/*.obj
-# What an interrupted tools/gen_noise_vectors.py run can leave: its staging folder beside vectors/, a pending manifest
+apps/hog-noise-tools/noise_oracle/*.exe
+apps/hog-noise-tools/noise_oracle/*.obj
+# What an interrupted hog-noise-vectors run can leave: its staging folder beside vectors/, a pending manifest
 vectors.hog-*/
 vectors/manifest.json.new
 

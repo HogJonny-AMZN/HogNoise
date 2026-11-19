@@ -1,5 +1,5 @@
 // LargeWorlds: the FastNoiseLite oracle for what pyfastnoiselite does not expose (domain warp).
-// Package: tools/noise_oracle
+// Package: apps/hog-noise-tools/noise_oracle
 //
 // pyfastnoiselite 0.0.7 binds GetNoise only; FastNoiseLite::DomainWarp is not reachable from Python,
 // so the Phase B domain-warp vectors come from this harness over the vendored reference header
