@@ -1,4 +1,3 @@
-// a hand edit, to prove the regeneration job fails on it
 struct Params {
     int seed;
     float frequency;

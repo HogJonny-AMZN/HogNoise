@@ -128,9 +128,9 @@
   "dispatch": "point_index = gid.x + gid.y * 65535 * 64",
   "files": {
     "noise.hlsl": {
-      "bytes": 133560,
+      "bytes": 133502,
       "command": "naga noise.wgsl noise.hlsl",
-      "sha256": "d0b2ff07950773da945c4a6d81d1ef9e4e878e50b7343bd60f0c24b193ab8fe5",
+      "sha256": "acc401fc4388d28bbb865cf2a443e2b15aad48300f819b583d1d636e6c32ec63",
       "text": true
     },
     "noise.sample_grid.comp": {
