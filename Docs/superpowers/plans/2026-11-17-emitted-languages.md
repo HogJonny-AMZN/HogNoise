@@ -552,7 +552,7 @@ if __name__ == "__main__":
 `apps/hog-noise-tools/src/hog_noise_tools/emit_shaders.py`, `apps/hog-noise-tools/tests/test_emit_shaders.py`; the
 app's `[project.scripts]` gains `hog-noise-emit-shaders = "hog_noise_tools.emit_shaders:main"`.
 
-- [ ] **Step 1: the failing tests.** They drive the emitter with a fake naga, a Python script that prints a version and
+- [x] **Step 1: the failing tests.** They drive the emitter with a fake naga, a Python script that prints a version and
   writes a file for each output it is asked for, so they need no naga:
 
 ```python
@@ -664,8 +664,8 @@ def test_the_pin_is_one_line_in_one_file():
     assert e.pinned_version() == "29.0.2"
 ```
 
-- [ ] **Step 2:** `uv run pytest apps/hog-noise-tools/tests/test_emit_shaders.py -q`. Expected: FAIL at import.
-- [ ] **Step 3:** Write `emit_shaders.py`:
+- [x] **Step 2:** `uv run pytest apps/hog-noise-tools/tests/test_emit_shaders.py -q`. Expected: FAIL at import.
+- [x] **Step 3:** Write `emit_shaders.py`:
 
 ```python
 """
