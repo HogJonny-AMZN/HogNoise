@@ -1091,7 +1091,7 @@ if __name__ == "__main__":
 
 **Files:** rewrite `.github/workflows/shaders.yml` (the probe from Task 1 is on `main` by now).
 
-- [ ] **Step 1:** Replace its jobs with three:
+- [x] **Step 1:** Replace its jobs with three:
 
 ```yaml
 jobs:
