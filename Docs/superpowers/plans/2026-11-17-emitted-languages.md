@@ -1140,7 +1140,7 @@ jobs:
 - [x] **Step 2:** Push; `gh pr checks <n> --watch`; read each job's log: the regeneration job's `git diff` empty, ten HLSL
   `ok` lines, five GLSL and one SPIR-V. **If GLSL fails** on `core430` (glslang reads the `#version 430 core` naga
   writes), stop and bring the error to the owner: decision 4 is theirs.
-- [ ] **Step 3: prove the regeneration job can fail.** Push a commit that edits one line of `noise.hlsl` and its hash in
+- [x] **Step 3: prove the regeneration job can fail.** Push a commit that edits one line of `noise.hlsl` and its hash in
   the manifest together; the `regenerate` job fails on the diff while the drift test passes. Revert in the next commit;
   link both runs in the pull request.
 
@@ -1172,11 +1172,11 @@ jobs:
 
 ### Task 13: the review, the records, out of draft
 
-- [ ] The board row `2026-11-01-gpu-fast-track.md`: stage 3 landed with the pull request linked; the design's three
+- [x] The board row `2026-11-01-gpu-fast-track.md`: stage 3 landed with the pull request linked; the design's three
   stages done.
-- [ ] `Docs/handoffs/CURRENT.md`: the GPU row; the PyPI row's condition ("numpy, WGSL and at least HLSL") now met, so the
+- [x] `Docs/handoffs/CURRENT.md`: the GPU row; the PyPI row's condition ("numpy, WGSL and at least HLSL") now met, so the
   release waits only on the owner's go.
-- [ ] The journal: an entry in the build's session file, for a person: what naga wrote, what each compiler said, any
+- [x] The journal: an entry in the build's session file, for a person: what naga wrote, what each compiler said, any
   finding.
 - [ ] The deliberate review (`local-review` skill) of the whole diff, findings answered in *Review* (P-8).
 - [ ] The pull request body: *Verified* (the test counts, the two emitter runs, the instrument's two failures, the
