@@ -27,6 +27,8 @@ __updated__ = "2026-11-18"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 SDK_BIN = Path("C:/Program Files (x86)/Windows Kits/10/bin")
+#: Seconds one compile may take; each takes a few.
+TIMEOUT = 300
 NEEDS = {"hlsl": ("fxc", "dxc"), "glsl": ("glslangValidator",), "spirv": ("spirv-val",)}
 
 
@@ -56,28 +58,39 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hog-noise-compile-shaders", description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("languages", nargs="+", choices=sorted(NEEDS))
     args = parser.parse_args(argv)
+    _logging.basicConfig(level=_logging.INFO, format="%(message)s")
     tool: dict[str, str] = {}
     for name in (n for lang in args.languages for n in NEEDS[lang]):
         found = find(name)
         if found is None:
             print(f"compile-shaders: {name} not found on PATH or in the Windows SDK", file=sys.stderr)
             return 2
-        tool[name] = found
         # fxc has no version option and prints only a complaint; its path, the SDK's folder, names its build.
-        version = subprocess.run([found, "--version"], capture_output=True, text=True, check=False)
+        try:
+            version = subprocess.run([found, "--version"], capture_output=True, text=True, check=False, timeout=60)
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(f"compile-shaders: {name} at {found} cannot run: {exc}", file=sys.stderr)
+            return 2
+        tool[name] = found
         first = next(iter((version.stdout or version.stderr).strip().splitlines()), "")
-        print(f"{name}: {found}: {first}")
-    failed = 0
+        _LOGGER.info(f"{name}: {found}: {first}")
+    failed = total = 0
     with tempfile.TemporaryDirectory() as tmp:
         for lang in args.languages:
             for cmd in commands(lang, tool, Path(tmp) / "out.bin"):
-                done = subprocess.run(cmd, capture_output=True, text=True, check=False)
-                ok = done.returncode == 0
-                print(f"{'ok  ' if ok else 'FAIL'} {' '.join([Path(cmd[0]).name, *cmd[1:]])}")
-                if not ok:
+                total += 1
+                shown = " ".join([Path(cmd[0]).name, *cmd[1:]])
+                try:
+                    done = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=TIMEOUT)
+                    output, ok = f"{done.stdout}{done.stderr}", done.returncode == 0
+                except (OSError, subprocess.SubprocessError) as exc:
+                    output, ok = str(exc), False
+                if ok:
+                    _LOGGER.info(f"ok   {shown}")
+                else:
                     failed += 1
-                    print(f"{done.stdout}{done.stderr}", file=sys.stderr)
-    print(f"compile-shaders: {failed} failed" if failed else "compile-shaders: every file compiled")
+                    _LOGGER.error(f"FAIL {shown}\n{output}")
+    print(f"compile-shaders: {failed} of {total} failed" if failed else f"compile-shaders: {total} of {total} compiled")
     return 1 if failed else 0
 
 

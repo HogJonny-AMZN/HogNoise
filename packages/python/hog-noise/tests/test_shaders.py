@@ -68,7 +68,11 @@ def test_the_manifest_names_the_current_wgsl():
 
 def test_every_emitted_file_matches_its_manifest_entry():
     folder = shaders.path("hlsl").parent
-    for name, entry in shaders.manifest()["files"].items():
+    files = shaders.manifest()["files"]
+    # Every file, named: a manifest with an entry removed would otherwise pass with that file unchecked.
+    expected = {"noise.hlsl", "noise.spv", shaders.TABLES_FILE} | {f"noise.{ep}.comp" for ep in shaders.ENTRY_POINTS}
+    assert set(files) == expected, "the manifest does not list every emitted file: make shaders"
+    for name, entry in files.items():
         data = (folder / name).read_bytes()
         assert shaders.sha256(data, text=entry["text"]) == entry["sha256"], (
             f"{name} differs from its manifest: make shaders"
