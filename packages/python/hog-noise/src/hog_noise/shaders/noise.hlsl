@@ -1,0 +1,3684 @@
+struct Params {
+    int seed;
+    float frequency;
+    int noise_type;
+    int fractal_type;
+    int octaves;
+    float lacunarity;
+    float gain;
+    float weighted_strength;
+    float ping_pong_strength;
+    float fractal_bounding;
+    int cellular_distance;
+    int cellular_return;
+    float cellular_jitter;
+    int transform_3d;
+    int domain_warp;
+    float warp_amp;
+    int warp_fractal;
+    int warp_transform_3d;
+    int cellular_lookup_type;
+    float cellular_lookup_frequency;
+    int perturb;
+    float perturb_amp;
+    float perturb_frequency;
+    int perturb_octaves;
+    float perturb_lacunarity;
+    float perturb_gain;
+    float perturb_normalise_length;
+};
+
+struct Grid {
+    int x0_;
+    int y0_;
+    int z0_;
+    uint nx;
+    uint ny;
+    uint nz;
+    float sx;
+    float sy;
+    float sz;
+};
+
+struct Cellular2Scan {
+    float distance0_;
+    float distance1_;
+    int closest_hash;
+    float cell_x;
+    float cell_y;
+};
+
+struct Cellular3Scan {
+    float distance0_;
+    float distance1_;
+    int closest_hash;
+    float cell_x;
+    float cell_y;
+    float cell_z;
+};
+
+static const int PRIME_X = int(501125321);
+static const int PRIME_Y = int(1136930381);
+static const int PRIME_Z = int(1720413743);
+static const int PRIME_X2_ = int(1002250642);
+static const int PRIME_Y2_ = int(-2021106534);
+static const int PRIME_Z2_ = int(-854139810);
+static const int HASH_MUL = int(668265261);
+static const int NOISE_OPEN_SIMPLEX2_ = int(0);
+static const int NOISE_OPEN_SIMPLEX2S = int(1);
+static const int NOISE_CELLULAR = int(2);
+static const int NOISE_PERLIN = int(3);
+static const int NOISE_VALUE_CUBIC = int(4);
+static const int NOISE_VALUE = int(5);
+static const int NOISE_WHITE_NOISE = int(6);
+static const int NOISE_SIMPLEX_CLASSIC = int(7);
+static const int FNS_PRIME_X = int(1619);
+static const int FNS_PRIME_Y = int(31337);
+static const int FNS_PRIME_Z = int(6971);
+static const int FNS_HASH_MUL = int(60493);
+static const int FRACTAL_NONE = int(0);
+static const int FRACTAL_FBM = int(1);
+static const int FRACTAL_RIDGED = int(2);
+static const int FRACTAL_PING_PONG = int(3);
+static const int FRACTAL_BILLOW = int(6);
+static const int FRACTAL_RIGID_MULTI = int(7);
+static const int CELL_DIST_EUCLIDEAN = int(0);
+static const int CELL_DIST_EUCLIDEAN_SQ = int(1);
+static const int CELL_DIST_MANHATTAN = int(2);
+static const int CELL_DIST_HYBRID = int(3);
+static const int CELL_DIST_NATURAL = int(4);
+static const int CELL_RET_CELL_VALUE = int(0);
+static const int CELL_RET_DISTANCE = int(1);
+static const int CELL_RET_DISTANCE2_ = int(2);
+static const int CELL_RET_DISTANCE2_ADD = int(3);
+static const int CELL_RET_DISTANCE2_SUB = int(4);
+static const int CELL_RET_DISTANCE2_MUL = int(5);
+static const int CELL_RET_DISTANCE2_DIV = int(6);
+static const int CELL_RET_NOISE_LOOKUP = int(7);
+static const int CELL_RET_DISTANCE2_CAVE = int(8);
+static const int TRANSFORM_NONE = int(0);
+static const int TRANSFORM_IMPROVE_XY = int(1);
+static const int TRANSFORM_IMPROVE_XZ = int(2);
+static const int TRANSFORM_DEFAULT_OS2_ = int(3);
+static const int WARP_NONE = int(0);
+static const int WARP_OPEN_SIMPLEX2_ = int(1);
+static const int WARP_OPEN_SIMPLEX2_REDUCED = int(2);
+static const int WARP_BASIC_GRID = int(3);
+static const int WARP_SINGLE = int(0);
+static const int WARP_PROGRESSIVE = int(1);
+static const int WARP_INDEPENDENT = int(2);
+static const int PERTURB_NONE = int(0);
+static const int PERTURB_GRADIENT = int(1);
+static const int PERTURB_GRADIENT_FRACTAL = int(2);
+static const int PERTURB_NORMALISE = int(3);
+static const int PERTURB_GRADIENT_NORMALISE = int(4);
+static const int PERTURB_GRADIENT_FRACTAL_NORMALISE = int(5);
+
+cbuffer P : register(b0) { Params P; }
+ByteAddressBuffer T : register(t1);
+ByteAddressBuffer XS : register(t2);
+ByteAddressBuffer YS : register(t3);
+ByteAddressBuffer ZS : register(t4);
+RWByteAddressBuffer OUT : register(u5);
+cbuffer G : register(b6) { Grid G; }
+
+float gradients_2d(int i)
+{
+    float _e3 = asfloat(T.Load(i*4));
+    return _e3;
+}
+
+float gradients_3d(int i_1)
+{
+    float _e5 = asfloat(T.Load(asint(asuint(int(256)) + asuint(i_1))*4));
+    return _e5;
+}
+
+float rand_vecs_2d(int i_2)
+{
+    float _e5 = asfloat(T.Load(asint(asuint(int(512)) + asuint(i_2))*4));
+    return _e5;
+}
+
+float rand_vecs_3d(int i_3)
+{
+    float _e5 = asfloat(T.Load(asint(asuint(int(1024)) + asuint(i_3))*4));
+    return _e5;
+}
+
+int _hash2_(int seed, int xp, int yp)
+{
+    return asint(asuint(((seed ^ xp) ^ yp)) * asuint(HASH_MUL));
+}
+
+int _hash3_(int seed_1, int xp_1, int yp_1, int zp)
+{
+    return asint(asuint((((seed_1 ^ xp_1) ^ yp_1) ^ zp)) * asuint(HASH_MUL));
+}
+
+float _val_coord2_(int seed_2, int xp_2, int yp_2)
+{
+    int h = (int)0;
+
+    const int _e3 = _hash2_(seed_2, xp_2, yp_2);
+    h = _e3;
+    int _e5 = h;
+    int _e6 = h;
+    h = asint(asuint(_e5) * asuint(_e6));
+    int _e8 = h;
+    int _e9 = h;
+    h = (_e8 ^ (_e9 << 19u));
+    int _e13 = h;
+    return (float(_e13) * 4.656613e-10);
+}
+
+float _val_coord3_(int seed_3, int xp_3, int yp_3, int zp_1)
+{
+    int h_1 = (int)0;
+
+    const int _e4 = _hash3_(seed_3, xp_3, yp_3, zp_1);
+    h_1 = _e4;
+    int _e6 = h_1;
+    int _e7 = h_1;
+    h_1 = asint(asuint(_e6) * asuint(_e7));
+    int _e9 = h_1;
+    int _e10 = h_1;
+    h_1 = (_e9 ^ (_e10 << 19u));
+    int _e14 = h_1;
+    return (float(_e14) * 4.656613e-10);
+}
+
+float _grad_coord2_(int seed_4, int xp_4, int yp_4, float xd, float yd)
+{
+    int h_2 = (int)0;
+
+    const int _e5 = _hash2_(seed_4, xp_4, yp_4);
+    h_2 = _e5;
+    int _e7 = h_2;
+    int _e8 = h_2;
+    h_2 = (_e7 ^ (_e8 >> 15u));
+    int _e12 = h_2;
+    h_2 = (_e12 & int(254));
+    int _e15 = h_2;
+    const float _e16 = gradients_2d(_e15);
+    int _e18 = h_2;
+    const float _e21 = gradients_2d((_e18 | int(1)));
+    return ((xd * _e16) + (yd * _e21));
+}
+
+float _grad_coord3_(int seed_5, int xp_5, int yp_5, int zp_2, float xd_1, float yd_1, float zd)
+{
+    int h_3 = (int)0;
+
+    const int _e7 = _hash3_(seed_5, xp_5, yp_5, zp_2);
+    h_3 = _e7;
+    int _e9 = h_3;
+    int _e10 = h_3;
+    h_3 = (_e9 ^ (_e10 >> 15u));
+    int _e14 = h_3;
+    h_3 = (_e14 & int(252));
+    int _e17 = h_3;
+    const float _e18 = gradients_3d(_e17);
+    int _e20 = h_3;
+    const float _e23 = gradients_3d((_e20 | int(1)));
+    int _e26 = h_3;
+    const float _e29 = gradients_3d((_e26 | int(2)));
+    return (((xd_1 * _e18) + (yd_1 * _e23)) + (zd * _e29));
+}
+
+int naga_f2i32(float value) {
+    return int(clamp(value, -2147483600.0, 2147483500.0));
+}
+
+int _fast_floor(float f)
+{
+    int i_4 = (int)0;
+
+    i_4 = naga_f2i32(f);
+    if ((f < 0.0)) {
+        int _e5 = i_4;
+        i_4 = asint(asuint(_e5) - asuint(int(1)));
+    }
+    int _e8 = i_4;
+    return _e8;
+}
+
+int _fast_round(float f_1)
+{
+    if ((f_1 >= 0.0)) {
+        return naga_f2i32((f_1 + 0.5));
+    }
+    return naga_f2i32((f_1 - 0.5));
+}
+
+float _lerp(float a, float b, float t)
+{
+    return (a + (t * (b - a)));
+}
+
+float _interp_hermite(float t_1)
+{
+    return ((t_1 * t_1) * (3.0 - (2.0 * t_1)));
+}
+
+float _interp_quintic(float t_2)
+{
+    return (((t_2 * t_2) * t_2) * ((t_2 * ((t_2 * 6.0) - 15.0)) + 10.0));
+}
+
+float _cubic_lerp(float a_1, float b_1, float c, float d, float t_3)
+{
+    float p_3 = ((d - c) - (a_1 - b_1));
+    return ((((((t_3 * t_3) * t_3) * p_3) + ((t_3 * t_3) * ((a_1 - b_1) - p_3))) + (t_3 * (c - a_1))) + b_1);
+}
+
+float _ping_pong(float t_in)
+{
+    float t_4 = (float)0;
+
+    t_4 = t_in;
+    float _e2 = t_4;
+    float _e3 = t_4;
+    t_4 = (_e2 - float(asint(asuint(naga_f2i32((_e3 * 0.5))) * asuint(int(2)))));
+    float _e11 = t_4;
+    float _e14 = t_4;
+    float _e15 = t_4;
+    return ((_e15 < 1.0) ? _e14 : (2.0 - _e11));
+}
+
+float simplex2_(int seed_6, float x, float y)
+{
+    int i_5 = (int)0;
+    int j = (int)0;
+    float n0_ = (float)0;
+    float n2_ = (float)0;
+    float n1_ = (float)0;
+
+    const int _e3 = _fast_floor(x);
+    i_5 = _e3;
+    const int _e5 = _fast_floor(y);
+    j = _e5;
+    int _e7 = i_5;
+    float xi_2 = (x - float(_e7));
+    int _e10 = j;
+    float yi_2 = (y - float(_e10));
+    float t_5 = ((xi_2 + yi_2) * 0.21132487);
+    float x0_10 = (xi_2 - t_5);
+    float y0_9 = (yi_2 - t_5);
+    int _e18 = i_5;
+    i_5 = asint(asuint(_e18) * asuint(PRIME_X));
+    int _e21 = j;
+    j = asint(asuint(_e21) * asuint(PRIME_Y));
+    float a_4 = ((0.5 - (x0_10 * x0_10)) - (y0_9 * y0_9));
+    if ((a_4 <= 0.0)) {
+        n0_ = 0.0;
+    } else {
+        int _e36 = i_5;
+        int _e37 = j;
+        const float _e38 = _grad_coord2_(seed_6, _e36, _e37, x0_10, y0_9);
+        n0_ = (((a_4 * a_4) * (a_4 * a_4)) * _e38);
+    }
+    float c_1 = ((3.1547005 * t_5) + (-0.6666667 + a_4));
+    if ((c_1 <= 0.0)) {
+        n2_ = 0.0;
+    } else {
+        float x2_2 = (x0_10 + -0.57735026);
+        float y2_1 = (y0_9 + -0.57735026);
+        int _e56 = i_5;
+        int _e59 = j;
+        const float _e62 = _grad_coord2_(seed_6, asint(asuint(_e56) + asuint(PRIME_X)), asint(asuint(_e59) + asuint(PRIME_Y)), x2_2, y2_1);
+        n2_ = (((c_1 * c_1) * (c_1 * c_1)) * _e62);
+    }
+    if ((y0_9 > x0_10)) {
+        float x1_6 = (x0_10 + 0.21132487);
+        float y1_5 = (y0_9 + -0.7886751);
+        float b_4 = ((0.5 - (x1_6 * x1_6)) - (y1_5 * y1_5));
+        if ((b_4 <= 0.0)) {
+            n1_ = 0.0;
+        } else {
+            int _e81 = i_5;
+            int _e82 = j;
+            const float _e85 = _grad_coord2_(seed_6, _e81, asint(asuint(_e82) + asuint(PRIME_Y)), x1_6, y1_5);
+            n1_ = (((b_4 * b_4) * (b_4 * b_4)) * _e85);
+        }
+    } else {
+        float x1_7 = (x0_10 + -0.7886751);
+        float y1_6 = (y0_9 + 0.21132487);
+        float b_5 = ((0.5 - (x1_7 * x1_7)) - (y1_6 * y1_6));
+        if ((b_5 <= 0.0)) {
+            n1_ = 0.0;
+        } else {
+            int _e102 = i_5;
+            int _e105 = j;
+            const float _e106 = _grad_coord2_(seed_6, asint(asuint(_e102) + asuint(PRIME_X)), _e105, x1_7, y1_6);
+            n1_ = (((b_5 * b_5) * (b_5 * b_5)) * _e106);
+        }
+    }
+    float _e108 = n0_;
+    float _e109 = n1_;
+    float _e111 = n2_;
+    return (((_e108 + _e109) + _e111) * 99.83685);
+}
+
+float simplex2s(int seed_7, float x_1, float y_1)
+{
+    int i_6 = (int)0;
+    int j_1 = (int)0;
+    float value = (float)0;
+
+    const int _e3 = _fast_floor(x_1);
+    i_6 = _e3;
+    const int _e5 = _fast_floor(y_1);
+    j_1 = _e5;
+    int _e7 = i_6;
+    float xi_3 = (x_1 - float(_e7));
+    int _e10 = j_1;
+    float yi_3 = (y_1 - float(_e10));
+    int _e13 = i_6;
+    i_6 = asint(asuint(_e13) * asuint(PRIME_X));
+    int _e16 = j_1;
+    j_1 = asint(asuint(_e16) * asuint(PRIME_Y));
+    int _e19 = i_6;
+    int i1_2 = asint(asuint(_e19) + asuint(PRIME_X));
+    int _e22 = j_1;
+    int j1_2 = asint(asuint(_e22) + asuint(PRIME_Y));
+    float t_6 = ((xi_3 + yi_3) * 0.21132487);
+    float x0_11 = (xi_3 - t_6);
+    float y0_10 = (yi_3 - t_6);
+    float a0_ = ((0.6666667 - (x0_11 * x0_11)) - (y0_10 * y0_10));
+    int _e38 = i_6;
+    int _e39 = j_1;
+    const float _e40 = _grad_coord2_(seed_7, _e38, _e39, x0_11, y0_10);
+    value = (((a0_ * a0_) * (a0_ * a0_)) * _e40);
+    float a1_ = ((3.1547005 * t_6) + (-0.6666667 + a0_));
+    float x1_8 = (x0_11 - 0.57735026);
+    float y1_7 = (y0_10 - 0.57735026);
+    float _e52 = value;
+    const float _e56 = _grad_coord2_(seed_7, i1_2, j1_2, x1_8, y1_7);
+    value = (_e52 + (((a1_ * a1_) * (a1_ * a1_)) * _e56));
+    float xmyi = (xi_3 - yi_3);
+    if ((t_6 > 0.21132487)) {
+        if (((xi_3 + xmyi) > 1.0)) {
+            float x2_3 = (x0_11 + -1.3660254);
+            float y2_2 = (y0_10 + -0.36602542);
+            float a2_ = ((0.6666667 - (x2_3 * x2_3)) - (y2_2 * y2_2));
+            if ((a2_ > 0.0)) {
+                float _e76 = value;
+                int _e80 = i_6;
+                const float _e83 = _grad_coord2_(seed_7, asint(asuint(_e80) + asuint(PRIME_X2_)), j1_2, x2_3, y2_2);
+                value = (_e76 + (((a2_ * a2_) * (a2_ * a2_)) * _e83));
+            }
+        } else {
+            float x2_4 = (x0_11 + 0.21132487);
+            float y2_3 = (y0_10 + -0.7886751);
+            float a2_1 = ((0.6666667 - (x2_4 * x2_4)) - (y2_3 * y2_3));
+            if ((a2_1 > 0.0)) {
+                float _e97 = value;
+                int _e101 = i_6;
+                const float _e102 = _grad_coord2_(seed_7, _e101, j1_2, x2_4, y2_3);
+                value = (_e97 + (((a2_1 * a2_1) * (a2_1 * a2_1)) * _e102));
+            }
+        }
+        if (((yi_3 - xmyi) > 1.0)) {
+            float x3_2 = (x0_11 + -0.36602542);
+            float y3_1 = (y0_10 + -1.3660254);
+            float a3_ = ((0.6666667 - (x3_2 * x3_2)) - (y3_1 * y3_1));
+            if ((a3_ > 0.0)) {
+                float _e119 = value;
+                int _e123 = j_1;
+                const float _e126 = _grad_coord2_(seed_7, i1_2, asint(asuint(_e123) + asuint(PRIME_Y2_)), x3_2, y3_1);
+                value = (_e119 + (((a3_ * a3_) * (a3_ * a3_)) * _e126));
+            }
+        } else {
+            float x3_3 = (x0_11 + -0.7886751);
+            float y3_2 = (y0_10 + 0.21132487);
+            float a3_1 = ((0.6666667 - (x3_3 * x3_3)) - (y3_2 * y3_2));
+            if ((a3_1 > 0.0)) {
+                float _e140 = value;
+                int _e144 = j_1;
+                const float _e145 = _grad_coord2_(seed_7, i1_2, _e144, x3_3, y3_2);
+                value = (_e140 + (((a3_1 * a3_1) * (a3_1 * a3_1)) * _e145));
+            }
+        }
+    } else {
+        if (((xi_3 + xmyi) < 0.0)) {
+            float x2_5 = (x0_11 + 0.7886751);
+            float y2_4 = (y0_10 - 0.21132487);
+            float a2_2 = ((0.6666667 - (x2_5 * x2_5)) - (y2_4 * y2_4));
+            if ((a2_2 > 0.0)) {
+                float _e162 = value;
+                int _e166 = i_6;
+                int _e169 = j_1;
+                const float _e170 = _grad_coord2_(seed_7, asint(asuint(_e166) - asuint(PRIME_X)), _e169, x2_5, y2_4);
+                value = (_e162 + (((a2_2 * a2_2) * (a2_2 * a2_2)) * _e170));
+            }
+        } else {
+            float x2_6 = (x0_11 + -0.7886751);
+            float y2_5 = (y0_10 + 0.21132487);
+            float a2_3 = ((0.6666667 - (x2_6 * x2_6)) - (y2_5 * y2_5));
+            if ((a2_3 > 0.0)) {
+                float _e184 = value;
+                int _e188 = j_1;
+                const float _e189 = _grad_coord2_(seed_7, i1_2, _e188, x2_6, y2_5);
+                value = (_e184 + (((a2_3 * a2_3) * (a2_3 * a2_3)) * _e189));
+            }
+        }
+        if ((yi_3 < xmyi)) {
+            float x3_4 = (x0_11 - 0.21132487);
+            float y3_3 = (y0_10 - -0.7886751);
+            float a3_2 = ((0.6666667 - (x3_4 * x3_4)) - (y3_3 * y3_3));
+            if ((a3_2 > 0.0)) {
+                float _e204 = value;
+                int _e208 = i_6;
+                int _e209 = j_1;
+                const float _e212 = _grad_coord2_(seed_7, _e208, asint(asuint(_e209) - asuint(PRIME_Y)), x3_4, y3_3);
+                value = (_e204 + (((a3_2 * a3_2) * (a3_2 * a3_2)) * _e212));
+            }
+        } else {
+            float x3_5 = (x0_11 + 0.21132487);
+            float y3_4 = (y0_10 + -0.7886751);
+            float a3_3 = ((0.6666667 - (x3_5 * x3_5)) - (y3_4 * y3_4));
+            if ((a3_3 > 0.0)) {
+                float _e226 = value;
+                int _e230 = i_6;
+                const float _e231 = _grad_coord2_(seed_7, _e230, j1_2, x3_5, y3_4);
+                value = (_e226 + (((a3_3 * a3_3) * (a3_3 * a3_3)) * _e231));
+            }
+        }
+    }
+    float _e234 = value;
+    return (_e234 * 18.241962);
+}
+
+float perlin2_(int seed_8, float x_2, float y_2)
+{
+    int x0_ = (int)0;
+    int y0_ = (int)0;
+
+    const int _e3 = _fast_floor(x_2);
+    x0_ = _e3;
+    const int _e5 = _fast_floor(y_2);
+    y0_ = _e5;
+    int _e7 = x0_;
+    float xd0_ = (x_2 - float(_e7));
+    int _e10 = y0_;
+    float yd0_ = (y_2 - float(_e10));
+    float xd1_ = (xd0_ - 1.0);
+    float yd1_ = (yd0_ - 1.0);
+    const float _e17 = _interp_quintic(xd0_);
+    const float _e18 = _interp_quintic(yd0_);
+    int _e19 = x0_;
+    x0_ = asint(asuint(_e19) * asuint(PRIME_X));
+    int _e22 = y0_;
+    y0_ = asint(asuint(_e22) * asuint(PRIME_Y));
+    int _e25 = x0_;
+    int x1_9 = asint(asuint(_e25) + asuint(PRIME_X));
+    int _e28 = y0_;
+    int y1_8 = asint(asuint(_e28) + asuint(PRIME_Y));
+    int _e31 = x0_;
+    int _e32 = y0_;
+    const float _e33 = _grad_coord2_(seed_8, _e31, _e32, xd0_, yd0_);
+    int _e34 = y0_;
+    const float _e35 = _grad_coord2_(seed_8, x1_9, _e34, xd1_, yd0_);
+    const float _e36 = _lerp(_e33, _e35, _e17);
+    int _e37 = x0_;
+    const float _e38 = _grad_coord2_(seed_8, _e37, y1_8, xd0_, yd1_);
+    const float _e39 = _grad_coord2_(seed_8, x1_9, y1_8, xd1_, yd1_);
+    const float _e40 = _lerp(_e38, _e39, _e17);
+    const float _e41 = _lerp(_e36, _e40, _e18);
+    return (_e41 * 1.4247692);
+}
+
+float value2_(int seed_9, float x_3, float y_3)
+{
+    int x0_1 = (int)0;
+    int y0_1 = (int)0;
+
+    const int _e3 = _fast_floor(x_3);
+    x0_1 = _e3;
+    const int _e5 = _fast_floor(y_3);
+    y0_1 = _e5;
+    int _e7 = x0_1;
+    const float _e10 = _interp_hermite((x_3 - float(_e7)));
+    int _e11 = y0_1;
+    const float _e14 = _interp_hermite((y_3 - float(_e11)));
+    int _e15 = x0_1;
+    x0_1 = asint(asuint(_e15) * asuint(PRIME_X));
+    int _e18 = y0_1;
+    y0_1 = asint(asuint(_e18) * asuint(PRIME_Y));
+    int _e21 = x0_1;
+    int x1_10 = asint(asuint(_e21) + asuint(PRIME_X));
+    int _e24 = y0_1;
+    int y1_9 = asint(asuint(_e24) + asuint(PRIME_Y));
+    int _e27 = x0_1;
+    int _e28 = y0_1;
+    const float _e29 = _val_coord2_(seed_9, _e27, _e28);
+    int _e30 = y0_1;
+    const float _e31 = _val_coord2_(seed_9, x1_10, _e30);
+    const float _e32 = _lerp(_e29, _e31, _e10);
+    int _e33 = x0_1;
+    const float _e34 = _val_coord2_(seed_9, _e33, y1_9);
+    const float _e35 = _val_coord2_(seed_9, x1_10, y1_9);
+    const float _e36 = _lerp(_e34, _e35, _e10);
+    const float _e37 = _lerp(_e32, _e36, _e14);
+    return _e37;
+}
+
+float value_cubic2_(int seed_10, float x_4, float y_4)
+{
+    int x1_ = (int)0;
+    int y1_ = (int)0;
+
+    const int _e3 = _fast_floor(x_4);
+    x1_ = _e3;
+    const int _e5 = _fast_floor(y_4);
+    y1_ = _e5;
+    int _e7 = x1_;
+    float xs_2 = (x_4 - float(_e7));
+    int _e10 = y1_;
+    float ys_1 = (y_4 - float(_e10));
+    int _e13 = x1_;
+    x1_ = asint(asuint(_e13) * asuint(PRIME_X));
+    int _e16 = y1_;
+    y1_ = asint(asuint(_e16) * asuint(PRIME_Y));
+    int _e19 = x1_;
+    int x0_12 = asint(asuint(_e19) - asuint(PRIME_X));
+    int _e22 = y1_;
+    int y0_11 = asint(asuint(_e22) - asuint(PRIME_Y));
+    int _e25 = x1_;
+    int x2_7 = asint(asuint(_e25) + asuint(PRIME_X));
+    int _e28 = y1_;
+    int y2_6 = asint(asuint(_e28) + asuint(PRIME_Y));
+    int _e31 = x1_;
+    int x3_6 = asint(asuint(_e31) + asuint(PRIME_X2_));
+    int _e34 = y1_;
+    int y3_5 = asint(asuint(_e34) + asuint(PRIME_Y2_));
+    const float _e37 = _val_coord2_(seed_10, x0_12, y0_11);
+    int _e38 = x1_;
+    const float _e39 = _val_coord2_(seed_10, _e38, y0_11);
+    const float _e40 = _val_coord2_(seed_10, x2_7, y0_11);
+    const float _e41 = _val_coord2_(seed_10, x3_6, y0_11);
+    const float _e42 = _cubic_lerp(_e37, _e39, _e40, _e41, xs_2);
+    int _e43 = y1_;
+    const float _e44 = _val_coord2_(seed_10, x0_12, _e43);
+    int _e45 = x1_;
+    int _e46 = y1_;
+    const float _e47 = _val_coord2_(seed_10, _e45, _e46);
+    int _e48 = y1_;
+    const float _e49 = _val_coord2_(seed_10, x2_7, _e48);
+    int _e50 = y1_;
+    const float _e51 = _val_coord2_(seed_10, x3_6, _e50);
+    const float _e52 = _cubic_lerp(_e44, _e47, _e49, _e51, xs_2);
+    const float _e53 = _val_coord2_(seed_10, x0_12, y2_6);
+    int _e54 = x1_;
+    const float _e55 = _val_coord2_(seed_10, _e54, y2_6);
+    const float _e56 = _val_coord2_(seed_10, x2_7, y2_6);
+    const float _e57 = _val_coord2_(seed_10, x3_6, y2_6);
+    const float _e58 = _cubic_lerp(_e53, _e55, _e56, _e57, xs_2);
+    const float _e59 = _val_coord2_(seed_10, x0_12, y3_5);
+    int _e60 = x1_;
+    const float _e61 = _val_coord2_(seed_10, _e60, y3_5);
+    const float _e62 = _val_coord2_(seed_10, x2_7, y3_5);
+    const float _e63 = _val_coord2_(seed_10, x3_6, y3_5);
+    const float _e64 = _cubic_lerp(_e59, _e61, _e62, _e63, xs_2);
+    const float _e65 = _cubic_lerp(_e42, _e52, _e58, _e64, ys_1);
+    return (_e65 * 0.44444445);
+}
+
+int naga_neg(int val) {
+    return asint(-asuint(val));
+}
+
+float opensimplex2_3_(int seed_in, float x_5, float y_5, float z)
+{
+    int seed_11 = (int)0;
+    int i_7 = (int)0;
+    int j_2 = (int)0;
+    int k = (int)0;
+    float x0_2 = (float)0;
+    float y0_2 = (float)0;
+    float z0_ = (float)0;
+    int x_nsign = (int)0;
+    int y_nsign = (int)0;
+    int z_nsign = (int)0;
+    float ax0_ = (float)0;
+    float ay0_ = (float)0;
+    float az0_ = (float)0;
+    float value_1 = 0.0;
+    float a_2 = (float)0;
+    int step_ = int(0);
+    float b_2 = (float)0;
+    int i1_ = (int)0;
+    int j1_ = (int)0;
+    int k1_ = (int)0;
+    float x1_1 = (float)0;
+    float y1_1 = (float)0;
+    float z1_ = (float)0;
+    bool local = (bool)0;
+    bool local_1 = (bool)0;
+
+    seed_11 = seed_in;
+    const int _e5 = _fast_round(x_5);
+    i_7 = _e5;
+    const int _e7 = _fast_round(y_5);
+    j_2 = _e7;
+    const int _e9 = _fast_round(z);
+    k = _e9;
+    int _e11 = i_7;
+    x0_2 = (x_5 - float(_e11));
+    int _e15 = j_2;
+    y0_2 = (y_5 - float(_e15));
+    int _e19 = k;
+    z0_ = (z - float(_e19));
+    float _e23 = x0_2;
+    x_nsign = (naga_f2i32((-1.0 - _e23)) | int(1));
+    float _e30 = y0_2;
+    y_nsign = (naga_f2i32((-1.0 - _e30)) | int(1));
+    float _e37 = z0_;
+    z_nsign = (naga_f2i32((-1.0 - _e37)) | int(1));
+    int _e44 = x_nsign;
+    float _e46 = x0_2;
+    ax0_ = (float(_e44) * -(_e46));
+    int _e50 = y_nsign;
+    float _e52 = y0_2;
+    ay0_ = (float(_e50) * -(_e52));
+    int _e56 = z_nsign;
+    float _e58 = z0_;
+    az0_ = (float(_e56) * -(_e58));
+    int _e62 = i_7;
+    i_7 = asint(asuint(_e62) * asuint(PRIME_X));
+    int _e65 = j_2;
+    j_2 = asint(asuint(_e65) * asuint(PRIME_Y));
+    int _e68 = k;
+    k = asint(asuint(_e68) * asuint(PRIME_Z));
+    float _e73 = x0_2;
+    float _e74 = x0_2;
+    float _e78 = y0_2;
+    float _e79 = y0_2;
+    float _e81 = z0_;
+    float _e82 = z0_;
+    a_2 = ((0.6 - (_e73 * _e74)) - ((_e78 * _e79) + (_e81 * _e82)));
+    uint2 loop_bound = uint2(4294967295u, 4294967295u);
+    bool loop_init = true;
+    while(true) {
+        if (all(loop_bound == uint2(0u, 0u))) { break; }
+        loop_bound -= uint2(loop_bound.y == 0u, 1u);
+        if (!loop_init) {
+            int _e284 = step_;
+            step_ = asint(asuint(_e284) + asuint(int(1)));
+        }
+        loop_init = false;
+        int _e89 = step_;
+        if ((_e89 < int(2))) {
+        } else {
+            break;
+        }
+        {
+            float _e92 = a_2;
+            if ((_e92 > 0.0)) {
+                float _e95 = value_1;
+                float _e96 = a_2;
+                float _e97 = a_2;
+                float _e99 = a_2;
+                float _e100 = a_2;
+                int _e103 = seed_11;
+                int _e104 = i_7;
+                int _e105 = j_2;
+                int _e106 = k;
+                float _e107 = x0_2;
+                float _e108 = y0_2;
+                float _e109 = z0_;
+                const float _e110 = _grad_coord3_(_e103, _e104, _e105, _e106, _e107, _e108, _e109);
+                value_1 = (_e95 + (((_e96 * _e97) * (_e99 * _e100)) * _e110));
+            }
+            float _e113 = a_2;
+            b_2 = (_e113 + 1.0);
+            int _e117 = i_7;
+            i1_ = _e117;
+            int _e119 = j_2;
+            j1_ = _e119;
+            int _e121 = k;
+            k1_ = _e121;
+            float _e123 = x0_2;
+            x1_1 = _e123;
+            float _e125 = y0_2;
+            y1_1 = _e125;
+            float _e127 = z0_;
+            z1_ = _e127;
+            float _e129 = ax0_;
+            float _e130 = ay0_;
+            if ((_e129 >= _e130)) {
+                float _e134 = ax0_;
+                float _e135 = az0_;
+                local = (_e134 >= _e135);
+            } else {
+                local = false;
+            }
+            bool _e138 = local;
+            if (_e138) {
+                float _e139 = x1_1;
+                int _e140 = x_nsign;
+                x1_1 = (_e139 + float(_e140));
+                float _e143 = b_2;
+                int _e144 = x_nsign;
+                float _e148 = x1_1;
+                b_2 = (_e143 - ((float(_e144) * 2.0) * _e148));
+                int _e151 = i1_;
+                int _e152 = x_nsign;
+                i1_ = asint(asuint(_e151) - asuint(asint(asuint(_e152) * asuint(PRIME_X))));
+            } else {
+                float _e156 = ay0_;
+                float _e157 = ax0_;
+                if ((_e156 > _e157)) {
+                    float _e161 = ay0_;
+                    float _e162 = az0_;
+                    local_1 = (_e161 >= _e162);
+                } else {
+                    local_1 = false;
+                }
+                bool _e165 = local_1;
+                if (_e165) {
+                    float _e166 = y1_1;
+                    int _e167 = y_nsign;
+                    y1_1 = (_e166 + float(_e167));
+                    float _e170 = b_2;
+                    int _e171 = y_nsign;
+                    float _e175 = y1_1;
+                    b_2 = (_e170 - ((float(_e171) * 2.0) * _e175));
+                    int _e178 = j1_;
+                    int _e179 = y_nsign;
+                    j1_ = asint(asuint(_e178) - asuint(asint(asuint(_e179) * asuint(PRIME_Y))));
+                } else {
+                    float _e183 = z1_;
+                    int _e184 = z_nsign;
+                    z1_ = (_e183 + float(_e184));
+                    float _e187 = b_2;
+                    int _e188 = z_nsign;
+                    float _e192 = z1_;
+                    b_2 = (_e187 - ((float(_e188) * 2.0) * _e192));
+                    int _e195 = k1_;
+                    int _e196 = z_nsign;
+                    k1_ = asint(asuint(_e195) - asuint(asint(asuint(_e196) * asuint(PRIME_Z))));
+                }
+            }
+            float _e200 = b_2;
+            if ((_e200 > 0.0)) {
+                float _e203 = value_1;
+                float _e204 = b_2;
+                float _e205 = b_2;
+                float _e207 = b_2;
+                float _e208 = b_2;
+                int _e211 = seed_11;
+                int _e212 = i1_;
+                int _e213 = j1_;
+                int _e214 = k1_;
+                float _e215 = x1_1;
+                float _e216 = y1_1;
+                float _e217 = z1_;
+                const float _e218 = _grad_coord3_(_e211, _e212, _e213, _e214, _e215, _e216, _e217);
+                value_1 = (_e203 + (((_e204 * _e205) * (_e207 * _e208)) * _e218));
+            }
+            int _e221 = step_;
+            if ((_e221 == int(1))) {
+                break;
+            }
+            float _e224 = ax0_;
+            ax0_ = (0.5 - _e224);
+            float _e227 = ay0_;
+            ay0_ = (0.5 - _e227);
+            float _e230 = az0_;
+            az0_ = (0.5 - _e230);
+            int _e233 = x_nsign;
+            float _e235 = ax0_;
+            x0_2 = (float(_e233) * _e235);
+            int _e237 = y_nsign;
+            float _e239 = ay0_;
+            y0_2 = (float(_e237) * _e239);
+            int _e241 = z_nsign;
+            float _e243 = az0_;
+            z0_ = (float(_e241) * _e243);
+            float _e245 = a_2;
+            float _e246 = ax0_;
+            float _e249 = ay0_;
+            float _e250 = az0_;
+            a_2 = (_e245 + ((0.75 - _e246) - (_e249 + _e250)));
+            int _e254 = i_7;
+            int _e255 = x_nsign;
+            i_7 = asint(asuint(_e254) + asuint(((_e255 >> 1u) & PRIME_X)));
+            int _e261 = j_2;
+            int _e262 = y_nsign;
+            j_2 = asint(asuint(_e261) + asuint(((_e262 >> 1u) & PRIME_Y)));
+            int _e268 = k;
+            int _e269 = z_nsign;
+            k = asint(asuint(_e268) + asuint(((_e269 >> 1u) & PRIME_Z)));
+            int _e275 = x_nsign;
+            x_nsign = naga_neg(_e275);
+            int _e277 = y_nsign;
+            y_nsign = naga_neg(_e277);
+            int _e279 = z_nsign;
+            z_nsign = naga_neg(_e279);
+            int _e281 = seed_11;
+            seed_11 = ~(_e281);
+        }
+    }
+    float _e286 = value_1;
+    return (_e286 * 32.694283);
+}
+
+float opensimplex2s_3_(int seed_12, float x_6, float y_6, float z_1)
+{
+    int i_8 = (int)0;
+    int j_3 = (int)0;
+    int k_1 = (int)0;
+    float value_2 = (float)0;
+    bool skip5_ = false;
+    bool skip9_ = false;
+    bool skip_d = false;
+
+    const int _e4 = _fast_floor(x_6);
+    i_8 = _e4;
+    const int _e6 = _fast_floor(y_6);
+    j_3 = _e6;
+    const int _e8 = _fast_floor(z_1);
+    k_1 = _e8;
+    int _e10 = i_8;
+    float xi_4 = (x_6 - float(_e10));
+    int _e13 = j_3;
+    float yi_4 = (y_6 - float(_e13));
+    int _e16 = k_1;
+    float zi_1 = (z_1 - float(_e16));
+    int _e19 = i_8;
+    i_8 = asint(asuint(_e19) * asuint(PRIME_X));
+    int _e22 = j_3;
+    j_3 = asint(asuint(_e22) * asuint(PRIME_Y));
+    int _e25 = k_1;
+    k_1 = asint(asuint(_e25) * asuint(PRIME_Z));
+    int seed2_ = asint(asuint(seed_12) + asuint(int(1293373)));
+    int x_nmask = naga_f2i32((-0.5 - xi_4));
+    int y_nmask = naga_f2i32((-0.5 - yi_4));
+    int z_nmask = naga_f2i32((-0.5 - zi_1));
+    float x0_13 = (xi_4 + float(x_nmask));
+    float y0_12 = (yi_4 + float(y_nmask));
+    float z0_5 = (zi_1 + float(z_nmask));
+    float a0_1 = (((0.75 - (x0_13 * x0_13)) - (y0_12 * y0_12)) - (z0_5 * z0_5));
+    int _e55 = i_8;
+    int _e59 = j_3;
+    int _e63 = k_1;
+    const float _e67 = _grad_coord3_(seed_12, asint(asuint(_e55) + asuint((x_nmask & PRIME_X))), asint(asuint(_e59) + asuint((y_nmask & PRIME_Y))), asint(asuint(_e63) + asuint((z_nmask & PRIME_Z))), x0_13, y0_12, z0_5);
+    value_2 = (((a0_1 * a0_1) * (a0_1 * a0_1)) * _e67);
+    float x1_11 = (xi_4 - 0.5);
+    float y1_10 = (yi_4 - 0.5);
+    float z1_3 = (zi_1 - 0.5);
+    float a1_1 = (((0.75 - (x1_11 * x1_11)) - (y1_10 * y1_10)) - (z1_3 * z1_3));
+    float _e83 = value_2;
+    int _e87 = i_8;
+    int _e90 = j_3;
+    int _e93 = k_1;
+    const float _e96 = _grad_coord3_(seed2_, asint(asuint(_e87) + asuint(PRIME_X)), asint(asuint(_e90) + asuint(PRIME_Y)), asint(asuint(_e93) + asuint(PRIME_Z)), x1_11, y1_10, z1_3);
+    value_2 = (_e83 + (((a1_1 * a1_1) * (a1_1 * a1_1)) * _e96));
+    float x_flip0_ = (float(((x_nmask | int(1)) << 1u)) * x1_11);
+    float y_flip0_ = (float(((y_nmask | int(1)) << 1u)) * y1_10);
+    float z_flip0_ = (float(((z_nmask | int(1)) << 1u)) * z1_3);
+    float x_flip1_ = ((float(asint(asuint(int(-2)) - asuint((x_nmask << 2u)))) * x1_11) - 1.0);
+    float y_flip1_ = ((float(asint(asuint(int(-2)) - asuint((y_nmask << 2u)))) * y1_10) - 1.0);
+    float z_flip1_ = ((float(asint(asuint(int(-2)) - asuint((z_nmask << 2u)))) * z1_3) - 1.0);
+    float a2_4 = (x_flip0_ + a0_1);
+    if ((a2_4 > 0.0)) {
+        float x2_8 = (x0_13 - float((x_nmask | int(1))));
+        float _e150 = value_2;
+        int _e154 = i_8;
+        int _e159 = j_3;
+        int _e163 = k_1;
+        const float _e167 = _grad_coord3_(seed_12, asint(asuint(_e154) + asuint((~(x_nmask) & PRIME_X))), asint(asuint(_e159) + asuint((y_nmask & PRIME_Y))), asint(asuint(_e163) + asuint((z_nmask & PRIME_Z))), x2_8, y0_12, z0_5);
+        value_2 = (_e150 + (((a2_4 * a2_4) * (a2_4 * a2_4)) * _e167));
+    } else {
+        float a3_4 = ((y_flip0_ + z_flip0_) + a0_1);
+        if ((a3_4 > 0.0)) {
+            float y3_6 = (y0_12 - float((y_nmask | int(1))));
+            float z3_ = (z0_5 - float((z_nmask | int(1))));
+            float _e182 = value_2;
+            int _e186 = i_8;
+            int _e190 = j_3;
+            int _e195 = k_1;
+            const float _e200 = _grad_coord3_(seed_12, asint(asuint(_e186) + asuint((x_nmask & PRIME_X))), asint(asuint(_e190) + asuint((~(y_nmask) & PRIME_Y))), asint(asuint(_e195) + asuint((~(z_nmask) & PRIME_Z))), x0_13, y3_6, z3_);
+            value_2 = (_e182 + (((a3_4 * a3_4) * (a3_4 * a3_4)) * _e200));
+        }
+        float a4_ = (x_flip1_ + a1_1);
+        if ((a4_ > 0.0)) {
+            float x4_ = (float((x_nmask | int(1))) + x1_11);
+            float _e210 = value_2;
+            int _e214 = i_8;
+            int _e218 = j_3;
+            int _e221 = k_1;
+            const float _e224 = _grad_coord3_(seed2_, asint(asuint(_e214) + asuint((x_nmask & PRIME_X2_))), asint(asuint(_e218) + asuint(PRIME_Y)), asint(asuint(_e221) + asuint(PRIME_Z)), x4_, y1_10, z1_3);
+            value_2 = (_e210 + (((a4_ * a4_) * (a4_ * a4_)) * _e224));
+            skip5_ = true;
+        }
+    }
+    float a6_ = (y_flip0_ + a0_1);
+    if ((a6_ > 0.0)) {
+        float y6_ = (y0_12 - float((y_nmask | int(1))));
+        float _e237 = value_2;
+        int _e241 = i_8;
+        int _e245 = j_3;
+        int _e250 = k_1;
+        const float _e254 = _grad_coord3_(seed_12, asint(asuint(_e241) + asuint((x_nmask & PRIME_X))), asint(asuint(_e245) + asuint((~(y_nmask) & PRIME_Y))), asint(asuint(_e250) + asuint((z_nmask & PRIME_Z))), x0_13, y6_, z0_5);
+        value_2 = (_e237 + (((a6_ * a6_) * (a6_ * a6_)) * _e254));
+    } else {
+        float a7_ = ((x_flip0_ + z_flip0_) + a0_1);
+        if ((a7_ > 0.0)) {
+            float x7_ = (x0_13 - float((x_nmask | int(1))));
+            float z7_ = (z0_5 - float((z_nmask | int(1))));
+            float _e269 = value_2;
+            int _e273 = i_8;
+            int _e278 = j_3;
+            int _e282 = k_1;
+            const float _e287 = _grad_coord3_(seed_12, asint(asuint(_e273) + asuint((~(x_nmask) & PRIME_X))), asint(asuint(_e278) + asuint((y_nmask & PRIME_Y))), asint(asuint(_e282) + asuint((~(z_nmask) & PRIME_Z))), x7_, y0_12, z7_);
+            value_2 = (_e269 + (((a7_ * a7_) * (a7_ * a7_)) * _e287));
+        }
+        float a8_ = (y_flip1_ + a1_1);
+        if ((a8_ > 0.0)) {
+            float y8_ = (float((y_nmask | int(1))) + y1_10);
+            float _e297 = value_2;
+            int _e301 = i_8;
+            int _e304 = j_3;
+            int _e308 = k_1;
+            const float _e311 = _grad_coord3_(seed2_, asint(asuint(_e301) + asuint(PRIME_X)), asint(asuint(_e304) + asuint((y_nmask & PRIME_Y2_))), asint(asuint(_e308) + asuint(PRIME_Z)), x1_11, y8_, z1_3);
+            value_2 = (_e297 + (((a8_ * a8_) * (a8_ * a8_)) * _e311));
+            skip9_ = true;
+        }
+    }
+    float aa = (z_flip0_ + a0_1);
+    if ((aa > 0.0)) {
+        float za = (z0_5 - float((z_nmask | int(1))));
+        float _e324 = value_2;
+        int _e328 = i_8;
+        int _e332 = j_3;
+        int _e336 = k_1;
+        const float _e341 = _grad_coord3_(seed_12, asint(asuint(_e328) + asuint((x_nmask & PRIME_X))), asint(asuint(_e332) + asuint((y_nmask & PRIME_Y))), asint(asuint(_e336) + asuint((~(z_nmask) & PRIME_Z))), x0_13, y0_12, za);
+        value_2 = (_e324 + (((aa * aa) * (aa * aa)) * _e341));
+    } else {
+        float ab = ((x_flip0_ + y_flip0_) + a0_1);
+        if ((ab > 0.0)) {
+            float xb = (x0_13 - float((x_nmask | int(1))));
+            float yb = (y0_12 - float((y_nmask | int(1))));
+            float _e356 = value_2;
+            int _e360 = i_8;
+            int _e365 = j_3;
+            int _e370 = k_1;
+            const float _e374 = _grad_coord3_(seed_12, asint(asuint(_e360) + asuint((~(x_nmask) & PRIME_X))), asint(asuint(_e365) + asuint((~(y_nmask) & PRIME_Y))), asint(asuint(_e370) + asuint((z_nmask & PRIME_Z))), xb, yb, z0_5);
+            value_2 = (_e356 + (((ab * ab) * (ab * ab)) * _e374));
+        }
+        float ac = (z_flip1_ + a1_1);
+        if ((ac > 0.0)) {
+            float zc = (float((z_nmask | int(1))) + z1_3);
+            float _e384 = value_2;
+            int _e388 = i_8;
+            int _e391 = j_3;
+            int _e394 = k_1;
+            const float _e398 = _grad_coord3_(seed2_, asint(asuint(_e388) + asuint(PRIME_X)), asint(asuint(_e391) + asuint(PRIME_Y)), asint(asuint(_e394) + asuint((z_nmask & PRIME_Z2_))), x1_11, y1_10, zc);
+            value_2 = (_e384 + (((ac * ac) * (ac * ac)) * _e398));
+            skip_d = true;
+        }
+    }
+    bool _e402 = skip5_;
+    if (!(_e402)) {
+        float a5_ = ((y_flip1_ + z_flip1_) + a1_1);
+        if ((a5_ > 0.0)) {
+            float y5_ = (float((y_nmask | int(1))) + y1_10);
+            float z5_ = (float((z_nmask | int(1))) + z1_3);
+            float _e416 = value_2;
+            int _e420 = i_8;
+            int _e423 = j_3;
+            int _e427 = k_1;
+            const float _e431 = _grad_coord3_(seed2_, asint(asuint(_e420) + asuint(PRIME_X)), asint(asuint(_e423) + asuint((y_nmask & PRIME_Y2_))), asint(asuint(_e427) + asuint((z_nmask & PRIME_Z2_))), x1_11, y5_, z5_);
+            value_2 = (_e416 + (((a5_ * a5_) * (a5_ * a5_)) * _e431));
+        }
+    }
+    bool _e434 = skip9_;
+    if (!(_e434)) {
+        float a9_ = ((x_flip1_ + z_flip1_) + a1_1);
+        if ((a9_ > 0.0)) {
+            float x9_ = (float((x_nmask | int(1))) + x1_11);
+            float z9_ = (float((z_nmask | int(1))) + z1_3);
+            float _e448 = value_2;
+            int _e452 = i_8;
+            int _e456 = j_3;
+            int _e459 = k_1;
+            const float _e463 = _grad_coord3_(seed2_, asint(asuint(_e452) + asuint((x_nmask & PRIME_X2_))), asint(asuint(_e456) + asuint(PRIME_Y)), asint(asuint(_e459) + asuint((z_nmask & PRIME_Z2_))), x9_, y1_10, z9_);
+            value_2 = (_e448 + (((a9_ * a9_) * (a9_ * a9_)) * _e463));
+        }
+    }
+    bool _e466 = skip_d;
+    if (!(_e466)) {
+        float ad = ((x_flip1_ + y_flip1_) + a1_1);
+        if ((ad > 0.0)) {
+            float xd_4 = (float((x_nmask | int(1))) + x1_11);
+            float yd_4 = (float((y_nmask | int(1))) + y1_10);
+            float _e480 = value_2;
+            int _e484 = i_8;
+            int _e488 = j_3;
+            int _e492 = k_1;
+            const float _e495 = _grad_coord3_(seed2_, asint(asuint(_e484) + asuint((x_nmask & PRIME_X2_))), asint(asuint(_e488) + asuint((y_nmask & PRIME_Y2_))), asint(asuint(_e492) + asuint(PRIME_Z)), xd_4, yd_4, z1_3);
+            value_2 = (_e480 + (((ad * ad) * (ad * ad)) * _e495));
+        }
+    }
+    float _e498 = value_2;
+    return (_e498 * 9.046026);
+}
+
+float perlin3_(int seed_13, float x_7, float y_7, float z_2)
+{
+    int x0_3 = (int)0;
+    int y0_3 = (int)0;
+    int z0_1 = (int)0;
+
+    const int _e4 = _fast_floor(x_7);
+    x0_3 = _e4;
+    const int _e6 = _fast_floor(y_7);
+    y0_3 = _e6;
+    const int _e8 = _fast_floor(z_2);
+    z0_1 = _e8;
+    int _e10 = x0_3;
+    float xd0_1 = (x_7 - float(_e10));
+    int _e13 = y0_3;
+    float yd0_1 = (y_7 - float(_e13));
+    int _e16 = z0_1;
+    float zd0_ = (z_2 - float(_e16));
+    float xd1_1 = (xd0_1 - 1.0);
+    float yd1_1 = (yd0_1 - 1.0);
+    float zd1_ = (zd0_ - 1.0);
+    const float _e25 = _interp_quintic(xd0_1);
+    const float _e26 = _interp_quintic(yd0_1);
+    const float _e27 = _interp_quintic(zd0_);
+    int _e28 = x0_3;
+    x0_3 = asint(asuint(_e28) * asuint(PRIME_X));
+    int _e31 = y0_3;
+    y0_3 = asint(asuint(_e31) * asuint(PRIME_Y));
+    int _e34 = z0_1;
+    z0_1 = asint(asuint(_e34) * asuint(PRIME_Z));
+    int _e37 = x0_3;
+    int x1_12 = asint(asuint(_e37) + asuint(PRIME_X));
+    int _e40 = y0_3;
+    int y1_11 = asint(asuint(_e40) + asuint(PRIME_Y));
+    int _e43 = z0_1;
+    int z1_4 = asint(asuint(_e43) + asuint(PRIME_Z));
+    int _e46 = x0_3;
+    int _e47 = y0_3;
+    int _e48 = z0_1;
+    const float _e49 = _grad_coord3_(seed_13, _e46, _e47, _e48, xd0_1, yd0_1, zd0_);
+    int _e50 = y0_3;
+    int _e51 = z0_1;
+    const float _e52 = _grad_coord3_(seed_13, x1_12, _e50, _e51, xd1_1, yd0_1, zd0_);
+    const float _e53 = _lerp(_e49, _e52, _e25);
+    int _e54 = x0_3;
+    int _e55 = z0_1;
+    const float _e56 = _grad_coord3_(seed_13, _e54, y1_11, _e55, xd0_1, yd1_1, zd0_);
+    int _e57 = z0_1;
+    const float _e58 = _grad_coord3_(seed_13, x1_12, y1_11, _e57, xd1_1, yd1_1, zd0_);
+    const float _e59 = _lerp(_e56, _e58, _e25);
+    int _e60 = x0_3;
+    int _e61 = y0_3;
+    const float _e62 = _grad_coord3_(seed_13, _e60, _e61, z1_4, xd0_1, yd0_1, zd1_);
+    int _e63 = y0_3;
+    const float _e64 = _grad_coord3_(seed_13, x1_12, _e63, z1_4, xd1_1, yd0_1, zd1_);
+    const float _e65 = _lerp(_e62, _e64, _e25);
+    int _e66 = x0_3;
+    const float _e67 = _grad_coord3_(seed_13, _e66, y1_11, z1_4, xd0_1, yd1_1, zd1_);
+    const float _e68 = _grad_coord3_(seed_13, x1_12, y1_11, z1_4, xd1_1, yd1_1, zd1_);
+    const float _e69 = _lerp(_e67, _e68, _e25);
+    const float _e70 = _lerp(_e53, _e59, _e26);
+    const float _e71 = _lerp(_e65, _e69, _e26);
+    const float _e72 = _lerp(_e70, _e71, _e27);
+    return (_e72 * 0.9649214);
+}
+
+float value3_(int seed_14, float x_8, float y_8, float z_3)
+{
+    int x0_4 = (int)0;
+    int y0_4 = (int)0;
+    int z0_2 = (int)0;
+
+    const int _e4 = _fast_floor(x_8);
+    x0_4 = _e4;
+    const int _e6 = _fast_floor(y_8);
+    y0_4 = _e6;
+    const int _e8 = _fast_floor(z_3);
+    z0_2 = _e8;
+    int _e10 = x0_4;
+    const float _e13 = _interp_hermite((x_8 - float(_e10)));
+    int _e14 = y0_4;
+    const float _e17 = _interp_hermite((y_8 - float(_e14)));
+    int _e18 = z0_2;
+    const float _e21 = _interp_hermite((z_3 - float(_e18)));
+    int _e22 = x0_4;
+    x0_4 = asint(asuint(_e22) * asuint(PRIME_X));
+    int _e25 = y0_4;
+    y0_4 = asint(asuint(_e25) * asuint(PRIME_Y));
+    int _e28 = z0_2;
+    z0_2 = asint(asuint(_e28) * asuint(PRIME_Z));
+    int _e31 = x0_4;
+    int x1_13 = asint(asuint(_e31) + asuint(PRIME_X));
+    int _e34 = y0_4;
+    int y1_12 = asint(asuint(_e34) + asuint(PRIME_Y));
+    int _e37 = z0_2;
+    int z1_5 = asint(asuint(_e37) + asuint(PRIME_Z));
+    int _e40 = x0_4;
+    int _e41 = y0_4;
+    int _e42 = z0_2;
+    const float _e43 = _val_coord3_(seed_14, _e40, _e41, _e42);
+    int _e44 = y0_4;
+    int _e45 = z0_2;
+    const float _e46 = _val_coord3_(seed_14, x1_13, _e44, _e45);
+    const float _e47 = _lerp(_e43, _e46, _e13);
+    int _e48 = x0_4;
+    int _e49 = z0_2;
+    const float _e50 = _val_coord3_(seed_14, _e48, y1_12, _e49);
+    int _e51 = z0_2;
+    const float _e52 = _val_coord3_(seed_14, x1_13, y1_12, _e51);
+    const float _e53 = _lerp(_e50, _e52, _e13);
+    int _e54 = x0_4;
+    int _e55 = y0_4;
+    const float _e56 = _val_coord3_(seed_14, _e54, _e55, z1_5);
+    int _e57 = y0_4;
+    const float _e58 = _val_coord3_(seed_14, x1_13, _e57, z1_5);
+    const float _e59 = _lerp(_e56, _e58, _e13);
+    int _e60 = x0_4;
+    const float _e61 = _val_coord3_(seed_14, _e60, y1_12, z1_5);
+    const float _e62 = _val_coord3_(seed_14, x1_13, y1_12, z1_5);
+    const float _e63 = _lerp(_e61, _e62, _e13);
+    const float _e64 = _lerp(_e47, _e53, _e17);
+    const float _e65 = _lerp(_e59, _e63, _e17);
+    const float _e66 = _lerp(_e64, _e65, _e21);
+    return _e66;
+}
+
+float _value_cubic3_row(int seed_15, int x0_5, int x1_2, int x2_, int x3_, int yp_6, int zp_3, float xs)
+{
+    const float _e8 = _val_coord3_(seed_15, x0_5, yp_6, zp_3);
+    const float _e9 = _val_coord3_(seed_15, x1_2, yp_6, zp_3);
+    const float _e10 = _val_coord3_(seed_15, x2_, yp_6, zp_3);
+    const float _e11 = _val_coord3_(seed_15, x3_, yp_6, zp_3);
+    const float _e12 = _cubic_lerp(_e8, _e9, _e10, _e11, xs);
+    return _e12;
+}
+
+float _value_cubic3_plane(int seed_16, int x0_6, int x1_3, int x2_1, int x3_1, int y0_5, int y1_2, int y2_, int y3_, int zp_4, float xs_1, float ys)
+{
+    const float _e12 = _value_cubic3_row(seed_16, x0_6, x1_3, x2_1, x3_1, y0_5, zp_4, xs_1);
+    const float _e13 = _value_cubic3_row(seed_16, x0_6, x1_3, x2_1, x3_1, y1_2, zp_4, xs_1);
+    const float _e14 = _value_cubic3_row(seed_16, x0_6, x1_3, x2_1, x3_1, y2_, zp_4, xs_1);
+    const float _e15 = _value_cubic3_row(seed_16, x0_6, x1_3, x2_1, x3_1, y3_, zp_4, xs_1);
+    const float _e16 = _cubic_lerp(_e12, _e13, _e14, _e15, ys);
+    return _e16;
+}
+
+float value_cubic3_(int seed_17, float x_9, float y_9, float z_4)
+{
+    int x1_4 = (int)0;
+    int y1_3 = (int)0;
+    int z1_1 = (int)0;
+
+    const int _e4 = _fast_floor(x_9);
+    x1_4 = _e4;
+    const int _e6 = _fast_floor(y_9);
+    y1_3 = _e6;
+    const int _e8 = _fast_floor(z_4);
+    z1_1 = _e8;
+    int _e10 = x1_4;
+    float xs_3 = (x_9 - float(_e10));
+    int _e13 = y1_3;
+    float ys_2 = (y_9 - float(_e13));
+    int _e16 = z1_1;
+    float zs = (z_4 - float(_e16));
+    int _e19 = x1_4;
+    x1_4 = asint(asuint(_e19) * asuint(PRIME_X));
+    int _e22 = y1_3;
+    y1_3 = asint(asuint(_e22) * asuint(PRIME_Y));
+    int _e25 = z1_1;
+    z1_1 = asint(asuint(_e25) * asuint(PRIME_Z));
+    int _e28 = x1_4;
+    int x0_14 = asint(asuint(_e28) - asuint(PRIME_X));
+    int _e31 = y1_3;
+    int y0_13 = asint(asuint(_e31) - asuint(PRIME_Y));
+    int _e34 = z1_1;
+    int z0_6 = asint(asuint(_e34) - asuint(PRIME_Z));
+    int _e37 = x1_4;
+    int x2_9 = asint(asuint(_e37) + asuint(PRIME_X));
+    int _e40 = y1_3;
+    int y2_7 = asint(asuint(_e40) + asuint(PRIME_Y));
+    int _e43 = z1_1;
+    int z2_ = asint(asuint(_e43) + asuint(PRIME_Z));
+    int _e46 = x1_4;
+    int x3_7 = asint(asuint(_e46) + asuint(PRIME_X2_));
+    int _e49 = y1_3;
+    int y3_7 = asint(asuint(_e49) + asuint(PRIME_Y2_));
+    int _e52 = z1_1;
+    int z3_1 = asint(asuint(_e52) + asuint(PRIME_Z2_));
+    int _e55 = x1_4;
+    int _e56 = y1_3;
+    const float _e57 = _value_cubic3_plane(seed_17, x0_14, _e55, x2_9, x3_7, y0_13, _e56, y2_7, y3_7, z0_6, xs_3, ys_2);
+    int _e58 = x1_4;
+    int _e59 = y1_3;
+    int _e60 = z1_1;
+    const float _e61 = _value_cubic3_plane(seed_17, x0_14, _e58, x2_9, x3_7, y0_13, _e59, y2_7, y3_7, _e60, xs_3, ys_2);
+    int _e62 = x1_4;
+    int _e63 = y1_3;
+    const float _e64 = _value_cubic3_plane(seed_17, x0_14, _e62, x2_9, x3_7, y0_13, _e63, y2_7, y3_7, z2_, xs_3, ys_2);
+    int _e65 = x1_4;
+    int _e66 = y1_3;
+    const float _e67 = _value_cubic3_plane(seed_17, x0_14, _e65, x2_9, x3_7, y0_13, _e66, y2_7, y3_7, z3_1, xs_3, ys_2);
+    const float _e68 = _cubic_lerp(_e57, _e61, _e64, _e67, zs);
+    return (_e68 * 0.2962963);
+}
+
+float _cellular_finish(int dist_func, int ret_type, float distance0_in, float distance1_in, int closest_hash)
+{
+    float distance0_ = (float)0;
+    float distance1_ = (float)0;
+    bool local_2 = (bool)0;
+
+    distance0_ = distance0_in;
+    distance1_ = distance1_in;
+    if ((dist_func == CELL_DIST_EUCLIDEAN)) {
+        local_2 = (ret_type >= CELL_RET_DISTANCE);
+    } else {
+        local_2 = false;
+    }
+    bool _e14 = local_2;
+    if (_e14) {
+        float _e15 = distance0_;
+        distance0_ = sqrt(_e15);
+        if ((ret_type >= CELL_RET_DISTANCE2_)) {
+            float _e19 = distance1_;
+            distance1_ = sqrt(_e19);
+        }
+    }
+    if ((ret_type == CELL_RET_CELL_VALUE)) {
+        return (float(closest_hash) * 4.656613e-10);
+    }
+    if ((ret_type == CELL_RET_DISTANCE)) {
+        float _e28 = distance0_;
+        return (_e28 - 1.0);
+    }
+    if ((ret_type == CELL_RET_DISTANCE2_)) {
+        float _e33 = distance1_;
+        return (_e33 - 1.0);
+    }
+    if ((ret_type == CELL_RET_DISTANCE2_ADD)) {
+        float _e38 = distance1_;
+        float _e39 = distance0_;
+        return (((_e38 + _e39) * 0.5) - 1.0);
+    }
+    if ((ret_type == CELL_RET_DISTANCE2_SUB)) {
+        float _e47 = distance1_;
+        float _e48 = distance0_;
+        return ((_e47 - _e48) - 1.0);
+    }
+    if ((ret_type == CELL_RET_DISTANCE2_MUL)) {
+        float _e54 = distance1_;
+        float _e55 = distance0_;
+        return (((_e54 * _e55) * 0.5) - 1.0);
+    }
+    if ((ret_type == CELL_RET_DISTANCE2_DIV)) {
+        float _e63 = distance0_;
+        float _e64 = distance1_;
+        return ((_e63 / _e64) - 1.0);
+    }
+    return 0.0;
+}
+
+float2 _transform2_(int noise_type, float x_10, float y_10)
+{
+    bool local_3 = (bool)0;
+
+    if (!((noise_type == NOISE_OPEN_SIMPLEX2_))) {
+        local_3 = (noise_type == NOISE_OPEN_SIMPLEX2S);
+    } else {
+        local_3 = true;
+    }
+    bool _e11 = local_3;
+    if (_e11) {
+        float t_7 = ((x_10 + y_10) * 0.36602542);
+        return float2((x_10 + t_7), (y_10 + t_7));
+    }
+    return float2(x_10, y_10);
+}
+
+float _fns_val_coord(int seed_18, int xp_6, int yp_7, int zp_5)
+{
+    int h_4 = (int)0;
+
+    h_4 = (((seed_18 ^ xp_6) ^ yp_7) ^ zp_5);
+    int _e8 = h_4;
+    int _e9 = h_4;
+    int _e13 = h_4;
+    h_4 = asint(asuint(asint(asuint(asint(asuint(_e8) * asuint(_e9))) * asuint(FNS_HASH_MUL))) * asuint(_e13));
+    int _e15 = h_4;
+    return (float(_e15) * 4.656613e-10);
+}
+
+int _fns_bits(float v)
+{
+    int b_6 = asint(v);
+    return (b_6 ^ (b_6 >> 16u));
+}
+
+float white_noise2_(int seed_19, float x_11, float y_11)
+{
+    const int _e3 = _fns_bits(x_11);
+    const int _e6 = _fns_bits(y_11);
+    const float _e10 = _fns_val_coord(seed_19, asint(asuint(_e3) * asuint(FNS_PRIME_X)), asint(asuint(_e6) * asuint(FNS_PRIME_Y)), int(0));
+    return _e10;
+}
+
+int _fns_hash(int seed_20, int xp_7, int yp_8, int zp_6)
+{
+    int h_5 = (int)0;
+
+    h_5 = (((seed_20 ^ xp_7) ^ yp_8) ^ zp_6);
+    int _e8 = h_5;
+    int _e9 = h_5;
+    int _e13 = h_5;
+    h_5 = asint(asuint(asint(asuint(asint(asuint(_e8) * asuint(_e9))) * asuint(FNS_HASH_MUL))) * asuint(_e13));
+    int _e15 = h_5;
+    int _e18 = h_5;
+    return ((_e15 >> 13u) ^ _e18);
+}
+
+float _fns_grad_coord(int seed_21, int xp_8, int yp_9, int zp_7, float x_12, float y_12, float z_5)
+{
+    float u = (float)0;
+    float v_1 = (float)0;
+
+    const int _e7 = _fns_hash(seed_21, xp_8, yp_9, zp_7);
+    int a_5 = (_e7 & int(13));
+    u = ((a_5 < int(8)) ? x_12 : y_12);
+    v_1 = ((a_5 < int(2)) ? y_12 : ((a_5 == int(12)) ? x_12 : z_5));
+    if (((_e7 & int(1)) != int(0))) {
+        float _e25 = u;
+        u = -(_e25);
+    }
+    if (((_e7 & int(2)) != int(0))) {
+        float _e31 = v_1;
+        v_1 = -(_e31);
+    }
+    float _e33 = u;
+    float _e34 = v_1;
+    return (_e33 + _e34);
+}
+
+float simplex_classic3_(int seed_22, float x_13, float y_13, float z_6)
+{
+    bool local_4 = (bool)0;
+    bool local_5 = (bool)0;
+    bool local_6 = (bool)0;
+    bool local_7 = (bool)0;
+    bool local_8 = (bool)0;
+    bool local_9 = (bool)0;
+    float t0_ = (float)0;
+    float t1_ = (float)0;
+    float t2_ = (float)0;
+    float t3_ = (float)0;
+    float total = 0.0;
+
+    float f_2 = (0.33333334 * ((x_13 + y_13) + z_6));
+    float xf_2 = floor((x_13 + f_2));
+    float yf_2 = floor((y_13 + f_2));
+    float zf_1 = floor((z_6 + f_2));
+    int i_13 = asint(asuint(naga_f2i32(xf_2)) * asuint(FNS_PRIME_X));
+    int j_6 = asint(asuint(naga_f2i32(yf_2)) * asuint(FNS_PRIME_Y));
+    int k_3 = asint(asuint(naga_f2i32(zf_1)) * asuint(FNS_PRIME_Z));
+    float g = (0.16666667 * ((xf_2 + yf_2) + zf_1));
+    float x0_15 = (x_13 - (xf_2 - g));
+    float y0_14 = (y_13 - (yf_2 - g));
+    float z0_7 = (z_6 - (zf_1 - g));
+    bool x_ge_y = (x0_15 >= y0_14);
+    bool y_ge_z = (y0_14 >= z0_7);
+    bool x_ge_z = (x0_15 >= z0_7);
+    if (x_ge_y) {
+        local_4 = x_ge_z;
+    } else {
+        local_4 = false;
+    }
+    bool i1_3 = local_4;
+    if (!(x_ge_y)) {
+        local_5 = y_ge_z;
+    } else {
+        local_5 = false;
+    }
+    bool j1_3 = local_5;
+    if (!(x_ge_z)) {
+        local_6 = !(y_ge_z);
+    } else {
+        local_6 = false;
+    }
+    bool k1_2 = local_6;
+    if (!(x_ge_y)) {
+        local_7 = x_ge_z;
+    } else {
+        local_7 = true;
+    }
+    bool i2_ = local_7;
+    if (!(!(x_ge_y))) {
+        local_8 = y_ge_z;
+    } else {
+        local_8 = true;
+    }
+    bool j2_ = local_8;
+    if (x_ge_z) {
+        local_9 = y_ge_z;
+    } else {
+        local_9 = false;
+    }
+    bool _e65 = local_9;
+    bool k2_ = !(_e65);
+    float x1_14 = ((i1_3 ? (x0_15 - 1.0) : x0_15) + 0.16666667);
+    float y1_13 = ((j1_3 ? (y0_14 - 1.0) : y0_14) + 0.16666667);
+    float z1_6 = ((k1_2 ? (z0_7 - 1.0) : z0_7) + 0.16666667);
+    float x2_10 = ((i2_ ? (x0_15 - 1.0) : x0_15) + 0.33333334);
+    float y2_8 = ((j2_ ? (y0_14 - 1.0) : y0_14) + 0.33333334);
+    float z2_1 = ((k2_ ? (z0_7 - 1.0) : z0_7) + 0.33333334);
+    float x3_8 = (x0_15 + -0.5);
+    float y3_8 = (y0_14 + -0.5);
+    float z3_2 = (z0_7 + -0.5);
+    t0_ = (((0.6 - (x0_15 * x0_15)) - (y0_14 * y0_14)) - (z0_7 * z0_7));
+    t1_ = (((0.6 - (x1_14 * x1_14)) - (y1_13 * y1_13)) - (z1_6 * z1_6));
+    t2_ = (((0.6 - (x2_10 * x2_10)) - (y2_8 * y2_8)) - (z2_1 * z2_1));
+    t3_ = (((0.6 - (x3_8 * x3_8)) - (y3_8 * y3_8)) - (z3_2 * z3_2));
+    float _e137 = t3_;
+    if ((_e137 >= 0.0)) {
+        float _e140 = t3_;
+        float _e141 = t3_;
+        t3_ = (_e140 * _e141);
+        float _e143 = total;
+        float _e144 = t3_;
+        float _e145 = t3_;
+        const float _e153 = _fns_grad_coord(seed_22, asint(asuint(i_13) + asuint(FNS_PRIME_X)), asint(asuint(j_6) + asuint(FNS_PRIME_Y)), asint(asuint(k_3) + asuint(FNS_PRIME_Z)), x3_8, y3_8, z3_2);
+        total = (_e143 + ((_e144 * _e145) * _e153));
+    }
+    float _e156 = t2_;
+    if ((_e156 >= 0.0)) {
+        float _e159 = t2_;
+        float _e160 = t2_;
+        t2_ = (_e159 * _e160);
+        float _e162 = total;
+        float _e163 = t2_;
+        float _e164 = t2_;
+        const float _e175 = _fns_grad_coord(seed_22, (i2_ ? asint(asuint(i_13) + asuint(FNS_PRIME_X)) : i_13), (j2_ ? asint(asuint(j_6) + asuint(FNS_PRIME_Y)) : j_6), (k2_ ? asint(asuint(k_3) + asuint(FNS_PRIME_Z)) : k_3), x2_10, y2_8, z2_1);
+        total = (_e162 + ((_e163 * _e164) * _e175));
+    }
+    float _e178 = t1_;
+    if ((_e178 >= 0.0)) {
+        float _e181 = t1_;
+        float _e182 = t1_;
+        t1_ = (_e181 * _e182);
+        float _e184 = total;
+        float _e185 = t1_;
+        float _e186 = t1_;
+        const float _e197 = _fns_grad_coord(seed_22, (i1_3 ? asint(asuint(i_13) + asuint(FNS_PRIME_X)) : i_13), (j1_3 ? asint(asuint(j_6) + asuint(FNS_PRIME_Y)) : j_6), (k1_2 ? asint(asuint(k_3) + asuint(FNS_PRIME_Z)) : k_3), x1_14, y1_13, z1_6);
+        total = (_e184 + ((_e185 * _e186) * _e197));
+    }
+    float _e200 = t0_;
+    if ((_e200 >= 0.0)) {
+        float _e203 = t0_;
+        float _e204 = t0_;
+        t0_ = (_e203 * _e204);
+        float _e206 = total;
+        float _e207 = t0_;
+        float _e208 = t0_;
+        const float _e210 = _fns_grad_coord(seed_22, i_13, j_6, k_3, x0_15, y0_14, z0_7);
+        total = (_e206 + ((_e207 * _e208) * _e210));
+    }
+    float _e213 = total;
+    return (32.0 * _e213);
+}
+
+float simplex_classic2_(int seed_23, float x_14, float y_14)
+{
+    const float _e4 = simplex_classic3_(seed_23, x_14, y_14, 0.0);
+    return _e4;
+}
+
+float _lookup_single2_(int noise_type_1, int seed_24, float x_in, float y_in)
+{
+    const float2 _e4 = _transform2_(noise_type_1, x_in, y_in);
+    float x_35 = _e4.x;
+    float y_35 = _e4.y;
+    if ((noise_type_1 == NOISE_OPEN_SIMPLEX2_)) {
+        const float _e9 = simplex2_(seed_24, x_35, y_35);
+        return _e9;
+    }
+    if ((noise_type_1 == NOISE_OPEN_SIMPLEX2S)) {
+        const float _e12 = simplex2s(seed_24, x_35, y_35);
+        return _e12;
+    }
+    if ((noise_type_1 == NOISE_PERLIN)) {
+        const float _e15 = perlin2_(seed_24, x_35, y_35);
+        return _e15;
+    }
+    if ((noise_type_1 == NOISE_VALUE_CUBIC)) {
+        const float _e18 = value_cubic2_(seed_24, x_35, y_35);
+        return _e18;
+    }
+    if ((noise_type_1 == NOISE_VALUE)) {
+        const float _e21 = value2_(seed_24, x_35, y_35);
+        return _e21;
+    }
+    if ((noise_type_1 == NOISE_WHITE_NOISE)) {
+        const float _e24 = white_noise2_(seed_24, x_35, y_35);
+        return _e24;
+    }
+    if ((noise_type_1 == NOISE_SIMPLEX_CLASSIC)) {
+        const float _e27 = simplex_classic2_(seed_24, x_35, y_35);
+        return _e27;
+    }
+    return 0.0;
+}
+
+float3 _transform3_(int transform, float x_in_1, float y_in_1, float z_in)
+{
+    float x_15 = (float)0;
+    float y_15 = (float)0;
+    float z_7 = (float)0;
+
+    x_15 = x_in_1;
+    y_15 = y_in_1;
+    z_7 = z_in;
+    if ((transform == TRANSFORM_IMPROVE_XY)) {
+        float _e9 = x_15;
+        float _e10 = y_15;
+        float xy = (_e9 + _e10);
+        float s2_ = (xy * -0.21132487);
+        float _e14 = z_7;
+        z_7 = (_e14 * 0.57735026);
+        float _e17 = x_15;
+        float _e18 = z_7;
+        x_15 = (_e17 + (s2_ - _e18));
+        float _e21 = y_15;
+        float _e23 = z_7;
+        y_15 = ((_e21 + s2_) - _e23);
+        float _e25 = z_7;
+        z_7 = (_e25 + (xy * 0.57735026));
+        float _e29 = x_15;
+        float _e30 = y_15;
+        float _e31 = z_7;
+        return float3(_e29, _e30, _e31);
+    }
+    if ((transform == TRANSFORM_IMPROVE_XZ)) {
+        float _e35 = x_15;
+        float _e36 = z_7;
+        float xz = (_e35 + _e36);
+        float s2_1 = (xz * -0.21132487);
+        float _e40 = y_15;
+        y_15 = (_e40 * 0.57735026);
+        float _e43 = x_15;
+        float _e44 = y_15;
+        x_15 = (_e43 + (s2_1 - _e44));
+        float _e47 = z_7;
+        float _e48 = y_15;
+        z_7 = (_e47 + (s2_1 - _e48));
+        float _e51 = y_15;
+        y_15 = (_e51 + (xz * 0.57735026));
+        float _e55 = x_15;
+        float _e56 = y_15;
+        float _e57 = z_7;
+        return float3(_e55, _e56, _e57);
+    }
+    if ((transform == TRANSFORM_DEFAULT_OS2_)) {
+        float _e61 = x_15;
+        float _e62 = y_15;
+        float _e64 = z_7;
+        float r = (((_e61 + _e62) + _e64) * 0.6666667);
+        float _e68 = x_15;
+        float _e70 = y_15;
+        float _e72 = z_7;
+        return float3((r - _e68), (r - _e70), (r - _e72));
+    }
+    float _e75 = x_15;
+    float _e76 = y_15;
+    float _e77 = z_7;
+    return float3(_e75, _e76, _e77);
+}
+
+float white_noise3_(int seed_25, float x_16, float y_16, float z_8)
+{
+    const int _e4 = _fns_bits(x_16);
+    const int _e7 = _fns_bits(y_16);
+    const int _e10 = _fns_bits(z_8);
+    const float _e13 = _fns_val_coord(seed_25, asint(asuint(_e4) * asuint(FNS_PRIME_X)), asint(asuint(_e7) * asuint(FNS_PRIME_Y)), asint(asuint(_e10) * asuint(FNS_PRIME_Z)));
+    return _e13;
+}
+
+float _lookup_single3_(int noise_type_2, int seed_26, float x_in_2, float y_in_2, float z_in_1)
+{
+    float x_17 = (float)0;
+    float y_17 = (float)0;
+    float z_9 = (float)0;
+    bool local_10 = (bool)0;
+
+    x_17 = x_in_2;
+    y_17 = y_in_2;
+    z_9 = z_in_1;
+    if (!((noise_type_2 == NOISE_OPEN_SIMPLEX2_))) {
+        local_10 = (noise_type_2 == NOISE_OPEN_SIMPLEX2S);
+    } else {
+        local_10 = true;
+    }
+    bool _e16 = local_10;
+    if (_e16) {
+        float _e18 = x_17;
+        float _e19 = y_17;
+        float _e20 = z_9;
+        const float3 _e21 = _transform3_(TRANSFORM_DEFAULT_OS2_, _e18, _e19, _e20);
+        x_17 = _e21.x;
+        y_17 = _e21.y;
+        z_9 = _e21.z;
+    }
+    if ((noise_type_2 == NOISE_OPEN_SIMPLEX2_)) {
+        float _e27 = x_17;
+        float _e28 = y_17;
+        float _e29 = z_9;
+        const float _e30 = opensimplex2_3_(seed_26, _e27, _e28, _e29);
+        return _e30;
+    }
+    if ((noise_type_2 == NOISE_OPEN_SIMPLEX2S)) {
+        float _e33 = x_17;
+        float _e34 = y_17;
+        float _e35 = z_9;
+        const float _e36 = opensimplex2s_3_(seed_26, _e33, _e34, _e35);
+        return _e36;
+    }
+    if ((noise_type_2 == NOISE_PERLIN)) {
+        float _e39 = x_17;
+        float _e40 = y_17;
+        float _e41 = z_9;
+        const float _e42 = perlin3_(seed_26, _e39, _e40, _e41);
+        return _e42;
+    }
+    if ((noise_type_2 == NOISE_VALUE_CUBIC)) {
+        float _e45 = x_17;
+        float _e46 = y_17;
+        float _e47 = z_9;
+        const float _e48 = value_cubic3_(seed_26, _e45, _e46, _e47);
+        return _e48;
+    }
+    if ((noise_type_2 == NOISE_VALUE)) {
+        float _e51 = x_17;
+        float _e52 = y_17;
+        float _e53 = z_9;
+        const float _e54 = value3_(seed_26, _e51, _e52, _e53);
+        return _e54;
+    }
+    if ((noise_type_2 == NOISE_WHITE_NOISE)) {
+        float _e57 = x_17;
+        float _e58 = y_17;
+        float _e59 = z_9;
+        const float _e60 = white_noise3_(seed_26, _e57, _e58, _e59);
+        return _e60;
+    }
+    if ((noise_type_2 == NOISE_SIMPLEX_CLASSIC)) {
+        float _e63 = x_17;
+        float _e64 = y_17;
+        float _e65 = z_9;
+        const float _e66 = simplex_classic3_(seed_26, _e63, _e64, _e65);
+        return _e66;
+    }
+    return 0.0;
+}
+
+Cellular2Scan ConstructCellular2Scan(float arg0, float arg1, int arg2, float arg3, float arg4) {
+    Cellular2Scan ret = (Cellular2Scan)0;
+    ret.distance0_ = arg0;
+    ret.distance1_ = arg1;
+    ret.closest_hash = arg2;
+    ret.cell_x = arg3;
+    ret.cell_y = arg4;
+    return ret;
+}
+
+Cellular2Scan _cellular2_scan(int seed_27, float x_18, float y_18, int dist_func_1, float jitter_mod)
+{
+    float distance0_1 = 10000000000.0;
+    float distance1_1 = 10000000000.0;
+    int closest_hash_1 = int(0);
+    float cell_x = 0.0;
+    float cell_y = 0.0;
+    int x_primed = (int)0;
+    int xi = (int)0;
+    int y_primed = (int)0;
+    int yi = (int)0;
+    float new_distance = (float)0;
+
+    const int _e5 = _fast_round(x_18);
+    const int _e6 = _fast_round(y_18);
+    float jitter = (0.43701595 * jitter_mod);
+    x_primed = asint(asuint(asint(asuint(_e5) - asuint(int(1)))) * asuint(PRIME_X));
+    int y_primed_base = asint(asuint(asint(asuint(_e6) - asuint(int(1)))) * asuint(PRIME_Y));
+    xi = asint(asuint(_e5) - asuint(int(1)));
+    uint2 loop_bound_1 = uint2(4294967295u, 4294967295u);
+    bool loop_init_1 = true;
+    while(true) {
+        if (all(loop_bound_1 == uint2(0u, 0u))) { break; }
+        loop_bound_1 -= uint2(loop_bound_1.y == 0u, 1u);
+        if (!loop_init_1) {
+            int _e120 = xi;
+            xi = asint(asuint(_e120) + asuint(int(1)));
+        }
+        loop_init_1 = false;
+        int _e31 = xi;
+        if ((_e31 < asint(asuint(_e5) + asuint(int(2))))) {
+        } else {
+            break;
+        }
+        {
+            y_primed = y_primed_base;
+            yi = asint(asuint(_e6) - asuint(int(1)));
+            uint2 loop_bound_2 = uint2(4294967295u, 4294967295u);
+            bool loop_init_2 = true;
+            while(true) {
+                if (all(loop_bound_2 == uint2(0u, 0u))) { break; }
+                loop_bound_2 -= uint2(loop_bound_2.y == 0u, 1u);
+                if (!loop_init_2) {
+                    int _e114 = yi;
+                    yi = asint(asuint(_e114) + asuint(int(1)));
+                }
+                loop_init_2 = false;
+                int _e39 = yi;
+                if ((_e39 < asint(asuint(_e6) + asuint(int(2))))) {
+                } else {
+                    break;
+                }
+                {
+                    int _e43 = x_primed;
+                    int _e44 = y_primed;
+                    const int _e45 = _hash2_(seed_27, _e43, _e44);
+                    int idx = (_e45 & int(510));
+                    int _e48 = xi;
+                    const float _e51 = rand_vecs_2d(idx);
+                    float vec_x = ((float(_e48) - x_18) + (_e51 * jitter));
+                    int _e54 = yi;
+                    const float _e59 = rand_vecs_2d((idx | int(1)));
+                    float vec_y = ((float(_e54) - y_18) + (_e59 * jitter));
+                    if ((dist_func_1 == CELL_DIST_MANHATTAN)) {
+                        new_distance = (abs(vec_x) + abs(vec_y));
+                    } else {
+                        if ((dist_func_1 == CELL_DIST_HYBRID)) {
+                            new_distance = ((abs(vec_x) + abs(vec_y)) + ((vec_x * vec_x) + (vec_y * vec_y)));
+                        } else {
+                            if ((dist_func_1 == CELL_DIST_NATURAL)) {
+                                new_distance = ((abs(vec_x) + abs(vec_y)) * ((vec_x * vec_x) + (vec_y * vec_y)));
+                            } else {
+                                new_distance = ((vec_x * vec_x) + (vec_y * vec_y));
+                            }
+                        }
+                    }
+                    float _e89 = distance1_1;
+                    float _e90 = new_distance;
+                    float _e92 = distance0_1;
+                    distance1_1 = max(min(_e89, _e90), _e92);
+                    float _e94 = new_distance;
+                    float _e95 = distance0_1;
+                    if ((_e94 < _e95)) {
+                        float _e97 = new_distance;
+                        distance0_1 = _e97;
+                        closest_hash_1 = _e45;
+                        int _e98 = xi;
+                        const float _e100 = rand_vecs_2d(idx);
+                        cell_x = (float(_e98) + (_e100 * jitter));
+                        int _e103 = yi;
+                        const float _e107 = rand_vecs_2d((idx | int(1)));
+                        cell_y = (float(_e103) + (_e107 * jitter));
+                    }
+                    int _e110 = y_primed;
+                    y_primed = asint(asuint(_e110) + asuint(PRIME_Y));
+                }
+            }
+            int _e116 = x_primed;
+            x_primed = asint(asuint(_e116) + asuint(PRIME_X));
+        }
+    }
+    float _e122 = distance0_1;
+    float _e123 = distance1_1;
+    int _e124 = closest_hash_1;
+    float _e125 = cell_x;
+    float _e126 = cell_y;
+    const Cellular2Scan cellular2scan = ConstructCellular2Scan(_e122, _e123, _e124, _e125, _e126);
+    return cellular2scan;
+}
+
+float cellular2_(int seed_28, float x_19, float y_19, int dist_func_2, int ret_type_1, float jitter_mod_1, int lookup_type, float lookup_freq)
+{
+    if ((ret_type_1 == CELL_RET_DISTANCE2_CAVE)) {
+        const Cellular2Scan _e10 = _cellular2_scan(seed_28, x_19, y_19, dist_func_2, jitter_mod_1);
+        const float _e15 = _cellular_finish(dist_func_2, CELL_RET_DISTANCE2_DIV, _e10.distance0_, _e10.distance1_, _e10.closest_hash);
+        const Cellular2Scan _e22 = _cellular2_scan(asint(asuint(seed_28) + asuint(int(1))), (x_19 + 0.5), (y_19 + 0.5), dist_func_2, jitter_mod_1);
+        const float _e27 = _cellular_finish(dist_func_2, CELL_RET_DISTANCE2_DIV, _e22.distance0_, _e22.distance1_, _e22.closest_hash);
+        return min(_e15, _e27);
+    }
+    const Cellular2Scan _e29 = _cellular2_scan(seed_28, x_19, y_19, dist_func_2, jitter_mod_1);
+    if ((ret_type_1 == CELL_RET_NOISE_LOOKUP)) {
+        const float _e36 = _lookup_single2_(lookup_type, seed_28, (_e29.cell_x * lookup_freq), (_e29.cell_y * lookup_freq));
+        return _e36;
+    }
+    const float _e40 = _cellular_finish(dist_func_2, ret_type_1, _e29.distance0_, _e29.distance1_, _e29.closest_hash);
+    return _e40;
+}
+
+Cellular3Scan ConstructCellular3Scan(float arg0, float arg1, int arg2, float arg3, float arg4, float arg5) {
+    Cellular3Scan ret = (Cellular3Scan)0;
+    ret.distance0_ = arg0;
+    ret.distance1_ = arg1;
+    ret.closest_hash = arg2;
+    ret.cell_x = arg3;
+    ret.cell_y = arg4;
+    ret.cell_z = arg5;
+    return ret;
+}
+
+Cellular3Scan _cellular3_scan(int seed_29, float x_20, float y_20, float z_10, int dist_func_3, float jitter_mod_2)
+{
+    float distance0_2 = 10000000000.0;
+    float distance1_2 = 10000000000.0;
+    int closest_hash_2 = int(0);
+    float cell_x_1 = 0.0;
+    float cell_y_1 = 0.0;
+    float cell_z = 0.0;
+    int x_primed_1 = (int)0;
+    int xi_1 = (int)0;
+    int y_primed_1 = (int)0;
+    int yi_1 = (int)0;
+    int z_primed = (int)0;
+    int zi = (int)0;
+    float new_distance_1 = (float)0;
+
+    const int _e6 = _fast_round(x_20);
+    const int _e7 = _fast_round(y_20);
+    const int _e8 = _fast_round(z_10);
+    float jitter_1 = (0.39614353 * jitter_mod_2);
+    x_primed_1 = asint(asuint(asint(asuint(_e6) - asuint(int(1)))) * asuint(PRIME_X));
+    int y_primed_base_1 = asint(asuint(asint(asuint(_e7) - asuint(int(1)))) * asuint(PRIME_Y));
+    int z_primed_base = asint(asuint(asint(asuint(_e8) - asuint(int(1)))) * asuint(PRIME_Z));
+    xi_1 = asint(asuint(_e6) - asuint(int(1)));
+    uint2 loop_bound_3 = uint2(4294967295u, 4294967295u);
+    bool loop_init_3 = true;
+    while(true) {
+        if (all(loop_bound_3 == uint2(0u, 0u))) { break; }
+        loop_bound_3 -= uint2(loop_bound_3.y == 0u, 1u);
+        if (!loop_init_3) {
+            int _e170 = xi_1;
+            xi_1 = asint(asuint(_e170) + asuint(int(1)));
+        }
+        loop_init_3 = false;
+        int _e39 = xi_1;
+        if ((_e39 < asint(asuint(_e6) + asuint(int(2))))) {
+        } else {
+            break;
+        }
+        {
+            y_primed_1 = y_primed_base_1;
+            yi_1 = asint(asuint(_e7) - asuint(int(1)));
+            uint2 loop_bound_4 = uint2(4294967295u, 4294967295u);
+            bool loop_init_4 = true;
+            while(true) {
+                if (all(loop_bound_4 == uint2(0u, 0u))) { break; }
+                loop_bound_4 -= uint2(loop_bound_4.y == 0u, 1u);
+                if (!loop_init_4) {
+                    int _e164 = yi_1;
+                    yi_1 = asint(asuint(_e164) + asuint(int(1)));
+                }
+                loop_init_4 = false;
+                int _e47 = yi_1;
+                if ((_e47 < asint(asuint(_e7) + asuint(int(2))))) {
+                } else {
+                    break;
+                }
+                {
+                    z_primed = z_primed_base;
+                    zi = asint(asuint(_e8) - asuint(int(1)));
+                    uint2 loop_bound_5 = uint2(4294967295u, 4294967295u);
+                    bool loop_init_5 = true;
+                    while(true) {
+                        if (all(loop_bound_5 == uint2(0u, 0u))) { break; }
+                        loop_bound_5 -= uint2(loop_bound_5.y == 0u, 1u);
+                        if (!loop_init_5) {
+                            int _e158 = zi;
+                            zi = asint(asuint(_e158) + asuint(int(1)));
+                        }
+                        loop_init_5 = false;
+                        int _e55 = zi;
+                        if ((_e55 < asint(asuint(_e8) + asuint(int(2))))) {
+                        } else {
+                            break;
+                        }
+                        {
+                            int _e59 = x_primed_1;
+                            int _e60 = y_primed_1;
+                            int _e61 = z_primed;
+                            const int _e62 = _hash3_(seed_29, _e59, _e60, _e61);
+                            int idx_1 = (_e62 & int(1020));
+                            int _e65 = xi_1;
+                            const float _e68 = rand_vecs_3d(idx_1);
+                            float vec_x_1 = ((float(_e65) - x_20) + (_e68 * jitter_1));
+                            int _e71 = yi_1;
+                            const float _e76 = rand_vecs_3d((idx_1 | int(1)));
+                            float vec_y_1 = ((float(_e71) - y_20) + (_e76 * jitter_1));
+                            int _e79 = zi;
+                            const float _e84 = rand_vecs_3d((idx_1 | int(2)));
+                            float vec_z = ((float(_e79) - z_10) + (_e84 * jitter_1));
+                            if ((dist_func_3 == CELL_DIST_MANHATTAN)) {
+                                new_distance_1 = ((abs(vec_x_1) + abs(vec_y_1)) + abs(vec_z));
+                            } else {
+                                if ((dist_func_3 == CELL_DIST_HYBRID)) {
+                                    new_distance_1 = (((abs(vec_x_1) + abs(vec_y_1)) + abs(vec_z)) + (((vec_x_1 * vec_x_1) + (vec_y_1 * vec_y_1)) + (vec_z * vec_z)));
+                                } else {
+                                    if ((dist_func_3 == CELL_DIST_NATURAL)) {
+                                        new_distance_1 = (((abs(vec_x_1) + abs(vec_y_1)) + abs(vec_z)) * (((vec_x_1 * vec_x_1) + (vec_y_1 * vec_y_1)) + (vec_z * vec_z)));
+                                    } else {
+                                        new_distance_1 = (((vec_x_1 * vec_x_1) + (vec_y_1 * vec_y_1)) + (vec_z * vec_z));
+                                    }
+                                }
+                            }
+                            float _e126 = distance1_2;
+                            float _e127 = new_distance_1;
+                            float _e129 = distance0_2;
+                            distance1_2 = max(min(_e126, _e127), _e129);
+                            float _e131 = new_distance_1;
+                            float _e132 = distance0_2;
+                            if ((_e131 < _e132)) {
+                                float _e134 = new_distance_1;
+                                distance0_2 = _e134;
+                                closest_hash_2 = _e62;
+                                int _e135 = xi_1;
+                                const float _e137 = rand_vecs_3d(idx_1);
+                                cell_x_1 = (float(_e135) + (_e137 * jitter_1));
+                                int _e140 = yi_1;
+                                const float _e144 = rand_vecs_3d((idx_1 | int(1)));
+                                cell_y_1 = (float(_e140) + (_e144 * jitter_1));
+                                int _e147 = zi;
+                                const float _e151 = rand_vecs_3d((idx_1 | int(2)));
+                                cell_z = (float(_e147) + (_e151 * jitter_1));
+                            }
+                            int _e154 = z_primed;
+                            z_primed = asint(asuint(_e154) + asuint(PRIME_Z));
+                        }
+                    }
+                    int _e160 = y_primed_1;
+                    y_primed_1 = asint(asuint(_e160) + asuint(PRIME_Y));
+                }
+            }
+            int _e166 = x_primed_1;
+            x_primed_1 = asint(asuint(_e166) + asuint(PRIME_X));
+        }
+    }
+    float _e172 = distance0_2;
+    float _e173 = distance1_2;
+    int _e174 = closest_hash_2;
+    float _e175 = cell_x_1;
+    float _e176 = cell_y_1;
+    float _e177 = cell_z;
+    const Cellular3Scan cellular3scan = ConstructCellular3Scan(_e172, _e173, _e174, _e175, _e176, _e177);
+    return cellular3scan;
+}
+
+float cellular3_(int seed_30, float x_21, float y_21, float z_11, int dist_func_4, int ret_type_2, float jitter_mod_3, int lookup_type_1, float lookup_freq_1)
+{
+    if ((ret_type_2 == CELL_RET_DISTANCE2_CAVE)) {
+        const Cellular3Scan _e11 = _cellular3_scan(seed_30, x_21, y_21, z_11, dist_func_4, jitter_mod_3);
+        const float _e16 = _cellular_finish(dist_func_4, CELL_RET_DISTANCE2_DIV, _e11.distance0_, _e11.distance1_, _e11.closest_hash);
+        const Cellular3Scan _e25 = _cellular3_scan(asint(asuint(seed_30) + asuint(int(1))), (x_21 + 0.5), (y_21 + 0.5), (z_11 + 0.5), dist_func_4, jitter_mod_3);
+        const float _e30 = _cellular_finish(dist_func_4, CELL_RET_DISTANCE2_DIV, _e25.distance0_, _e25.distance1_, _e25.closest_hash);
+        return min(_e16, _e30);
+    }
+    const Cellular3Scan _e32 = _cellular3_scan(seed_30, x_21, y_21, z_11, dist_func_4, jitter_mod_3);
+    if ((ret_type_2 == CELL_RET_NOISE_LOOKUP)) {
+        const float _e41 = _lookup_single3_(lookup_type_1, seed_30, (_e32.cell_x * lookup_freq_1), (_e32.cell_y * lookup_freq_1), (_e32.cell_z * lookup_freq_1));
+        return _e41;
+    }
+    const float _e45 = _cellular_finish(dist_func_4, ret_type_2, _e32.distance0_, _e32.distance1_, _e32.closest_hash);
+    return _e45;
+}
+
+float2 _grad_out2_(int seed_31, int xp_9, int yp_10)
+{
+    const int _e3 = _hash2_(seed_31, xp_9, yp_10);
+    int h_7 = (_e3 & int(510));
+    const float _e6 = rand_vecs_2d(h_7);
+    const float _e9 = rand_vecs_2d((h_7 | int(1)));
+    return float2(_e6, _e9);
+}
+
+float3 _grad_out3_(int seed_32, int xp_10, int yp_11, int zp_8)
+{
+    const int _e4 = _hash3_(seed_32, xp_10, yp_11, zp_8);
+    int h_8 = (_e4 & int(1020));
+    const float _e7 = rand_vecs_3d(h_8);
+    const float _e10 = rand_vecs_3d((h_8 | int(1)));
+    const float _e13 = rand_vecs_3d((h_8 | int(2)));
+    return float3(_e7, _e10, _e13);
+}
+
+float2 _grad_dual2_(int seed_33, int xp_11, int yp_12, float xd_2, float yd_2)
+{
+    const int _e5 = _hash2_(seed_33, xp_11, yp_12);
+    int i1_4 = (_e5 & int(254));
+    int i2_1 = ((_e5 >> 7u) & int(510));
+    const float _e12 = gradients_2d(i1_4);
+    const float _e16 = gradients_2d((i1_4 | int(1)));
+    float v_4 = ((xd_2 * _e12) + (yd_2 * _e16));
+    const float _e19 = rand_vecs_2d(i2_1);
+    const float _e23 = rand_vecs_2d((i2_1 | int(1)));
+    return float2((v_4 * _e19), (v_4 * _e23));
+}
+
+float3 _grad_dual3_(int seed_34, int xp_12, int yp_13, int zp_9, float xd_3, float yd_3, float zd_1)
+{
+    const int _e7 = _hash3_(seed_34, xp_12, yp_13, zp_9);
+    int i1_5 = (_e7 & int(252));
+    int i2_2 = ((_e7 >> 6u) & int(1020));
+    const float _e14 = gradients_3d(i1_5);
+    const float _e18 = gradients_3d((i1_5 | int(1)));
+    const float _e23 = gradients_3d((i1_5 | int(2)));
+    float v_5 = (((xd_3 * _e14) + (yd_3 * _e18)) + (zd_1 * _e23));
+    const float _e26 = rand_vecs_3d(i2_2);
+    const float _e30 = rand_vecs_3d((i2_2 | int(1)));
+    const float _e34 = rand_vecs_3d((i2_2 | int(2)));
+    return float3((v_5 * _e26), (v_5 * _e30), (v_5 * _e34));
+}
+
+float _rv2_(int i_9)
+{
+    const float _e1 = rand_vecs_2d(i_9);
+    return _e1;
+}
+
+float _rv3_(int i_10)
+{
+    const float _e1 = rand_vecs_3d(i_10);
+    return _e1;
+}
+
+float2 _warp_basic_grid2_(int seed_35, float amp, float freq, float x_22, float y_22)
+{
+    int x0_7 = (int)0;
+    int y0_6 = (int)0;
+    int h0_ = (int)0;
+    int h1_ = (int)0;
+
+    float xf_3 = (x_22 * freq);
+    float yf_3 = (y_22 * freq);
+    const int _e7 = _fast_floor(xf_3);
+    x0_7 = _e7;
+    const int _e9 = _fast_floor(yf_3);
+    y0_6 = _e9;
+    int _e11 = x0_7;
+    const float _e14 = _interp_hermite((xf_3 - float(_e11)));
+    int _e15 = y0_6;
+    const float _e18 = _interp_hermite((yf_3 - float(_e15)));
+    int _e19 = x0_7;
+    x0_7 = asint(asuint(_e19) * asuint(PRIME_X));
+    int _e22 = y0_6;
+    y0_6 = asint(asuint(_e22) * asuint(PRIME_Y));
+    int _e25 = x0_7;
+    int x1_15 = asint(asuint(_e25) + asuint(PRIME_X));
+    int _e28 = y0_6;
+    int y1_14 = asint(asuint(_e28) + asuint(PRIME_Y));
+    int _e31 = x0_7;
+    int _e32 = y0_6;
+    const int _e33 = _hash2_(seed_35, _e31, _e32);
+    h0_ = (_e33 & int(510));
+    int _e37 = y0_6;
+    const int _e38 = _hash2_(seed_35, x1_15, _e37);
+    h1_ = (_e38 & int(510));
+    int _e42 = h0_;
+    const float _e43 = _rv2_(_e42);
+    int _e44 = h1_;
+    const float _e45 = _rv2_(_e44);
+    const float _e46 = _lerp(_e43, _e45, _e14);
+    int _e47 = h0_;
+    const float _e50 = _rv2_((_e47 | int(1)));
+    int _e51 = h1_;
+    const float _e54 = _rv2_((_e51 | int(1)));
+    const float _e55 = _lerp(_e50, _e54, _e14);
+    int _e56 = x0_7;
+    const int _e57 = _hash2_(seed_35, _e56, y1_14);
+    h0_ = (_e57 & int(510));
+    const int _e60 = _hash2_(seed_35, x1_15, y1_14);
+    h1_ = (_e60 & int(510));
+    int _e63 = h0_;
+    const float _e64 = _rv2_(_e63);
+    int _e65 = h1_;
+    const float _e66 = _rv2_(_e65);
+    const float _e67 = _lerp(_e64, _e66, _e14);
+    int _e68 = h0_;
+    const float _e71 = _rv2_((_e68 | int(1)));
+    int _e72 = h1_;
+    const float _e75 = _rv2_((_e72 | int(1)));
+    const float _e76 = _lerp(_e71, _e75, _e14);
+    const float _e77 = _lerp(_e46, _e67, _e18);
+    const float _e79 = _lerp(_e55, _e76, _e18);
+    return float2((_e77 * amp), (_e79 * amp));
+}
+
+float3 _warp_basic_grid3_(int seed_36, float amp_1, float freq_1, float x_23, float y_23, float z_12)
+{
+    int x0_8 = (int)0;
+    int y0_7 = (int)0;
+    int z0_3 = (int)0;
+    int h0_1 = (int)0;
+    int h1_1 = (int)0;
+    float lx0x = (float)0;
+    float ly0x = (float)0;
+    float lz0x = (float)0;
+    float lx1x = (float)0;
+    float ly1x = (float)0;
+    float lz1x = (float)0;
+
+    float xf_4 = (x_23 * freq_1);
+    float yf_4 = (y_23 * freq_1);
+    float zf_2 = (z_12 * freq_1);
+    const int _e9 = _fast_floor(xf_4);
+    x0_8 = _e9;
+    const int _e11 = _fast_floor(yf_4);
+    y0_7 = _e11;
+    const int _e13 = _fast_floor(zf_2);
+    z0_3 = _e13;
+    int _e15 = x0_8;
+    const float _e18 = _interp_hermite((xf_4 - float(_e15)));
+    int _e19 = y0_7;
+    const float _e22 = _interp_hermite((yf_4 - float(_e19)));
+    int _e23 = z0_3;
+    const float _e26 = _interp_hermite((zf_2 - float(_e23)));
+    int _e27 = x0_8;
+    x0_8 = asint(asuint(_e27) * asuint(PRIME_X));
+    int _e30 = y0_7;
+    y0_7 = asint(asuint(_e30) * asuint(PRIME_Y));
+    int _e33 = z0_3;
+    z0_3 = asint(asuint(_e33) * asuint(PRIME_Z));
+    int _e36 = x0_8;
+    int x1_16 = asint(asuint(_e36) + asuint(PRIME_X));
+    int _e39 = y0_7;
+    int y1_15 = asint(asuint(_e39) + asuint(PRIME_Y));
+    int _e42 = z0_3;
+    int z1_7 = asint(asuint(_e42) + asuint(PRIME_Z));
+    int _e45 = x0_8;
+    int _e46 = y0_7;
+    int _e47 = z0_3;
+    const int _e48 = _hash3_(seed_36, _e45, _e46, _e47);
+    h0_1 = (_e48 & int(1020));
+    int _e52 = y0_7;
+    int _e53 = z0_3;
+    const int _e54 = _hash3_(seed_36, x1_16, _e52, _e53);
+    h1_1 = (_e54 & int(1020));
+    int _e58 = h0_1;
+    const float _e59 = _rv3_(_e58);
+    int _e60 = h1_1;
+    const float _e61 = _rv3_(_e60);
+    const float _e62 = _lerp(_e59, _e61, _e18);
+    lx0x = _e62;
+    int _e64 = h0_1;
+    const float _e67 = _rv3_((_e64 | int(1)));
+    int _e68 = h1_1;
+    const float _e71 = _rv3_((_e68 | int(1)));
+    const float _e72 = _lerp(_e67, _e71, _e18);
+    ly0x = _e72;
+    int _e74 = h0_1;
+    const float _e77 = _rv3_((_e74 | int(2)));
+    int _e78 = h1_1;
+    const float _e81 = _rv3_((_e78 | int(2)));
+    const float _e82 = _lerp(_e77, _e81, _e18);
+    lz0x = _e82;
+    int _e84 = x0_8;
+    int _e85 = z0_3;
+    const int _e86 = _hash3_(seed_36, _e84, y1_15, _e85);
+    h0_1 = (_e86 & int(1020));
+    int _e89 = z0_3;
+    const int _e90 = _hash3_(seed_36, x1_16, y1_15, _e89);
+    h1_1 = (_e90 & int(1020));
+    int _e93 = h0_1;
+    const float _e94 = _rv3_(_e93);
+    int _e95 = h1_1;
+    const float _e96 = _rv3_(_e95);
+    const float _e97 = _lerp(_e94, _e96, _e18);
+    lx1x = _e97;
+    int _e99 = h0_1;
+    const float _e102 = _rv3_((_e99 | int(1)));
+    int _e103 = h1_1;
+    const float _e106 = _rv3_((_e103 | int(1)));
+    const float _e107 = _lerp(_e102, _e106, _e18);
+    ly1x = _e107;
+    int _e109 = h0_1;
+    const float _e112 = _rv3_((_e109 | int(2)));
+    int _e113 = h1_1;
+    const float _e116 = _rv3_((_e113 | int(2)));
+    const float _e117 = _lerp(_e112, _e116, _e18);
+    lz1x = _e117;
+    float _e119 = lx0x;
+    float _e120 = lx1x;
+    const float _e121 = _lerp(_e119, _e120, _e22);
+    float _e122 = ly0x;
+    float _e123 = ly1x;
+    const float _e124 = _lerp(_e122, _e123, _e22);
+    float _e125 = lz0x;
+    float _e126 = lz1x;
+    const float _e127 = _lerp(_e125, _e126, _e22);
+    int _e128 = x0_8;
+    int _e129 = y0_7;
+    const int _e130 = _hash3_(seed_36, _e128, _e129, z1_7);
+    h0_1 = (_e130 & int(1020));
+    int _e133 = y0_7;
+    const int _e134 = _hash3_(seed_36, x1_16, _e133, z1_7);
+    h1_1 = (_e134 & int(1020));
+    int _e137 = h0_1;
+    const float _e138 = _rv3_(_e137);
+    int _e139 = h1_1;
+    const float _e140 = _rv3_(_e139);
+    const float _e141 = _lerp(_e138, _e140, _e18);
+    lx0x = _e141;
+    int _e142 = h0_1;
+    const float _e145 = _rv3_((_e142 | int(1)));
+    int _e146 = h1_1;
+    const float _e149 = _rv3_((_e146 | int(1)));
+    const float _e150 = _lerp(_e145, _e149, _e18);
+    ly0x = _e150;
+    int _e151 = h0_1;
+    const float _e154 = _rv3_((_e151 | int(2)));
+    int _e155 = h1_1;
+    const float _e158 = _rv3_((_e155 | int(2)));
+    const float _e159 = _lerp(_e154, _e158, _e18);
+    lz0x = _e159;
+    int _e160 = x0_8;
+    const int _e161 = _hash3_(seed_36, _e160, y1_15, z1_7);
+    h0_1 = (_e161 & int(1020));
+    const int _e164 = _hash3_(seed_36, x1_16, y1_15, z1_7);
+    h1_1 = (_e164 & int(1020));
+    int _e167 = h0_1;
+    const float _e168 = _rv3_(_e167);
+    int _e169 = h1_1;
+    const float _e170 = _rv3_(_e169);
+    const float _e171 = _lerp(_e168, _e170, _e18);
+    lx1x = _e171;
+    int _e172 = h0_1;
+    const float _e175 = _rv3_((_e172 | int(1)));
+    int _e176 = h1_1;
+    const float _e179 = _rv3_((_e176 | int(1)));
+    const float _e180 = _lerp(_e175, _e179, _e18);
+    ly1x = _e180;
+    int _e181 = h0_1;
+    const float _e184 = _rv3_((_e181 | int(2)));
+    int _e185 = h1_1;
+    const float _e188 = _rv3_((_e185 | int(2)));
+    const float _e189 = _lerp(_e184, _e188, _e18);
+    lz1x = _e189;
+    float _e190 = lx0x;
+    float _e191 = lx1x;
+    const float _e192 = _lerp(_e190, _e191, _e22);
+    const float _e193 = _lerp(_e121, _e192, _e26);
+    float _e195 = ly0x;
+    float _e196 = ly1x;
+    const float _e197 = _lerp(_e195, _e196, _e22);
+    const float _e198 = _lerp(_e124, _e197, _e26);
+    float _e200 = lz0x;
+    float _e201 = lz1x;
+    const float _e202 = _lerp(_e200, _e201, _e22);
+    const float _e203 = _lerp(_e127, _e202, _e26);
+    return float3((_e193 * amp_1), (_e198 * amp_1), (_e203 * amp_1));
+}
+
+float2 _warp_simplex_grad2_(int seed_37, float amp_2, float freq_2, float x_in_3, float y_in_3, bool grad_only)
+{
+    int i_11 = (int)0;
+    int j_4 = (int)0;
+    float2 v_2 = float2(0.0, 0.0);
+    float2 o = (float2)0;
+    float2 o_1 = (float2)0;
+    float2 o_2 = (float2)0;
+    float2 o_3 = (float2)0;
+
+    float x_36 = (x_in_3 * freq_2);
+    float y_36 = (y_in_3 * freq_2);
+    const int _e8 = _fast_floor(x_36);
+    i_11 = _e8;
+    const int _e10 = _fast_floor(y_36);
+    j_4 = _e10;
+    int _e12 = i_11;
+    float xi_5 = (x_36 - float(_e12));
+    int _e15 = j_4;
+    float yi_5 = (y_36 - float(_e15));
+    float t_8 = ((xi_5 + yi_5) * 0.21132487);
+    float x0_16 = (xi_5 - t_8);
+    float y0_15 = (yi_5 - t_8);
+    int _e23 = i_11;
+    i_11 = asint(asuint(_e23) * asuint(PRIME_X));
+    int _e26 = j_4;
+    j_4 = asint(asuint(_e26) * asuint(PRIME_Y));
+    float a_6 = ((0.5 - (x0_16 * x0_16)) - (y0_15 * y0_15));
+    if ((a_6 > 0.0)) {
+        float aaaa = ((a_6 * a_6) * (a_6 * a_6));
+        if (grad_only) {
+            int _e44 = i_11;
+            int _e45 = j_4;
+            const float2 _e46 = _grad_out2_(seed_37, _e44, _e45);
+            o = _e46;
+        } else {
+            int _e47 = i_11;
+            int _e48 = j_4;
+            const float2 _e49 = _grad_dual2_(seed_37, _e47, _e48, x0_16, y0_15);
+            o = _e49;
+        }
+        float2 _e50 = v_2;
+        float2 _e51 = o;
+        v_2 = (_e50 + (aaaa * _e51));
+    }
+    float c_2 = ((3.1547005 * t_8) + (-0.6666667 + a_6));
+    if ((c_2 > 0.0)) {
+        float x2_11 = (x0_16 + -0.57735026);
+        float y2_9 = (y0_15 + -0.57735026);
+        float cccc = ((c_2 * c_2) * (c_2 * c_2));
+        if (grad_only) {
+            int _e69 = i_11;
+            int _e72 = j_4;
+            const float2 _e75 = _grad_out2_(seed_37, asint(asuint(_e69) + asuint(PRIME_X)), asint(asuint(_e72) + asuint(PRIME_Y)));
+            o_1 = _e75;
+        } else {
+            int _e76 = i_11;
+            int _e79 = j_4;
+            const float2 _e82 = _grad_dual2_(seed_37, asint(asuint(_e76) + asuint(PRIME_X)), asint(asuint(_e79) + asuint(PRIME_Y)), x2_11, y2_9);
+            o_1 = _e82;
+        }
+        float2 _e83 = v_2;
+        float2 _e84 = o_1;
+        v_2 = (_e83 + (cccc * _e84));
+    }
+    if ((y0_15 > x0_16)) {
+        float x1_17 = (x0_16 + 0.21132487);
+        float y1_16 = (y0_15 + -0.7886751);
+        float b_7 = ((0.5 - (x1_17 * x1_17)) - (y1_16 * y1_16));
+        if ((b_7 > 0.0)) {
+            float bbbb = ((b_7 * b_7) * (b_7 * b_7));
+            if (grad_only) {
+                int _e103 = i_11;
+                int _e104 = j_4;
+                const float2 _e107 = _grad_out2_(seed_37, _e103, asint(asuint(_e104) + asuint(PRIME_Y)));
+                o_2 = _e107;
+            } else {
+                int _e108 = i_11;
+                int _e109 = j_4;
+                const float2 _e112 = _grad_dual2_(seed_37, _e108, asint(asuint(_e109) + asuint(PRIME_Y)), x1_17, y1_16);
+                o_2 = _e112;
+            }
+            float2 _e113 = v_2;
+            float2 _e114 = o_2;
+            v_2 = (_e113 + (bbbb * _e114));
+        }
+    } else {
+        float x1_18 = (x0_16 + -0.7886751);
+        float y1_17 = (y0_15 + 0.21132487);
+        float b_8 = ((0.5 - (x1_18 * x1_18)) - (y1_17 * y1_17));
+        if ((b_8 > 0.0)) {
+            float bbbb_1 = ((b_8 * b_8) * (b_8 * b_8));
+            if (grad_only) {
+                int _e132 = i_11;
+                int _e135 = j_4;
+                const float2 _e136 = _grad_out2_(seed_37, asint(asuint(_e132) + asuint(PRIME_X)), _e135);
+                o_3 = _e136;
+            } else {
+                int _e137 = i_11;
+                int _e140 = j_4;
+                const float2 _e141 = _grad_dual2_(seed_37, asint(asuint(_e137) + asuint(PRIME_X)), _e140, x1_18, y1_17);
+                o_3 = _e141;
+            }
+            float2 _e142 = v_2;
+            float2 _e143 = o_3;
+            v_2 = (_e142 + (bbbb_1 * _e143));
+        }
+    }
+    float2 _e146 = v_2;
+    return (_e146 * amp_2);
+}
+
+float3 _warp_simplex_grad3_(int seed_in_1, float amp_3, float freq_3, float x_in_4, float y_in_4, float z_in_2, bool grad_only_1)
+{
+    int seed_38 = (int)0;
+    int i_12 = (int)0;
+    int j_5 = (int)0;
+    int k_2 = (int)0;
+    float x0_9 = (float)0;
+    float y0_8 = (float)0;
+    float z0_4 = (float)0;
+    int x_nsign_1 = (int)0;
+    int y_nsign_1 = (int)0;
+    int z_nsign_1 = (int)0;
+    float ax0_1 = (float)0;
+    float ay0_1 = (float)0;
+    float az0_1 = (float)0;
+    float3 v_3 = float3(0.0, 0.0, 0.0);
+    float a_3 = (float)0;
+    int step_1 = int(0);
+    float3 o_4 = (float3)0;
+    float b_3 = (float)0;
+    int i1_1 = (int)0;
+    int j1_1 = (int)0;
+    int k1_1 = (int)0;
+    float x1_5 = (float)0;
+    float y1_4 = (float)0;
+    float z1_2 = (float)0;
+    bool local_11 = (bool)0;
+    bool local_12 = (bool)0;
+    float3 o_5 = (float3)0;
+
+    seed_38 = seed_in_1;
+    float x_37 = (x_in_4 * freq_3);
+    float y_37 = (y_in_4 * freq_3);
+    float z_18 = (z_in_2 * freq_3);
+    const int _e11 = _fast_round(x_37);
+    i_12 = _e11;
+    const int _e13 = _fast_round(y_37);
+    j_5 = _e13;
+    const int _e15 = _fast_round(z_18);
+    k_2 = _e15;
+    int _e17 = i_12;
+    x0_9 = (x_37 - float(_e17));
+    int _e21 = j_5;
+    y0_8 = (y_37 - float(_e21));
+    int _e25 = k_2;
+    z0_4 = (z_18 - float(_e25));
+    float _e29 = x0_9;
+    x_nsign_1 = (naga_f2i32((-(_e29) - 1.0)) | int(1));
+    float _e37 = y0_8;
+    y_nsign_1 = (naga_f2i32((-(_e37) - 1.0)) | int(1));
+    float _e45 = z0_4;
+    z_nsign_1 = (naga_f2i32((-(_e45) - 1.0)) | int(1));
+    int _e53 = x_nsign_1;
+    float _e55 = x0_9;
+    ax0_1 = (float(_e53) * -(_e55));
+    int _e59 = y_nsign_1;
+    float _e61 = y0_8;
+    ay0_1 = (float(_e59) * -(_e61));
+    int _e65 = z_nsign_1;
+    float _e67 = z0_4;
+    az0_1 = (float(_e65) * -(_e67));
+    int _e71 = i_12;
+    i_12 = asint(asuint(_e71) * asuint(PRIME_X));
+    int _e74 = j_5;
+    j_5 = asint(asuint(_e74) * asuint(PRIME_Y));
+    int _e77 = k_2;
+    k_2 = asint(asuint(_e77) * asuint(PRIME_Z));
+    float _e85 = x0_9;
+    float _e86 = x0_9;
+    float _e90 = y0_8;
+    float _e91 = y0_8;
+    float _e93 = z0_4;
+    float _e94 = z0_4;
+    a_3 = ((0.6 - (_e85 * _e86)) - ((_e90 * _e91) + (_e93 * _e94)));
+    uint2 loop_bound_6 = uint2(4294967295u, 4294967295u);
+    bool loop_init_6 = true;
+    while(true) {
+        if (all(loop_bound_6 == uint2(0u, 0u))) { break; }
+        loop_bound_6 -= uint2(loop_bound_6.y == 0u, 1u);
+        if (!loop_init_6) {
+            int _e311 = step_1;
+            step_1 = asint(asuint(_e311) + asuint(int(1)));
+        }
+        loop_init_6 = false;
+        int _e101 = step_1;
+        if ((_e101 < int(2))) {
+        } else {
+            break;
+        }
+        {
+            float _e104 = a_3;
+            if ((_e104 > 0.0)) {
+                float _e107 = a_3;
+                float _e108 = a_3;
+                float _e110 = a_3;
+                float _e111 = a_3;
+                float aaaa_1 = ((_e107 * _e108) * (_e110 * _e111));
+                if (grad_only_1) {
+                    int _e115 = seed_38;
+                    int _e116 = i_12;
+                    int _e117 = j_5;
+                    int _e118 = k_2;
+                    const float3 _e119 = _grad_out3_(_e115, _e116, _e117, _e118);
+                    o_4 = _e119;
+                } else {
+                    int _e120 = seed_38;
+                    int _e121 = i_12;
+                    int _e122 = j_5;
+                    int _e123 = k_2;
+                    float _e124 = x0_9;
+                    float _e125 = y0_8;
+                    float _e126 = z0_4;
+                    const float3 _e127 = _grad_dual3_(_e120, _e121, _e122, _e123, _e124, _e125, _e126);
+                    o_4 = _e127;
+                }
+                float3 _e128 = v_3;
+                float3 _e129 = o_4;
+                v_3 = (_e128 + (aaaa_1 * _e129));
+            }
+            float _e132 = a_3;
+            b_3 = (_e132 + 1.0);
+            int _e136 = i_12;
+            i1_1 = _e136;
+            int _e138 = j_5;
+            j1_1 = _e138;
+            int _e140 = k_2;
+            k1_1 = _e140;
+            float _e142 = x0_9;
+            x1_5 = _e142;
+            float _e144 = y0_8;
+            y1_4 = _e144;
+            float _e146 = z0_4;
+            z1_2 = _e146;
+            float _e148 = ax0_1;
+            float _e149 = ay0_1;
+            if ((_e148 >= _e149)) {
+                float _e153 = ax0_1;
+                float _e154 = az0_1;
+                local_11 = (_e153 >= _e154);
+            } else {
+                local_11 = false;
+            }
+            bool _e157 = local_11;
+            if (_e157) {
+                float _e158 = x1_5;
+                int _e159 = x_nsign_1;
+                x1_5 = (_e158 + float(_e159));
+                float _e162 = b_3;
+                int _e163 = x_nsign_1;
+                float _e167 = x1_5;
+                b_3 = (_e162 - ((float(_e163) * 2.0) * _e167));
+                int _e170 = i1_1;
+                int _e171 = x_nsign_1;
+                i1_1 = asint(asuint(_e170) - asuint(asint(asuint(_e171) * asuint(PRIME_X))));
+            } else {
+                float _e175 = ay0_1;
+                float _e176 = ax0_1;
+                if ((_e175 > _e176)) {
+                    float _e180 = ay0_1;
+                    float _e181 = az0_1;
+                    local_12 = (_e180 >= _e181);
+                } else {
+                    local_12 = false;
+                }
+                bool _e184 = local_12;
+                if (_e184) {
+                    float _e185 = y1_4;
+                    int _e186 = y_nsign_1;
+                    y1_4 = (_e185 + float(_e186));
+                    float _e189 = b_3;
+                    int _e190 = y_nsign_1;
+                    float _e194 = y1_4;
+                    b_3 = (_e189 - ((float(_e190) * 2.0) * _e194));
+                    int _e197 = j1_1;
+                    int _e198 = y_nsign_1;
+                    j1_1 = asint(asuint(_e197) - asuint(asint(asuint(_e198) * asuint(PRIME_Y))));
+                } else {
+                    float _e202 = z1_2;
+                    int _e203 = z_nsign_1;
+                    z1_2 = (_e202 + float(_e203));
+                    float _e206 = b_3;
+                    int _e207 = z_nsign_1;
+                    float _e211 = z1_2;
+                    b_3 = (_e206 - ((float(_e207) * 2.0) * _e211));
+                    int _e214 = k1_1;
+                    int _e215 = z_nsign_1;
+                    k1_1 = asint(asuint(_e214) - asuint(asint(asuint(_e215) * asuint(PRIME_Z))));
+                }
+            }
+            float _e219 = b_3;
+            if ((_e219 > 0.0)) {
+                float _e222 = b_3;
+                float _e223 = b_3;
+                float _e225 = b_3;
+                float _e226 = b_3;
+                float bbbb_2 = ((_e222 * _e223) * (_e225 * _e226));
+                if (grad_only_1) {
+                    int _e230 = seed_38;
+                    int _e231 = i1_1;
+                    int _e232 = j1_1;
+                    int _e233 = k1_1;
+                    const float3 _e234 = _grad_out3_(_e230, _e231, _e232, _e233);
+                    o_5 = _e234;
+                } else {
+                    int _e235 = seed_38;
+                    int _e236 = i1_1;
+                    int _e237 = j1_1;
+                    int _e238 = k1_1;
+                    float _e239 = x1_5;
+                    float _e240 = y1_4;
+                    float _e241 = z1_2;
+                    const float3 _e242 = _grad_dual3_(_e235, _e236, _e237, _e238, _e239, _e240, _e241);
+                    o_5 = _e242;
+                }
+                float3 _e243 = v_3;
+                float3 _e244 = o_5;
+                v_3 = (_e243 + (bbbb_2 * _e244));
+            }
+            int _e247 = step_1;
+            if ((_e247 == int(1))) {
+                break;
+            }
+            float _e250 = ax0_1;
+            ax0_1 = (0.5 - _e250);
+            float _e253 = ay0_1;
+            ay0_1 = (0.5 - _e253);
+            float _e256 = az0_1;
+            az0_1 = (0.5 - _e256);
+            int _e259 = x_nsign_1;
+            float _e261 = ax0_1;
+            x0_9 = (float(_e259) * _e261);
+            int _e263 = y_nsign_1;
+            float _e265 = ay0_1;
+            y0_8 = (float(_e263) * _e265);
+            int _e267 = z_nsign_1;
+            float _e269 = az0_1;
+            z0_4 = (float(_e267) * _e269);
+            float _e271 = a_3;
+            float _e272 = ax0_1;
+            float _e275 = ay0_1;
+            float _e276 = az0_1;
+            a_3 = (_e271 + ((0.75 - _e272) - (_e275 + _e276)));
+            int _e280 = i_12;
+            int _e281 = x_nsign_1;
+            i_12 = asint(asuint(_e280) + asuint(((_e281 >> 1u) & PRIME_X)));
+            int _e287 = j_5;
+            int _e288 = y_nsign_1;
+            j_5 = asint(asuint(_e287) + asuint(((_e288 >> 1u) & PRIME_Y)));
+            int _e294 = k_2;
+            int _e295 = z_nsign_1;
+            k_2 = asint(asuint(_e294) + asuint(((_e295 >> 1u) & PRIME_Z)));
+            int _e301 = x_nsign_1;
+            x_nsign_1 = naga_neg(_e301);
+            int _e303 = y_nsign_1;
+            y_nsign_1 = naga_neg(_e303);
+            int _e305 = z_nsign_1;
+            z_nsign_1 = naga_neg(_e305);
+            int _e307 = seed_38;
+            seed_38 = asint(asuint(_e307) + asuint(int(1293373)));
+        }
+    }
+    float3 _e313 = v_3;
+    return (_e313 * amp_3);
+}
+
+float2 _warp_transform2_(int warp_type, float x_24, float y_24)
+{
+    bool local_13 = (bool)0;
+
+    if (!((warp_type == WARP_OPEN_SIMPLEX2_))) {
+        local_13 = (warp_type == WARP_OPEN_SIMPLEX2_REDUCED);
+    } else {
+        local_13 = true;
+    }
+    bool _e11 = local_13;
+    if (_e11) {
+        float t_9 = ((x_24 + y_24) * 0.36602542);
+        return float2((x_24 + t_9), (y_24 + t_9));
+    }
+    return float2(x_24, y_24);
+}
+
+float2 _do_warp2_(int warp_type_1, int seed_39, float amp_4, float freq_4, float x_25, float y_25)
+{
+    if ((warp_type_1 == WARP_OPEN_SIMPLEX2_)) {
+        const float2 _e11 = _warp_simplex_grad2_(seed_39, (amp_4 * 38.283688), freq_4, x_25, y_25, false);
+        return _e11;
+    }
+    if ((warp_type_1 == WARP_OPEN_SIMPLEX2_REDUCED)) {
+        const float2 _e17 = _warp_simplex_grad2_(seed_39, (amp_4 * 16.0), freq_4, x_25, y_25, true);
+        return _e17;
+    }
+    const float2 _e18 = _warp_basic_grid2_(seed_39, amp_4, freq_4, x_25, y_25);
+    return _e18;
+}
+
+float3 _do_warp3_(int warp_type_2, int seed_40, float amp_5, float freq_5, float x_26, float y_26, float z_13)
+{
+    if ((warp_type_2 == WARP_OPEN_SIMPLEX2_)) {
+        const float3 _e12 = _warp_simplex_grad3_(seed_40, (amp_5 * 32.694283), freq_5, x_26, y_26, z_13, false);
+        return _e12;
+    }
+    if ((warp_type_2 == WARP_OPEN_SIMPLEX2_REDUCED)) {
+        const float3 _e18 = _warp_simplex_grad3_(seed_40, (amp_5 * 7.716049), freq_5, x_26, y_26, z_13, true);
+        return _e18;
+    }
+    const float3 _e19 = _warp_basic_grid3_(seed_40, amp_5, freq_5, x_26, y_26, z_13);
+    return _e19;
+}
+
+float2 warp2_(int warp_type_3, int warp_fractal, int seed_in_2, float amp_in, float freq_in, int octaves, float lacunarity, float gain, float x_in_5, float y_in_5)
+{
+    float2 p = (float2)0;
+    int seed_41 = (int)0;
+    float amp_6 = (float)0;
+    float freq_6 = (float)0;
+    bool local_14 = (bool)0;
+    int octave = int(0);
+    int octave_1 = int(0);
+
+    p = float2(x_in_5, y_in_5);
+    if ((warp_type_3 == WARP_NONE)) {
+        float2 _e14 = p;
+        return _e14;
+    }
+    seed_41 = seed_in_2;
+    amp_6 = amp_in;
+    freq_6 = freq_in;
+    if (!((warp_fractal == WARP_SINGLE))) {
+        local_14 = (warp_fractal == WARP_PROGRESSIVE);
+    } else {
+        local_14 = true;
+    }
+    bool _e26 = local_14;
+    if (_e26) {
+        int count = ((warp_fractal == WARP_SINGLE) ? int(1) : octaves);
+        uint2 loop_bound_7 = uint2(4294967295u, 4294967295u);
+        bool loop_init_7 = true;
+        while(true) {
+            if (all(loop_bound_7 == uint2(0u, 0u))) { break; }
+            loop_bound_7 -= uint2(loop_bound_7.y == 0u, 1u);
+            if (!loop_init_7) {
+                int _e56 = octave;
+                octave = asint(asuint(_e56) + asuint(int(1)));
+            }
+            loop_init_7 = false;
+            int _e33 = octave;
+            if ((_e33 < count)) {
+            } else {
+                break;
+            }
+            {
+                float _e36 = p.x;
+                float _e38 = p.y;
+                const float2 _e39 = _warp_transform2_(warp_type_3, _e36, _e38);
+                float2 _e40 = p;
+                int _e41 = seed_41;
+                float _e42 = amp_6;
+                float _e43 = freq_6;
+                const float2 _e46 = _do_warp2_(warp_type_3, _e41, _e42, _e43, _e39.x, _e39.y);
+                p = (_e40 + _e46);
+                int _e48 = seed_41;
+                seed_41 = asint(asuint(_e48) + asuint(int(1)));
+                float _e51 = amp_6;
+                amp_6 = (_e51 * gain);
+                float _e53 = freq_6;
+                freq_6 = (_e53 * lacunarity);
+            }
+        }
+        float2 _e58 = p;
+        return _e58;
+    }
+    float _e60 = p.x;
+    float _e62 = p.y;
+    const float2 _e63 = _warp_transform2_(warp_type_3, _e60, _e62);
+    uint2 loop_bound_8 = uint2(4294967295u, 4294967295u);
+    bool loop_init_8 = true;
+    while(true) {
+        if (all(loop_bound_8 == uint2(0u, 0u))) { break; }
+        loop_bound_8 -= uint2(loop_bound_8.y == 0u, 1u);
+        if (!loop_init_8) {
+            int _e84 = octave_1;
+            octave_1 = asint(asuint(_e84) + asuint(int(1)));
+        }
+        loop_init_8 = false;
+        int _e66 = octave_1;
+        if ((_e66 < octaves)) {
+        } else {
+            break;
+        }
+        {
+            float2 _e68 = p;
+            int _e69 = seed_41;
+            float _e70 = amp_6;
+            float _e71 = freq_6;
+            const float2 _e74 = _do_warp2_(warp_type_3, _e69, _e70, _e71, _e63.x, _e63.y);
+            p = (_e68 + _e74);
+            int _e76 = seed_41;
+            seed_41 = asint(asuint(_e76) + asuint(int(1)));
+            float _e79 = amp_6;
+            amp_6 = (_e79 * gain);
+            float _e81 = freq_6;
+            freq_6 = (_e81 * lacunarity);
+        }
+    }
+    float2 _e86 = p;
+    return _e86;
+}
+
+float3 warp3_(int warp_type_4, int warp_fractal_1, int warp_transform, int seed_in_3, float amp_in_1, float freq_in_1, int octaves_1, float lacunarity_1, float gain_1, float x_in_6, float y_in_6, float z_in_3)
+{
+    float3 p_1 = (float3)0;
+    int seed_42 = (int)0;
+    float amp_7 = (float)0;
+    float freq_7 = (float)0;
+    bool local_15 = (bool)0;
+    int octave_2 = int(0);
+    int octave_3 = int(0);
+
+    p_1 = float3(x_in_6, y_in_6, z_in_3);
+    if ((warp_type_4 == WARP_NONE)) {
+        float3 _e16 = p_1;
+        return _e16;
+    }
+    seed_42 = seed_in_3;
+    amp_7 = amp_in_1;
+    freq_7 = freq_in_1;
+    if (!((warp_fractal_1 == WARP_SINGLE))) {
+        local_15 = (warp_fractal_1 == WARP_PROGRESSIVE);
+    } else {
+        local_15 = true;
+    }
+    bool _e28 = local_15;
+    if (_e28) {
+        int count_1 = ((warp_fractal_1 == WARP_SINGLE) ? int(1) : octaves_1);
+        uint2 loop_bound_9 = uint2(4294967295u, 4294967295u);
+        bool loop_init_9 = true;
+        while(true) {
+            if (all(loop_bound_9 == uint2(0u, 0u))) { break; }
+            loop_bound_9 -= uint2(loop_bound_9.y == 0u, 1u);
+            if (!loop_init_9) {
+                int _e61 = octave_2;
+                octave_2 = asint(asuint(_e61) + asuint(int(1)));
+            }
+            loop_init_9 = false;
+            int _e35 = octave_2;
+            if ((_e35 < count_1)) {
+            } else {
+                break;
+            }
+            {
+                float _e38 = p_1.x;
+                float _e40 = p_1.y;
+                float _e42 = p_1.z;
+                const float3 _e43 = _transform3_(warp_transform, _e38, _e40, _e42);
+                float3 _e44 = p_1;
+                int _e45 = seed_42;
+                float _e46 = amp_7;
+                float _e47 = freq_7;
+                const float3 _e51 = _do_warp3_(warp_type_4, _e45, _e46, _e47, _e43.x, _e43.y, _e43.z);
+                p_1 = (_e44 + _e51);
+                int _e53 = seed_42;
+                seed_42 = asint(asuint(_e53) + asuint(int(1)));
+                float _e56 = amp_7;
+                amp_7 = (_e56 * gain_1);
+                float _e58 = freq_7;
+                freq_7 = (_e58 * lacunarity_1);
+            }
+        }
+        float3 _e63 = p_1;
+        return _e63;
+    }
+    float _e65 = p_1.x;
+    float _e67 = p_1.y;
+    float _e69 = p_1.z;
+    const float3 _e70 = _transform3_(warp_transform, _e65, _e67, _e69);
+    uint2 loop_bound_10 = uint2(4294967295u, 4294967295u);
+    bool loop_init_10 = true;
+    while(true) {
+        if (all(loop_bound_10 == uint2(0u, 0u))) { break; }
+        loop_bound_10 -= uint2(loop_bound_10.y == 0u, 1u);
+        if (!loop_init_10) {
+            int _e92 = octave_3;
+            octave_3 = asint(asuint(_e92) + asuint(int(1)));
+        }
+        loop_init_10 = false;
+        int _e73 = octave_3;
+        if ((_e73 < octaves_1)) {
+        } else {
+            break;
+        }
+        {
+            float3 _e75 = p_1;
+            int _e76 = seed_42;
+            float _e77 = amp_7;
+            float _e78 = freq_7;
+            const float3 _e82 = _do_warp3_(warp_type_4, _e76, _e77, _e78, _e70.x, _e70.y, _e70.z);
+            p_1 = (_e75 + _e82);
+            int _e84 = seed_42;
+            seed_42 = asint(asuint(_e84) + asuint(int(1)));
+            float _e87 = amp_7;
+            amp_7 = (_e87 * gain_1);
+            float _e89 = freq_7;
+            freq_7 = (_e89 * lacunarity_1);
+        }
+    }
+    float3 _e94 = p_1;
+    return _e94;
+}
+
+float3 _fns_grad_vec(int seed_43, int xp_13, int yp_14, int zp_10)
+{
+    int h_6 = (int)0;
+
+    h_6 = (((seed_43 ^ xp_13) ^ yp_14) ^ zp_10);
+    int _e8 = h_6;
+    int _e9 = h_6;
+    int _e13 = h_6;
+    h_6 = asint(asuint(asint(asuint(asint(asuint(_e8) * asuint(_e9))) * asuint(FNS_HASH_MUL))) * asuint(_e13));
+    int _e15 = h_6;
+    int _e21 = h_6;
+    int _e29 = h_6;
+    return float3((float((_e15 & int(1023))) - 511.5), (float(((_e21 >> 10u) & int(1023))) - 511.5), (float(((_e29 >> 20u) & int(1023))) - 511.5));
+}
+
+float3 _perturb_single3_(int seed_44, float amp_8, float freq_8, float x_27, float y_27, float z_14)
+{
+    float xf_5 = (x_27 * freq_8);
+    float yf_5 = (y_27 * freq_8);
+    float zf_3 = (z_14 * freq_8);
+    float xfl = floor(xf_5);
+    float yfl = floor(yf_5);
+    float zfl = floor(zf_3);
+    int x0_17 = asint(asuint(naga_f2i32(xfl)) * asuint(FNS_PRIME_X));
+    int y0_16 = asint(asuint(naga_f2i32(yfl)) * asuint(FNS_PRIME_Y));
+    int z0_8 = asint(asuint(naga_f2i32(zfl)) * asuint(FNS_PRIME_Z));
+    int x1_19 = asint(asuint(x0_17) + asuint(FNS_PRIME_X));
+    int y1_18 = asint(asuint(y0_16) + asuint(FNS_PRIME_Y));
+    int z1_8 = asint(asuint(z0_8) + asuint(FNS_PRIME_Z));
+    const float _e28 = _interp_quintic((xf_5 - xfl));
+    const float _e30 = _interp_quintic((yf_5 - yfl));
+    const float _e32 = _interp_quintic((zf_3 - zfl));
+    const float3 _e33 = _fns_grad_vec(seed_44, x0_17, y0_16, z0_8);
+    const float3 _e34 = _fns_grad_vec(seed_44, x0_17, y0_16, z1_8);
+    const float3 _e35 = _fns_grad_vec(seed_44, x0_17, y1_18, z0_8);
+    const float3 _e36 = _fns_grad_vec(seed_44, x0_17, y1_18, z1_8);
+    const float3 _e37 = _fns_grad_vec(seed_44, x1_19, y0_16, z0_8);
+    const float3 _e38 = _fns_grad_vec(seed_44, x1_19, y0_16, z1_8);
+    const float3 _e39 = _fns_grad_vec(seed_44, x1_19, y1_18, z0_8);
+    const float3 _e40 = _fns_grad_vec(seed_44, x1_19, y1_18, z1_8);
+    const float _e43 = _lerp(_e33.x, _e37.x, _e28);
+    const float _e46 = _lerp(_e35.x, _e39.x, _e28);
+    const float _e47 = _lerp(_e43, _e46, _e30);
+    const float _e50 = _lerp(_e33.y, _e37.y, _e28);
+    const float _e53 = _lerp(_e35.y, _e39.y, _e28);
+    const float _e54 = _lerp(_e50, _e53, _e30);
+    const float _e57 = _lerp(_e33.z, _e37.z, _e28);
+    const float _e60 = _lerp(_e35.z, _e39.z, _e28);
+    const float _e61 = _lerp(_e57, _e60, _e30);
+    const float _e64 = _lerp(_e34.x, _e38.x, _e28);
+    const float _e67 = _lerp(_e36.x, _e40.x, _e28);
+    const float _e68 = _lerp(_e64, _e67, _e30);
+    const float _e71 = _lerp(_e34.y, _e38.y, _e28);
+    const float _e74 = _lerp(_e36.y, _e40.y, _e28);
+    const float _e75 = _lerp(_e71, _e74, _e30);
+    const float _e78 = _lerp(_e34.z, _e38.z, _e28);
+    const float _e81 = _lerp(_e36.z, _e40.z, _e28);
+    const float _e82 = _lerp(_e78, _e81, _e30);
+    const float _e83 = _lerp(_e47, _e68, _e32);
+    const float _e86 = _lerp(_e54, _e75, _e32);
+    const float _e89 = _lerp(_e61, _e82, _e32);
+    return float3(((_e83 * amp_8) + x_27), ((_e86 * amp_8) + y_27), ((_e89 * amp_8) + z_14));
+}
+
+float3 perturb3_(int ptype, int seed_45, float bounding, float amp_in_2, float freq_9, int octaves_2, float lacunarity_2, float gain_2, float normalise, float x_in_7, float y_in_7, float z_in_4)
+{
+    float3 p_2 = (float3)0;
+    bool local_16 = (bool)0;
+    bool local_17 = (bool)0;
+    int seed_f = (int)0;
+    float freq_f = (float)0;
+    float amp_f = (float)0;
+    int octave_4 = int(1);
+    float inv = 0.0;
+
+    float amp_12 = (amp_in_2 / 511.5);
+    p_2 = float3(x_in_7, y_in_7, z_in_4);
+    if (!((ptype == PERTURB_GRADIENT))) {
+        local_16 = (ptype == PERTURB_GRADIENT_NORMALISE);
+    } else {
+        local_16 = true;
+    }
+    bool _e24 = local_16;
+    if (_e24) {
+        float _e28 = p_2.x;
+        float _e30 = p_2.y;
+        float _e32 = p_2.z;
+        const float3 _e33 = _perturb_single3_(asint(asuint(seed_45) - asuint(int(1))), amp_12, freq_9, _e28, _e30, _e32);
+        p_2 = _e33;
+    } else {
+        if (!((ptype == PERTURB_GRADIENT_FRACTAL))) {
+            local_17 = (ptype == PERTURB_GRADIENT_FRACTAL_NORMALISE);
+        } else {
+            local_17 = true;
+        }
+        bool _e42 = local_17;
+        if (_e42) {
+            seed_f = asint(asuint(seed_45) - asuint(int(1)));
+            freq_f = freq_9;
+            amp_f = (amp_12 * bounding);
+            int _e49 = seed_f;
+            float _e50 = amp_f;
+            float _e51 = freq_f;
+            float _e53 = p_2.x;
+            float _e55 = p_2.y;
+            float _e57 = p_2.z;
+            const float3 _e58 = _perturb_single3_(_e49, _e50, _e51, _e53, _e55, _e57);
+            p_2 = _e58;
+            uint2 loop_bound_11 = uint2(4294967295u, 4294967295u);
+            bool loop_init_11 = true;
+            while(true) {
+                if (all(loop_bound_11 == uint2(0u, 0u))) { break; }
+                loop_bound_11 -= uint2(loop_bound_11.y == 0u, 1u);
+                if (!loop_init_11) {
+                    int _e81 = octave_4;
+                    octave_4 = asint(asuint(_e81) + asuint(int(1)));
+                }
+                loop_init_11 = false;
+                int _e61 = octave_4;
+                if ((_e61 < octaves_2)) {
+                } else {
+                    break;
+                }
+                {
+                    float _e63 = freq_f;
+                    freq_f = (_e63 * lacunarity_2);
+                    int _e65 = seed_f;
+                    seed_f = asint(asuint(_e65) - asuint(int(1)));
+                    float _e68 = amp_f;
+                    amp_f = (_e68 * gain_2);
+                    int _e70 = seed_f;
+                    float _e71 = amp_f;
+                    float _e72 = freq_f;
+                    float _e74 = p_2.x;
+                    float _e76 = p_2.y;
+                    float _e78 = p_2.z;
+                    const float3 _e79 = _perturb_single3_(_e70, _e71, _e72, _e74, _e76, _e78);
+                    p_2 = _e79;
+                }
+            }
+        }
+    }
+    if ((ptype >= PERTURB_NORMALISE)) {
+        float _e86 = p_2.x;
+        float _e88 = p_2.x;
+        float _e91 = p_2.y;
+        float _e93 = p_2.y;
+        float _e97 = p_2.z;
+        float _e99 = p_2.z;
+        float len = sqrt((((_e86 * _e88) + (_e91 * _e93)) + (_e97 * _e99)));
+        if ((len > 0.0)) {
+            inv = (normalise / len);
+        }
+        float3 _e108 = p_2;
+        float _e109 = inv;
+        p_2 = (_e108 * _e109);
+    }
+    float3 _e111 = p_2;
+    return _e111;
+}
+
+float2 perturb2_(int ptype_1, int seed_46, float bounding_1, float amp_9, float freq_10, int octaves_3, float lacunarity_3, float gain_3, float normalise_1, float x_28, float y_28)
+{
+    const float3 _e12 = perturb3_(ptype_1, seed_46, bounding_1, amp_9, freq_10, octaves_3, lacunarity_3, gain_3, normalise_1, x_28, y_28, 0.0);
+    return _e12.xy;
+}
+
+float noise_single2_(int noise_type_3, int seed_47, float x_29, float y_29, int cell_dist, int cell_ret, float cell_jitter, int lookup_type_2, float lookup_freq_2)
+{
+    if ((noise_type_3 == NOISE_OPEN_SIMPLEX2_)) {
+        const float _e11 = simplex2_(seed_47, x_29, y_29);
+        return _e11;
+    }
+    if ((noise_type_3 == NOISE_OPEN_SIMPLEX2S)) {
+        const float _e14 = simplex2s(seed_47, x_29, y_29);
+        return _e14;
+    }
+    if ((noise_type_3 == NOISE_CELLULAR)) {
+        const float _e17 = cellular2_(seed_47, x_29, y_29, cell_dist, cell_ret, cell_jitter, lookup_type_2, lookup_freq_2);
+        return _e17;
+    }
+    if ((noise_type_3 == NOISE_PERLIN)) {
+        const float _e20 = perlin2_(seed_47, x_29, y_29);
+        return _e20;
+    }
+    if ((noise_type_3 == NOISE_VALUE_CUBIC)) {
+        const float _e23 = value_cubic2_(seed_47, x_29, y_29);
+        return _e23;
+    }
+    if ((noise_type_3 == NOISE_VALUE)) {
+        const float _e26 = value2_(seed_47, x_29, y_29);
+        return _e26;
+    }
+    if ((noise_type_3 == NOISE_WHITE_NOISE)) {
+        const float _e29 = white_noise2_(seed_47, x_29, y_29);
+        return _e29;
+    }
+    if ((noise_type_3 == NOISE_SIMPLEX_CLASSIC)) {
+        const float _e32 = simplex_classic2_(seed_47, x_29, y_29);
+        return _e32;
+    }
+    return 0.0;
+}
+
+float noise_single3_(int noise_type_4, int seed_48, float x_30, float y_30, float z_15, int cell_dist_1, int cell_ret_1, float cell_jitter_1, int lookup_type_3, float lookup_freq_3)
+{
+    if ((noise_type_4 == NOISE_OPEN_SIMPLEX2_)) {
+        const float _e12 = opensimplex2_3_(seed_48, x_30, y_30, z_15);
+        return _e12;
+    }
+    if ((noise_type_4 == NOISE_OPEN_SIMPLEX2S)) {
+        const float _e15 = opensimplex2s_3_(seed_48, x_30, y_30, z_15);
+        return _e15;
+    }
+    if ((noise_type_4 == NOISE_CELLULAR)) {
+        const float _e18 = cellular3_(seed_48, x_30, y_30, z_15, cell_dist_1, cell_ret_1, cell_jitter_1, lookup_type_3, lookup_freq_3);
+        return _e18;
+    }
+    if ((noise_type_4 == NOISE_PERLIN)) {
+        const float _e21 = perlin3_(seed_48, x_30, y_30, z_15);
+        return _e21;
+    }
+    if ((noise_type_4 == NOISE_VALUE_CUBIC)) {
+        const float _e24 = value_cubic3_(seed_48, x_30, y_30, z_15);
+        return _e24;
+    }
+    if ((noise_type_4 == NOISE_VALUE)) {
+        const float _e27 = value3_(seed_48, x_30, y_30, z_15);
+        return _e27;
+    }
+    if ((noise_type_4 == NOISE_WHITE_NOISE)) {
+        const float _e30 = white_noise3_(seed_48, x_30, y_30, z_15);
+        return _e30;
+    }
+    if ((noise_type_4 == NOISE_SIMPLEX_CLASSIC)) {
+        const float _e33 = simplex_classic3_(seed_48, x_30, y_30, z_15);
+        return _e33;
+    }
+    return 0.0;
+}
+
+float fractal2_(int noise_type_5, int fractal_type, int seed_in_4, float x_in_8, float y_in_8, int octaves_4, float lacunarity_4, float gain_4, float weighted, float ping_pong, float bounding_2, int cd, int cr, float cj, int cl, float cf)
+{
+    int seed_49 = (int)0;
+    float x_31 = (float)0;
+    float y_31 = (float)0;
+    float total_1 = 0.0;
+    float amp_10 = (float)0;
+    int octave_5 = int(0);
+    float n = (float)0;
+
+    if ((fractal_type == FRACTAL_NONE)) {
+        const float _e18 = noise_single2_(noise_type_5, seed_in_4, x_in_8, y_in_8, cd, cr, cj, cl, cf);
+        return _e18;
+    }
+    seed_49 = seed_in_4;
+    x_31 = x_in_8;
+    y_31 = y_in_8;
+    amp_10 = ((fractal_type == FRACTAL_RIGID_MULTI) ? 1.0 : bounding_2);
+    uint2 loop_bound_12 = uint2(4294967295u, 4294967295u);
+    bool loop_init_12 = true;
+    while(true) {
+        if (all(loop_bound_12 == uint2(0u, 0u))) { break; }
+        loop_bound_12 -= uint2(loop_bound_12.y == 0u, 1u);
+        if (!loop_init_12) {
+            int _e146 = octave_5;
+            octave_5 = asint(asuint(_e146) + asuint(int(1)));
+        }
+        loop_init_12 = false;
+        int _e31 = octave_5;
+        if ((_e31 < octaves_4)) {
+        } else {
+            break;
+        }
+        {
+            int _e33 = seed_49;
+            float _e34 = x_31;
+            float _e35 = y_31;
+            const float _e36 = noise_single2_(noise_type_5, _e33, _e34, _e35, cd, cr, cj, cl, cf);
+            n = _e36;
+            int _e38 = seed_49;
+            seed_49 = asint(asuint(_e38) + asuint(int(1)));
+            if ((fractal_type == FRACTAL_FBM)) {
+                float _e43 = total_1;
+                float _e44 = n;
+                float _e45 = amp_10;
+                total_1 = (_e43 + (_e44 * _e45));
+                float _e48 = amp_10;
+                float _e50 = n;
+                const float _e57 = _lerp(1.0, (min((_e50 + 1.0), 2.0) * 0.5), weighted);
+                amp_10 = (_e48 * _e57);
+            } else {
+                if ((fractal_type == FRACTAL_RIDGED)) {
+                    float _e61 = n;
+                    n = abs(_e61);
+                    float _e63 = total_1;
+                    float _e64 = n;
+                    float _e69 = amp_10;
+                    total_1 = (_e63 + (((_e64 * -2.0) + 1.0) * _e69));
+                    float _e72 = amp_10;
+                    float _e74 = n;
+                    const float _e77 = _lerp(1.0, (1.0 - _e74), weighted);
+                    amp_10 = (_e72 * _e77);
+                } else {
+                    if ((fractal_type == FRACTAL_RIGID_MULTI)) {
+                        float _e81 = n;
+                        n = (1.0 - abs(_e81));
+                        float _e85 = total_1;
+                        float _e86 = n;
+                        float _e88 = amp_10;
+                        float _e90 = n;
+                        float _e91 = amp_10;
+                        int _e93 = octave_5;
+                        total_1 = (_e85 + ((_e93 == int(0)) ? (_e90 * _e91) : (-(_e86) * _e88)));
+                    } else {
+                        if ((fractal_type == FRACTAL_BILLOW)) {
+                            float _e100 = n;
+                            n = ((abs(_e100) * 2.0) - 1.0);
+                            float _e106 = total_1;
+                            float _e107 = n;
+                            float _e108 = amp_10;
+                            total_1 = (_e106 + (_e107 * _e108));
+                            float _e111 = amp_10;
+                            float _e113 = n;
+                            const float _e118 = _lerp(1.0, ((_e113 + 1.0) * 0.5), weighted);
+                            amp_10 = (_e111 * _e118);
+                        } else {
+                            float _e120 = n;
+                            const float _e124 = _ping_pong(((_e120 + 1.0) * ping_pong));
+                            n = _e124;
+                            float _e125 = total_1;
+                            float _e126 = n;
+                            float _e131 = amp_10;
+                            total_1 = (_e125 + (((_e126 - 0.5) * 2.0) * _e131));
+                            float _e134 = amp_10;
+                            float _e136 = n;
+                            const float _e137 = _lerp(1.0, _e136, weighted);
+                            amp_10 = (_e134 * _e137);
+                        }
+                    }
+                }
+            }
+            float _e139 = x_31;
+            x_31 = (_e139 * lacunarity_4);
+            float _e141 = y_31;
+            y_31 = (_e141 * lacunarity_4);
+            float _e143 = amp_10;
+            amp_10 = (_e143 * gain_4);
+        }
+    }
+    float _e148 = total_1;
+    return _e148;
+}
+
+float fractal3_(int noise_type_6, int fractal_type_1, int seed_in_5, float x_in_9, float y_in_9, float z_in_5, int octaves_5, float lacunarity_5, float gain_5, float weighted_1, float ping_pong_1, float bounding_3, int cd_1, int cr_1, float cj_1, int cl_1, float cf_1)
+{
+    int seed_50 = (int)0;
+    float x_32 = (float)0;
+    float y_32 = (float)0;
+    float z_16 = (float)0;
+    float total_2 = 0.0;
+    float amp_11 = (float)0;
+    int octave_6 = int(0);
+    float n_1 = (float)0;
+
+    if ((fractal_type_1 == FRACTAL_NONE)) {
+        const float _e19 = noise_single3_(noise_type_6, seed_in_5, x_in_9, y_in_9, z_in_5, cd_1, cr_1, cj_1, cl_1, cf_1);
+        return _e19;
+    }
+    seed_50 = seed_in_5;
+    x_32 = x_in_9;
+    y_32 = y_in_9;
+    z_16 = z_in_5;
+    amp_11 = ((fractal_type_1 == FRACTAL_RIGID_MULTI) ? 1.0 : bounding_3);
+    uint2 loop_bound_13 = uint2(4294967295u, 4294967295u);
+    bool loop_init_13 = true;
+    while(true) {
+        if (all(loop_bound_13 == uint2(0u, 0u))) { break; }
+        loop_bound_13 -= uint2(loop_bound_13.y == 0u, 1u);
+        if (!loop_init_13) {
+            int _e149 = octave_6;
+            octave_6 = asint(asuint(_e149) + asuint(int(1)));
+        }
+        loop_init_13 = false;
+        int _e33 = octave_6;
+        if ((_e33 < octaves_5)) {
+        } else {
+            break;
+        }
+        {
+            int _e35 = seed_50;
+            float _e36 = x_32;
+            float _e37 = y_32;
+            float _e38 = z_16;
+            const float _e39 = noise_single3_(noise_type_6, _e35, _e36, _e37, _e38, cd_1, cr_1, cj_1, cl_1, cf_1);
+            n_1 = _e39;
+            int _e41 = seed_50;
+            seed_50 = asint(asuint(_e41) + asuint(int(1)));
+            if ((fractal_type_1 == FRACTAL_FBM)) {
+                float _e46 = total_2;
+                float _e47 = n_1;
+                float _e48 = amp_11;
+                total_2 = (_e46 + (_e47 * _e48));
+                float _e51 = amp_11;
+                float _e53 = n_1;
+                const float _e58 = _lerp(1.0, ((_e53 + 1.0) * 0.5), weighted_1);
+                amp_11 = (_e51 * _e58);
+            } else {
+                if ((fractal_type_1 == FRACTAL_RIDGED)) {
+                    float _e62 = n_1;
+                    n_1 = abs(_e62);
+                    float _e64 = total_2;
+                    float _e65 = n_1;
+                    float _e70 = amp_11;
+                    total_2 = (_e64 + (((_e65 * -2.0) + 1.0) * _e70));
+                    float _e73 = amp_11;
+                    float _e75 = n_1;
+                    const float _e78 = _lerp(1.0, (1.0 - _e75), weighted_1);
+                    amp_11 = (_e73 * _e78);
+                } else {
+                    if ((fractal_type_1 == FRACTAL_RIGID_MULTI)) {
+                        float _e82 = n_1;
+                        n_1 = (1.0 - abs(_e82));
+                        float _e86 = total_2;
+                        float _e87 = n_1;
+                        float _e89 = amp_11;
+                        float _e91 = n_1;
+                        float _e92 = amp_11;
+                        int _e94 = octave_6;
+                        total_2 = (_e86 + ((_e94 == int(0)) ? (_e91 * _e92) : (-(_e87) * _e89)));
+                    } else {
+                        if ((fractal_type_1 == FRACTAL_BILLOW)) {
+                            float _e101 = n_1;
+                            n_1 = ((abs(_e101) * 2.0) - 1.0);
+                            float _e107 = total_2;
+                            float _e108 = n_1;
+                            float _e109 = amp_11;
+                            total_2 = (_e107 + (_e108 * _e109));
+                            float _e112 = amp_11;
+                            float _e114 = n_1;
+                            const float _e119 = _lerp(1.0, ((_e114 + 1.0) * 0.5), weighted_1);
+                            amp_11 = (_e112 * _e119);
+                        } else {
+                            float _e121 = n_1;
+                            const float _e125 = _ping_pong(((_e121 + 1.0) * ping_pong_1));
+                            n_1 = _e125;
+                            float _e126 = total_2;
+                            float _e127 = n_1;
+                            float _e132 = amp_11;
+                            total_2 = (_e126 + (((_e127 - 0.5) * 2.0) * _e132));
+                            float _e135 = amp_11;
+                            float _e137 = n_1;
+                            const float _e138 = _lerp(1.0, _e137, weighted_1);
+                            amp_11 = (_e135 * _e138);
+                        }
+                    }
+                }
+            }
+            float _e140 = x_32;
+            x_32 = (_e140 * lacunarity_5);
+            float _e142 = y_32;
+            y_32 = (_e142 * lacunarity_5);
+            float _e144 = z_16;
+            z_16 = (_e144 * lacunarity_5);
+            float _e146 = amp_11;
+            amp_11 = (_e146 * gain_5);
+        }
+    }
+    float _e151 = total_2;
+    return _e151;
+}
+
+float sample_one_2d(float x_33, float y_33)
+{
+    float xf = (float)0;
+    float yf = (float)0;
+
+    int seed_51 = P.seed;
+    int _e9 = P.domain_warp;
+    if ((_e9 != WARP_NONE)) {
+        int _e14 = P.domain_warp;
+        int _e17 = P.warp_fractal;
+        float _e20 = P.warp_amp;
+        float _e23 = P.frequency;
+        int _e26 = P.octaves;
+        float _e29 = P.lacunarity;
+        float _e32 = P.gain;
+        const float2 _e33 = warp2_(_e14, _e17, seed_51, _e20, _e23, _e26, _e29, _e32, x_33, y_33);
+        float _e37 = P.frequency;
+        xf = (_e33.x * _e37);
+        float _e42 = P.frequency;
+        yf = (_e33.y * _e42);
+    } else {
+        float _e46 = P.frequency;
+        xf = (x_33 * _e46);
+        float _e50 = P.frequency;
+        yf = (y_33 * _e50);
+    }
+    int _e54 = P.perturb;
+    if ((_e54 != PERTURB_NONE)) {
+        int _e59 = P.perturb;
+        float _e62 = P.fractal_bounding;
+        float _e65 = P.perturb_amp;
+        float _e68 = P.perturb_frequency;
+        int _e71 = P.perturb_octaves;
+        float _e74 = P.perturb_lacunarity;
+        float _e77 = P.perturb_gain;
+        float _e80 = P.perturb_normalise_length;
+        float _e83 = P.frequency;
+        float _e85 = xf;
+        float _e86 = yf;
+        const float2 _e87 = perturb2_(_e59, seed_51, _e62, _e65, _e68, _e71, _e74, _e77, (_e80 * _e83), _e85, _e86);
+        xf = _e87.x;
+        yf = _e87.y;
+    }
+    int _e92 = P.noise_type;
+    float _e93 = xf;
+    float _e94 = yf;
+    const float2 _e95 = _transform2_(_e92, _e93, _e94);
+    int _e98 = P.noise_type;
+    int _e101 = P.fractal_type;
+    int _e106 = P.octaves;
+    float _e109 = P.lacunarity;
+    float _e112 = P.gain;
+    float _e115 = P.weighted_strength;
+    float _e118 = P.ping_pong_strength;
+    float _e121 = P.fractal_bounding;
+    int _e124 = P.cellular_distance;
+    int _e127 = P.cellular_return;
+    float _e130 = P.cellular_jitter;
+    int _e133 = P.cellular_lookup_type;
+    float _e136 = P.cellular_lookup_frequency;
+    const float _e137 = fractal2_(_e98, _e101, seed_51, _e95.x, _e95.y, _e106, _e109, _e112, _e115, _e118, _e121, _e124, _e127, _e130, _e133, _e136);
+    return _e137;
+}
+
+float sample_one_3d(float x_34, float y_34, float z_17)
+{
+    float xf_1 = (float)0;
+    float yf_1 = (float)0;
+    float zf = (float)0;
+
+    int seed_52 = P.seed;
+    int _e11 = P.domain_warp;
+    if ((_e11 != WARP_NONE)) {
+        int _e16 = P.domain_warp;
+        int _e19 = P.warp_fractal;
+        int _e22 = P.warp_transform_3d;
+        float _e25 = P.warp_amp;
+        float _e28 = P.frequency;
+        int _e31 = P.octaves;
+        float _e34 = P.lacunarity;
+        float _e37 = P.gain;
+        const float3 _e38 = warp3_(_e16, _e19, _e22, seed_52, _e25, _e28, _e31, _e34, _e37, x_34, y_34, z_17);
+        float _e42 = P.frequency;
+        xf_1 = (_e38.x * _e42);
+        float _e47 = P.frequency;
+        yf_1 = (_e38.y * _e47);
+        float _e52 = P.frequency;
+        zf = (_e38.z * _e52);
+    } else {
+        float _e56 = P.frequency;
+        xf_1 = (x_34 * _e56);
+        float _e60 = P.frequency;
+        yf_1 = (y_34 * _e60);
+        float _e64 = P.frequency;
+        zf = (z_17 * _e64);
+    }
+    int _e68 = P.perturb;
+    if ((_e68 != PERTURB_NONE)) {
+        int _e73 = P.perturb;
+        float _e76 = P.fractal_bounding;
+        float _e79 = P.perturb_amp;
+        float _e82 = P.perturb_frequency;
+        int _e85 = P.perturb_octaves;
+        float _e88 = P.perturb_lacunarity;
+        float _e91 = P.perturb_gain;
+        float _e94 = P.perturb_normalise_length;
+        float _e97 = P.frequency;
+        float _e99 = xf_1;
+        float _e100 = yf_1;
+        float _e101 = zf;
+        const float3 _e102 = perturb3_(_e73, seed_52, _e76, _e79, _e82, _e85, _e88, _e91, (_e94 * _e97), _e99, _e100, _e101);
+        xf_1 = _e102.x;
+        yf_1 = _e102.y;
+        zf = _e102.z;
+    }
+    int _e108 = P.transform_3d;
+    float _e109 = xf_1;
+    float _e110 = yf_1;
+    float _e111 = zf;
+    const float3 _e112 = _transform3_(_e108, _e109, _e110, _e111);
+    int _e115 = P.noise_type;
+    int _e118 = P.fractal_type;
+    int _e124 = P.octaves;
+    float _e127 = P.lacunarity;
+    float _e130 = P.gain;
+    float _e133 = P.weighted_strength;
+    float _e136 = P.ping_pong_strength;
+    float _e139 = P.fractal_bounding;
+    int _e142 = P.cellular_distance;
+    int _e145 = P.cellular_return;
+    float _e148 = P.cellular_jitter;
+    int _e151 = P.cellular_lookup_type;
+    float _e154 = P.cellular_lookup_frequency;
+    const float _e155 = fractal3_(_e115, _e118, seed_52, _e112.x, _e112.y, _e112.z, _e124, _e127, _e130, _e133, _e136, _e139, _e142, _e145, _e148, _e151, _e154);
+    return _e155;
+}
+
+uint point_index(uint3 gid_5)
+{
+    return (gid_5.x + (gid_5.y * 4194240u));
+}
+
+uint NagaBufferLengthRW(RWByteAddressBuffer buffer)
+{
+    uint ret;
+    buffer.GetDimensions(ret);
+    return ret;
+}
+
+[numthreads(64, 1, 1)]
+void sample_points_3d(uint3 gid : SV_DispatchThreadID)
+{
+    const uint _e1 = point_index(gid);
+    if ((_e1 >= ((NagaBufferLengthRW(OUT) - 0) / 4))) {
+        return;
+    }
+    float _e9 = asfloat(XS.Load(_e1*4));
+    float _e12 = asfloat(YS.Load(_e1*4));
+    float _e15 = asfloat(ZS.Load(_e1*4));
+    const float _e16 = sample_one_3d(_e9, _e12, _e15);
+    OUT.Store(_e1*4, asuint(_e16));
+    return;
+}
+
+[numthreads(64, 1, 1)]
+void sample_points_2d(uint3 gid_1 : SV_DispatchThreadID)
+{
+    const uint _e1 = point_index(gid_1);
+    if ((_e1 >= ((NagaBufferLengthRW(OUT) - 0) / 4))) {
+        return;
+    }
+    float _e9 = asfloat(XS.Load(_e1*4));
+    float _e12 = asfloat(YS.Load(_e1*4));
+    const float _e13 = sample_one_2d(_e9, _e12);
+    OUT.Store(_e1*4, asuint(_e13));
+    return;
+}
+
+uint naga_mod(uint lhs, uint rhs) {
+    return lhs % (rhs == 0u ? 1u : rhs);
+}
+
+uint naga_div(uint lhs, uint rhs) {
+    return lhs / (rhs == 0u ? 1u : rhs);
+}
+
+[numthreads(64, 1, 1)]
+void sample_grid(uint3 gid_2 : SV_DispatchThreadID)
+{
+    const uint _e1 = point_index(gid_2);
+    if ((_e1 >= ((NagaBufferLengthRW(OUT) - 0) / 4))) {
+        return;
+    }
+    uint _e7 = G.nz;
+    uint iz = naga_mod(_e1, _e7);
+    uint _e11 = G.nz;
+    uint _e15 = G.ny;
+    uint iy = naga_mod(naga_div(_e1, _e11), _e15);
+    uint _e19 = G.nz;
+    uint _e22 = G.ny;
+    uint ix = naga_div(_e1, (_e19 * _e22));
+    int _e27 = G.x0_;
+    float _e33 = G.sx;
+    float x_38 = (float(asint(asuint(_e27) + asuint(int(ix)))) * _e33);
+    int _e37 = G.y0_;
+    float _e43 = G.sy;
+    float y_38 = (float(asint(asuint(_e37) + asuint(int(iy)))) * _e43);
+    int _e47 = G.z0_;
+    float _e53 = G.sz;
+    float z_19 = (float(asint(asuint(_e47) + asuint(int(iz)))) * _e53);
+    const float _e57 = sample_one_3d(x_38, y_38, z_19);
+    OUT.Store(_e1*4, asuint(_e57));
+    return;
+}
+
+[numthreads(64, 1, 1)]
+void warp_points_3d(uint3 gid_3 : SV_DispatchThreadID)
+{
+    const uint _e1 = point_index(gid_3);
+    if (((3u * _e1) >= ((NagaBufferLengthRW(OUT) - 0) / 4))) {
+        return;
+    }
+    int _e9 = P.domain_warp;
+    int _e12 = P.warp_fractal;
+    int _e15 = P.warp_transform_3d;
+    int _e18 = P.seed;
+    float _e21 = P.warp_amp;
+    float _e24 = P.frequency;
+    int _e27 = P.octaves;
+    float _e30 = P.lacunarity;
+    float _e33 = P.gain;
+    float _e36 = asfloat(XS.Load(_e1*4));
+    float _e39 = asfloat(YS.Load(_e1*4));
+    float _e42 = asfloat(ZS.Load(_e1*4));
+    const float3 _e43 = warp3_(_e9, _e12, _e15, _e18, _e21, _e24, _e27, _e30, _e33, _e36, _e39, _e42);
+    OUT.Store((3u * _e1)*4, asuint(_e43.x));
+    OUT.Store(((3u * _e1) + 1u)*4, asuint(_e43.y));
+    OUT.Store(((3u * _e1) + 2u)*4, asuint(_e43.z));
+    return;
+}
+
+[numthreads(64, 1, 1)]
+void warp_points_2d(uint3 gid_4 : SV_DispatchThreadID)
+{
+    const uint _e1 = point_index(gid_4);
+    if (((2u * _e1) >= ((NagaBufferLengthRW(OUT) - 0) / 4))) {
+        return;
+    }
+    int _e9 = P.domain_warp;
+    int _e12 = P.warp_fractal;
+    int _e15 = P.seed;
+    float _e18 = P.warp_amp;
+    float _e21 = P.frequency;
+    int _e24 = P.octaves;
+    float _e27 = P.lacunarity;
+    float _e30 = P.gain;
+    float _e33 = asfloat(XS.Load(_e1*4));
+    float _e36 = asfloat(YS.Load(_e1*4));
+    const float2 _e37 = warp2_(_e9, _e12, _e15, _e18, _e21, _e24, _e27, _e30, _e33, _e36);
+    OUT.Store((2u * _e1)*4, asuint(_e37.x));
+    OUT.Store(((2u * _e1) + 1u)*4, asuint(_e37.y));
+    return;
+}

@@ -57,6 +57,20 @@ The sampler has the same calls as the CPU ones. `HOG_NOISE_WGPU_ADAPTER` picks a
 
 What it claims: it is float32, so it is close to the CPU's numbers, not equal to them. Every feature is held to a bound per feature, measured on four GPU adapters (an RTX 5090, two builds of Windows' WARP and Mesa's llvmpipe) and written down in [a tolerance file](vectors/README.md#tolerance-files), over what the vectors sample: frequency 0.01 and coordinates up to 4,096 units. Nothing is claimed outside that, and nothing about speed: it has not been benchmarked.
 
+### The same shader in another host
+
+For a host that does not run WGSL, the package also ships the shader as naga translates it: HLSL (Shader Model 5.0 and 6.0), GLSL 4.30 (one file per entry point) and SPIR-V, with the lookup tables as raw float32 and a manifest of every binding. `hog_noise.shaders` reads them with no `wgpu` and no GPU, only numpy, the package's one dependency:
+
+```python
+from hog_noise import shaders
+
+hlsl = shaders.source("hlsl")
+glsl = shaders.source("glsl", "sample_points_3d")
+table = shaders.tables()  # what binding 1 holds
+```
+
+What is proven on every push: each file is what the pinned naga writes from the current WGSL, and each compiles or validates in its own language's tools (FXC and DXC, glslang, spirv-val). What is not: no host has run them against the vectors yet. Metal is not shipped. The bindings, the dispatch and how to fill the uniforms are in [the shaders' README](packages/python/hog-noise/src/hog_noise/shaders/README.md).
+
 ## What's in it
 
 - **Noise:** OpenSimplex2, OpenSimplex2S, classic Simplex (FastNoiseSIMD's, so old seeds reproduce), Perlin, Value, ValueCubic, Cellular, white noise.
@@ -82,7 +96,7 @@ So I ported it, with AI, in days to weeks rather than the weeks to months it wou
 ## Limits
 
 - 2D and 3D only: no 4D, no derivatives, no tileable noise yet.
-- The GPU rung is float32 and measured only at frequency 0.01 out to 4,096 units; far from the origin it drifts further, and that is a later stage of the roadmap. It is not benchmarked, and it runs WGSL only: no HLSL, GLSL or Metal files yet.
+- The GPU rung is float32 and measured only at frequency 0.01 out to 4,096 units; far from the origin it drifts further, and that is a later stage of the roadmap. It is not benchmarked. The HLSL, GLSL and SPIR-V files compile, but no host has run them against the vectors yet, and there is no Metal file.
 - Close to, not byte-identical with, the originals: the maths is float64 after the frequency multiply.
 - For now, if you need 4D, a node editor or raw C++ speed, [FastNoise2](https://github.com/Auburn/FastNoise2) is the one to use.
 

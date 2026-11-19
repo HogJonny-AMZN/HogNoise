@@ -356,7 +356,7 @@ def test_no_marker_says_which_and_where(tmp_path):
   is next.
 - [x] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
   `hog_noise`, and both packages are in `[layers]` from Task 2, Step 7).
-- [ ] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
+- [x] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
   `gh pr checks <n> --watch` green on every leg, the probe jobs included. The owner merges.
 
 ---
@@ -369,7 +369,7 @@ It opens as a draft at Task 5's first push.
 **Files:** modify `packages/python/hog-noise/src/hog_noise/tables.py`, `gpu.py`; test in
 `packages/python/hog-noise/tests/test_shaders.py` (created here).
 
-- [ ] **Step 1: the failing test.** Create `test_shaders.py` with:
+- [x] **Step 1: the failing test.** Create `test_shaders.py` with:
 
 ```python
 """
@@ -389,9 +389,9 @@ def test_the_binding_table_is_the_four_tables_in_order():
     assert np.array_equal(t, np.concatenate(parts))
 ```
 
-- [ ] **Step 2:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`. Expected: FAIL,
+- [x] **Step 2:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`. Expected: FAIL,
   `AttributeError: module 'hog_noise.tables' has no attribute 'binding_table'`.
-- [ ] **Step 3:** Add to `tables.py`, after `RAND_VECS_3D`:
+- [x] **Step 3:** Add to `tables.py`, after `RAND_VECS_3D`:
 
 ```python
 def binding_table() -> NDArray[np.float32]:
@@ -401,14 +401,14 @@ def binding_table() -> NDArray[np.float32]:
 ```
 
   and in `gpu.py:203` replace the inline `np.concatenate([...])` with `table = tables.binding_table()`.
-- [ ] **Step 4:** The new test passes; `uv run --group gpu pytest packages/python/hog-noise/tests/test_gpu.py -q` passes
+- [x] **Step 4:** The new test passes; `uv run --group gpu pytest packages/python/hog-noise/tests/test_gpu.py -q` passes
   as before. **Commit**.
 
 ### Task 6: `hog_noise.shaders`, the accessors and the shared hash
 
 **Files:** create `packages/python/hog-noise/src/hog_noise/shaders/__init__.py`; extend `test_shaders.py`.
 
-- [ ] **Step 1: the failing tests.** Append to `test_shaders.py`:
+- [x] **Step 1: the failing tests.** Append to `test_shaders.py`:
 
 ```python
 import subprocess
@@ -451,8 +451,8 @@ def test_wgsl_is_the_rungs_source():
     assert "@compute" in shaders.source("wgsl")
 ```
 
-- [ ] **Step 2:** Run them. Expected: FAIL, `ImportError: cannot import name 'shaders'`.
-- [ ] **Step 3:** Write `shaders/__init__.py`:
+- [x] **Step 2:** Run them. Expected: FAIL, `ImportError: cannot import name 'shaders'`.
+- [x] **Step 3:** Write `shaders/__init__.py`:
 
 ```python
 """
@@ -543,7 +543,7 @@ if __name__ == "__main__":
             print(f"{lang:6} {ep or '':18} {path(lang, ep)}")
 ```
 
-- [ ] **Step 4:** The Step 1 tests pass (the ones reading emitted files wait for Task 8). The package boundary test
+- [x] **Step 4:** The Step 1 tests pass (the ones reading emitted files wait for Task 8). The package boundary test
   passes: the module imports the standard library only. **Commit**.
 
 ### Task 7: the emitter, test first, P-13 from the start
@@ -552,7 +552,7 @@ if __name__ == "__main__":
 `apps/hog-noise-tools/src/hog_noise_tools/emit_shaders.py`, `apps/hog-noise-tools/tests/test_emit_shaders.py`; the
 app's `[project.scripts]` gains `hog-noise-emit-shaders = "hog_noise_tools.emit_shaders:main"`.
 
-- [ ] **Step 1: the failing tests.** They drive the emitter with a fake naga, a Python script that prints a version and
+- [x] **Step 1: the failing tests.** They drive the emitter with a fake naga, a Python script that prints a version and
   writes a file for each output it is asked for, so they need no naga:
 
 ```python
@@ -664,8 +664,8 @@ def test_the_pin_is_one_line_in_one_file():
     assert e.pinned_version() == "29.0.2"
 ```
 
-- [ ] **Step 2:** `uv run pytest apps/hog-noise-tools/tests/test_emit_shaders.py -q`. Expected: FAIL at import.
-- [ ] **Step 3:** Write `emit_shaders.py`:
+- [x] **Step 2:** `uv run pytest apps/hog-noise-tools/tests/test_emit_shaders.py -q`. Expected: FAIL at import.
+- [x] **Step 3:** Write `emit_shaders.py`:
 
 ```python
 """
@@ -856,7 +856,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4:** The tests pass. Then a test of `bindings` on the real emitted files waits for Task 8; there, append to
+- [x] **Step 4:** The tests pass. Then a test of `bindings` on the real emitted files waits for Task 8; there, append to
   `test_shaders.py` a check that the manifest's `bindings` give HLSL `b0, t1, t2, t3, t4, u5, b6` for bindings 0 to 6
   and the GLSL variable `_group_0_binding_<n>_cs` for each, with a block named in every entry point that uses it.
   **Commit**.
@@ -866,7 +866,7 @@ if __name__ == "__main__":
 **Files:** modify `.gitattributes`, `Makefile`; create `packages/python/hog-noise/src/hog_noise/shaders/*` (generated);
 extend `test_shaders.py`.
 
-- [ ] **Step 1:** `.gitattributes`, after the `*.py` block:
+- [x] **Step 1:** `.gitattributes`, after the `*.py` block:
 
 ```text
 # The WGSL and the shaders naga writes from it: LF on every checkout, so a hash is the same everywhere (the stage 3 spec).
@@ -878,10 +878,10 @@ extend `test_shaders.py`.
 
   then `git add --renormalize .` and `git status`: expected, nothing but `.gitattributes` (the WGSL is already LF in the
   index).
-- [ ] **Step 2:** `Makefile`: `shaders` joins `.PHONY`, the help gains
+- [x] **Step 2:** `Makefile`: `shaders` joins `.PHONY`, the help gains
   `@echo   make shaders     - write the HLSL, GLSL, SPIR-V, tables and manifest from noise.wgsl with the pinned naga`,
   and the recipe is `uv run hog-noise-emit-shaders`. `uv run pytest tests/test_tooling.py -q` passes.
-- [ ] **Step 3:** Build the pinned naga outside `PATH` and emit:
+- [x] **Step 3:** Build the pinned naga outside `PATH` and emit:
 
 ```bash
 cargo install naga-cli --version "$(cat apps/hog-noise-tools/naga-version.txt)" --locked --root "$HOME/.naga-29"
@@ -890,7 +890,7 @@ HOG_NOISE_NAGA="$HOME/.naga-29/bin/naga" make shaders && git status --short pack
 ```
 
   Expected: the first run writes nine files; the second changes nothing (spec acceptance 1).
-- [ ] **Step 4: the drift tests.** Append to `test_shaders.py`:
+- [x] **Step 4: the drift tests.** Append to `test_shaders.py`:
 
 ```python
 def test_the_manifest_names_the_current_wgsl():
@@ -926,19 +926,19 @@ def test_the_shaders_need_no_wgpu():
     assert int(done.stdout) > 100_000
 ```
 
-- [ ] **Step 5:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`: all pass.
-- [ ] **Step 6: prove the instrument** (spec acceptance 3). Change one byte of `noise.wgsl` (a digit in a comment), run
+- [x] **Step 5:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`: all pass.
+- [x] **Step 6: prove the instrument** (spec acceptance 3). Change one byte of `noise.wgsl` (a digit in a comment), run
   the drift tests: expected, `test_the_manifest_names_the_current_wgsl` FAILS with "make shaders". Revert with
   `git checkout -- packages/python/hog-noise/src/hog_noise/wgsl/noise.wgsl`; they pass. Paste both outputs into the pull
   request. Then the same for one float in `tables.py`, failing `test_the_tables_file_is_the_tables_module`; revert.
-- [ ] **Step 7:** **Commit** the generated files with the attributes and the Makefile ("The emitted shaders").
+- [x] **Step 7:** **Commit** the generated files with the attributes and the Makefile ("The emitted shaders").
 
 ### Task 9: the compile script
 
 **Files:** create `apps/hog-noise-tools/src/hog_noise_tools/compile_shaders.py` and its test; the app's scripts gain
 `hog-noise-compile-shaders = "hog_noise_tools.compile_shaders:main"`.
 
-- [ ] **Step 1: the failing tests**, with `subprocess.run` and the finder replaced:
+- [x] **Step 1: the failing tests**, with `subprocess.run` and the finder replaced:
 
 ```python
 """
@@ -995,8 +995,8 @@ def test_a_compile_error_fails_with_its_output(monkeypatch, calls, capsys):
     assert "X3000" in capsys.readouterr().err
 ```
 
-- [ ] **Step 2:** Run them. Expected: FAIL at import.
-- [ ] **Step 3:** Write `compile_shaders.py`:
+- [x] **Step 2:** Run them. Expected: FAIL at import.
+- [x] **Step 3:** Write `compile_shaders.py`:
 
 ```python
 """
@@ -1083,7 +1083,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4:** The tests pass. On this machine, `uv run hog-noise-compile-shaders hlsl` (the real fxc and dxc):
+- [x] **Step 4:** The tests pass. On this machine, `uv run hog-noise-compile-shaders hlsl` (the real fxc and dxc):
   exit 0, ten `ok` lines; paste them into the pull request. `glsl` and `spirv` exit 2 here (not installed) and run in CI.
   **Commit**.
 
@@ -1091,7 +1091,7 @@ if __name__ == "__main__":
 
 **Files:** rewrite `.github/workflows/shaders.yml` (the probe from Task 1 is on `main` by now).
 
-- [ ] **Step 1:** Replace its jobs with three:
+- [x] **Step 1:** Replace its jobs with three:
 
 ```yaml
 jobs:
@@ -1137,49 +1137,49 @@ jobs:
 ```
 
   Use the `actions/cache` and `astral-sh/setup-uv` versions `ci.yml` already pins, if they differ from these.
-- [ ] **Step 2:** Push; `gh pr checks <n> --watch`; read each job's log: the regeneration job's `git diff` empty, ten HLSL
+- [x] **Step 2:** Push; `gh pr checks <n> --watch`; read each job's log: the regeneration job's `git diff` empty, ten HLSL
   `ok` lines, five GLSL and one SPIR-V. **If GLSL fails** on `core430` (glslang reads the `#version 430 core` naga
   writes), stop and bring the error to the owner: decision 4 is theirs.
-- [ ] **Step 3: prove the regeneration job can fail.** Push a commit that edits one line of `noise.hlsl` and its hash in
+- [x] **Step 3: prove the regeneration job can fail.** Push a commit that edits one line of `noise.hlsl` and its hash in
   the manifest together; the `regenerate` job fails on the diff while the drift test passes. Revert in the next commit;
   link both runs in the pull request.
 
 ### Task 11: the shipped README and the wheel
 
-- [ ] **Step 1:** Write `packages/python/hog-noise/src/hog_noise/shaders/README.md`: the files and that they are
+- [x] **Step 1:** Write `packages/python/hog-noise/src/hog_noise/shaders/README.md`: the files and that they are
   generated (`make shaders`, never edited); the binding table per language (from `manifest.json`'s `bindings`, the
   HLSL register, the GLSL variable, the SPIR-V set and binding); the workgroup size and the dispatch rule; how to fill
   the two uniforms (`hog_noise.gpu.pack_params(params)`, `pack_grid(start, shape, scales)`, which need no `wgpu`) and
   binding 1 (`shaders.tables()`, or `tables.f32` from a host with no Python); GLSL binds by naga's names, and Metal is not
   shipped (the spec's decision 1).
-- [ ] **Step 2:** `gpu.pack_params` and `gpu.pack_grid` docstrings say they are the documented way a host fills the
+- [x] **Step 2:** `gpu.pack_params` and `gpu.pack_grid` docstrings say they are the documented way a host fills the
   uniforms, linking the README.
-- [ ] **Step 3:** `uv build --package hog-noise --out-dir dist-check`, then list the wheel with a script file (P-14, never
+- [x] **Step 3:** `uv build --package hog-noise --out-dir dist-check`, then list the wheel with a script file (P-14, never
   `python -`) that opens it with `zipfile` and prints every name under `hog_noise/shaders/`. Expected: `__init__.py`,
   `README.md` and the nine emitted files. Delete `dist-check/`. **Commit**.
 
 ### Task 12: the documents
 
-- [ ] `README.md` and `llms.txt`: the shaders ship (HLSL SM 5.0, GLSL 430, SPIR-V), how to read them
+- [x] `README.md` and `llms.txt`: the shaders ship (HLSL SM 5.0, GLSL 430, SPIR-V), how to read them
   (`hog_noise.shaders`), what is proven (each compiles, each matches the WGSL it came from) and what is not (no host runs
   them against the vectors yet; Metal is not shipped).
-- [ ] `Docs/glossary.md`: **Emitted shader** and **Shader manifest** lose "(spec, Accepted)" for the built module's
+- [x] `Docs/glossary.md`: **Emitted shader** and **Shader manifest** lose "(spec, Accepted)" for the built module's
   link; no new term (the compile script and the pin file are not concepts).
-- [ ] `Docs/standards/testing-project.md`: the drift test, the regeneration job, the compile jobs, `HOG_NOISE_NAGA`,
+- [x] `Docs/standards/testing-project.md`: the drift test, the regeneration job, the compile jobs, `HOG_NOISE_NAGA`,
   and *Generated files* gains `hog_noise/shaders/`.
-- [ ] `Docs/standards/python-project.md`, *The package boundary*: `hog_noise.shaders` is standard library only.
-- [ ] `uv run python tools/check.py`, unpiped: every stage passes. **Commit** ("Documents: the emitted shaders").
+- [x] `Docs/standards/python-project.md`, *The package boundary*: `hog_noise.shaders` is standard library only.
+- [x] `uv run python tools/check.py`, unpiped: every stage passes. **Commit** ("Documents: the emitted shaders").
 
 ### Task 13: the review, the records, out of draft
 
-- [ ] The board row `2026-11-01-gpu-fast-track.md`: stage 3 landed with the pull request linked; the design's three
+- [x] The board row `2026-11-01-gpu-fast-track.md`: stage 3 landed with the pull request linked; the design's three
   stages done.
-- [ ] `Docs/handoffs/CURRENT.md`: the GPU row; the PyPI row's condition ("numpy, WGSL and at least HLSL") now met, so the
+- [x] `Docs/handoffs/CURRENT.md`: the GPU row; the PyPI row's condition ("numpy, WGSL and at least HLSL") now met, so the
   release waits only on the owner's go.
-- [ ] The journal: an entry in the build's session file, for a person: what naga wrote, what each compiler said, any
+- [x] The journal: an entry in the build's session file, for a person: what naga wrote, what each compiler said, any
   finding.
-- [ ] The deliberate review (`local-review` skill) of the whole diff, findings answered in *Review* (P-8).
-- [ ] The pull request body: *Verified* (the test counts, the two emitter runs, the instrument's two failures, the
+- [x] The deliberate review (`local-review` skill) of the whole diff, findings answered in *Review* (P-8).
+- [x] The pull request body: *Verified* (the test counts, the two emitter runs, the instrument's two failures, the
   compile logs, the wheel listing), *Decisions* (this plan's table and anything the build added), *Not covered*
   (running the files against the vectors; Metal; PyPI).
 - [ ] `gh pr checks <n> --watch`: every leg green, the three shader jobs included. Out of draft. The owner merges.

@@ -10,8 +10,15 @@ except `wgpu` (`gpu`) in `gpu.py`, behind the override-only `wgpu` rung (the GPU
 project. `gpu.py` imports `wgpu` inside its functions, never at the top, so importing `hog_noise` or using any other
 rung never loads it. `packages/python/hog-noise/tests/test_package_boundary.py` enforces it two ways: a static scan of
 every import, with `wgpu` allowed in `gpu.py` alone (`MODULE_ALLOWED`), and a fresh interpreter that refuses the
-forbidden names, `wgpu` among them, and still imports the package and samples the default ladder. The `[layers]` table in `framework.toml` has one layer,
-`hog_noise`; it is not `pure`, because it imports numpy.
+forbidden names, `wgpu` among them, and still imports the package and samples the default ladder.
+
+`hog_noise.shaders`, which serves the emitted shaders, imports the standard library only, so reading a shader needs no
+`wgpu` and no GPU; `test_shaders.py` holds the module there, and reads one with `wgpu` refused. Importing it still runs
+`hog_noise/__init__.py`, which imports numpy, the package's one dependency: the module adds nothing, the package is not
+numpy-free.
+
+The `[layers]` table in `framework.toml` has two layers: `hog_noise`, then `hog_noise_tools`, the app of HogNoise's own
+tools, which may import `hog_noise` and nothing the other way. Neither is `pure`: both import numpy.
 
 **A new runtime dependency is a decision**, not a convenience: numpy is the only one. Prefer what is already declared.
 

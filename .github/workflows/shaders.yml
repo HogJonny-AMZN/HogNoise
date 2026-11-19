@@ -1,29 +1,60 @@
 name: shaders
 
+# The emitted shaders (stage 3): they are what the pinned naga writes from noise.wgsl, and each compiles in its own
+# language's tools. The drift tests in tests.yml hold every file to its manifest; this holds the manifest to naga.
+
 on:
   push:
     branches: [main]
   pull_request:
 
 jobs:
-  probe-windows:
-    name: compilers (Windows)
-    runs-on: windows-latest
-    steps:
-      - name: Find FXC and DXC
-        shell: pwsh
-        run: |
-          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Include fxc.exe,dxc.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match '\\x64\\' } | ForEach-Object { $_.FullName }
-          Get-Command dxc.exe -ErrorAction SilentlyContinue | ForEach-Object { "on PATH: $($_.Source)" }
-  probe-ubuntu:
-    name: compilers and naga (Ubuntu)
+  regenerate:
+    # Every push, unconditionally: a hand edit, or a shader and its hash edited together, fails here.
+    name: the shaders are what the pinned naga writes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install glslang and SPIR-V tools
-        run: sudo apt-get update && sudo apt-get install -y glslang-tools spirv-tools
-      - name: Versions
-        run: glslangValidator --version && spirv-val --version
-      - name: Build naga-cli 29.0.2, timed
-        run: time cargo install naga-cli --version 29.0.2 --locked
+      - name: The naga pin
+        run: echo "NAGA=$(cat apps/hog-noise-tools/naga-version.txt)" >> "$GITHUB_ENV"
+      - uses: actions/cache@v6
+        id: naga
+        with:
+          path: ~/.naga
+          key: naga-cli-${{ env.NAGA }}-${{ runner.os }}
+      - name: Build naga-cli
+        if: steps.naga.outputs.cache-hit != 'true'
+        run: cargo install naga-cli --version "$NAGA" --locked --root ~/.naga
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv python install
+      - run: uv sync --group dev
+      - name: Emit
+        run: HOG_NOISE_NAGA=~/.naga/bin/naga uv run hog-noise-emit-shaders
+      - name: Nothing changed
+        # A diff catches an edited file; the status catches one the emitter wrote that is not committed.
+        run: git diff --exit-code && test -z "$(git status --porcelain)"
+  hlsl:
+    name: HLSL in FXC and DXC (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv python install
+      - run: uv sync --group dev
+      - run: uv run hog-noise-compile-shaders hlsl
+  glsl-spirv:
+    name: GLSL in glslang, SPIR-V in spirv-val (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y glslang-tools spirv-tools
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv python install
+      - run: uv sync --group dev
+      - run: uv run hog-noise-compile-shaders glsl spirv

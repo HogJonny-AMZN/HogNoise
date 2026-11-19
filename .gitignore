@@ -24,3 +24,7 @@ vectors/manifest.json.new
 # (Docs/standards/updating.md, a release that adds a renderer)
 Docs/plan/BOARD.md
 Docs/journal/INDEX.md
+
+# The shader emitter builds in a temporary folder beside hog_noise/shaders/ and removes it; one left by a killed run
+# is debris, never content.
+packages/python/hog-noise/src/hog_noise/.emit-*/
