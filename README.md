@@ -59,7 +59,7 @@ What it claims: it is float32, so it is close to the CPU's numbers, not equal to
 
 ### The same shader in another host
 
-For a host that does not run WGSL, the package also ships the shader as naga translates it: HLSL (Shader Model 5.0 and 6.0), GLSL 4.30 (one file per entry point) and SPIR-V, with the lookup tables as raw float32 and a manifest of every binding. `hog_noise.shaders` reads them and needs only the standard library:
+For a host that does not run WGSL, the package also ships the shader as naga translates it: HLSL (Shader Model 5.0 and 6.0), GLSL 4.30 (one file per entry point) and SPIR-V, with the lookup tables as raw float32 and a manifest of every binding. `hog_noise.shaders` reads them with no `wgpu` and no GPU, only numpy, the package's one dependency:
 
 ```python
 from hog_noise import shaders

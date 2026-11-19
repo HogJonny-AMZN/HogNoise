@@ -12,8 +12,10 @@ rung never loads it. `packages/python/hog-noise/tests/test_package_boundary.py` 
 every import, with `wgpu` allowed in `gpu.py` alone (`MODULE_ALLOWED`), and a fresh interpreter that refuses the
 forbidden names, `wgpu` among them, and still imports the package and samples the default ladder.
 
-`hog_noise.shaders`, which serves the emitted shaders, imports the standard library only, not even numpy, so a host that
-reads a shader needs nothing else; `test_shaders.py` holds it there, and reads one with `wgpu` refused.
+`hog_noise.shaders`, which serves the emitted shaders, imports the standard library only, so reading a shader needs no
+`wgpu` and no GPU; `test_shaders.py` holds the module there, and reads one with `wgpu` refused. Importing it still runs
+`hog_noise/__init__.py`, which imports numpy, the package's one dependency: the module adds nothing, the package is not
+numpy-free.
 
 The `[layers]` table in `framework.toml` has two layers: `hog_noise`, then `hog_noise_tools`, the app of HogNoise's own
 tools, which may import `hog_noise` and nothing the other way. Neither is `pure`: both import numpy.

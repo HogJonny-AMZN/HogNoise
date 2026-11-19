@@ -3,9 +3,9 @@ HogNoise: the emitted shaders, naga's HLSL, GLSL and SPIR-V of ``noise.wgsl``, a
 Package: hog_noise.shaders
 
 Every file here except this module and ``README.md`` is written by ``make shaders`` (the app's ``emit_shaders.py``) and
-never edited by hand; ``manifest.json`` records the run. Standard library only: a host reading a shader needs neither
-numpy's GPU code nor ``wgpu``. ``sha256`` is the one hash the emitter and the drift test share, so a Windows checkout
-(CRLF) and an Ubuntu one (LF) agree.
+never edited by hand; ``manifest.json`` records the run. This module imports the standard library only, so reading a
+shader needs no ``wgpu``; importing it runs the package's ``__init__``, which imports numpy. ``sha256`` is the one hash
+the emitter and the drift test share, so a Windows checkout (CRLF) and an Ubuntu one (LF) agree.
 """
 
 from __future__ import annotations

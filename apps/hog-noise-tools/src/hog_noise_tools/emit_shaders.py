@@ -47,11 +47,14 @@ DISPATCH = "point_index = gid.x + gid.y * 65535 * 64"
 TIMEOUT = 300
 #: Names this emitter owns in the destination; anything else there (README.md, __init__.py) is left alone.
 _OWNED = re.compile(r"^(noise\.[\w.]+|tables\.f32|manifest\.json)$")
-#: A WGSL resource declaration, its two attributes in either order (WGSL allows both).
+#: A WGSL resource declaration, its two attributes in either order and with any whitespace (WGSL allows both).
 _WGSL_BINDING = re.compile(
-    r"(?:@group\((?P<g1>\d+)\)\s*@binding\((?P<b1>\d+)\)|@binding\((?P<b2>\d+)\)\s*@group\((?P<g2>\d+)\))"
+    r"(?:@group\s*\(\s*(?P<g1>\d+)\s*\)\s*@binding\s*\(\s*(?P<b1>\d+)\s*\)"
+    r"|@binding\s*\(\s*(?P<b2>\d+)\s*\)\s*@group\s*\(\s*(?P<g2>\d+)\s*\))"
     r"\s*var(?:<[^>]*>)?\s+(?P<name>\w+)"
 )
+#: Every ``@binding`` attribute, read or not: the count the declarations read must reach.
+_WGSL_BINDING_ATTR = re.compile(r"@binding\b")
 
 
 class EmitError(RuntimeError):
@@ -105,12 +108,47 @@ def expected_files() -> set[str]:
     return {name for name, _ in jobs()} | {shaders.TABLES_FILE, shaders.MANIFEST_FILE}
 
 
+def strip_comments(wgsl: str) -> str:
+    """The WGSL without its comments, read left to right as WGSL reads them: ``//`` to the line's end, ``/* */`` nested.
+
+    Each comment becomes one space, so the tokens either side stay apart. An unterminated block comment runs to the end.
+    """
+    out: list[str] = []
+    i, depth, n = 0, 0, len(wgsl)
+    while i < n:
+        pair = wgsl[i : i + 2]
+        if depth:
+            if pair in ("/*", "*/"):
+                depth += 1 if pair == "/*" else -1
+                i += 2
+                if not depth:
+                    out.append(" ")
+            else:
+                i += 1
+        elif pair == "/*":
+            depth, i = 1, i + 2
+        elif pair == "//":
+            end = wgsl.find("\n", i)
+            i = n if end < 0 else end
+            out.append(" ")
+        else:
+            out.append(wgsl[i])
+            i += 1
+    return "".join(out)
+
+
 def wgsl_bindings(wgsl: str) -> list[tuple[int, int, str]]:
-    """``(group, binding, name)`` for every resource the WGSL declares, comments ignored."""
-    code = re.sub(r"//[^\n]*", "", wgsl)
-    return [
-        (int(m["g1"] or m["g2"]), int(m["b1"] or m["b2"]), m["name"]) for m in _WGSL_BINDING.finditer(code)
-    ]  # fmt: skip
+    """``(group, binding, name)`` for every resource the WGSL declares, comments ignored.
+
+    :raises EmitError: When a ``@binding`` attribute is not part of a declaration this reader understands: a binding
+        dropped from the manifest is refused, not written (ledger P-13).
+    """
+    code = strip_comments(wgsl)
+    read = [(int(m["g1"] or m["g2"]), int(m["b1"] or m["b2"]), m["name"]) for m in _WGSL_BINDING.finditer(code)]
+    attrs = len(_WGSL_BINDING_ATTR.findall(code))
+    if attrs != len(read):
+        raise EmitError(f"{attrs} @binding attributes, {len(read)} read: a declaration the emitter cannot parse")
+    return read
 
 
 def declared_bindings() -> list[tuple[int, int, str]]:

@@ -151,6 +151,29 @@ def test_bindings_are_read_in_either_attribute_order_and_never_from_comments():
     assert e.wgsl_bindings(wgsl) == [(0, 0, "P"), (0, 1, "T")]
 
 
+def test_bindings_are_read_with_whitespace_inside_the_attributes():
+    wgsl = (
+        "@group( 0 ) @binding( 6 ) var<uniform> G : Grid;\n"
+        "@group (0)\n@binding (1)\nvar<storage, read> T : array<f32>;\n"
+    )
+    assert e.wgsl_bindings(wgsl) == [(0, 6, "G"), (0, 1, "T")]
+
+
+def test_bindings_are_never_read_from_block_comments_nested_or_not():
+    wgsl = (
+        "/* @group(0) @binding(8) var<uniform> A : Params; */\n"
+        "/* outer /* inner */ @group(0) @binding(9) var<uniform> B : Params; */\n"
+        "/* a // line comment inside */ @group(0) @binding(0) var<uniform> P : Params;\n"
+    )
+    assert e.wgsl_bindings(wgsl) == [(0, 0, "P")]
+
+
+def test_a_binding_the_reader_cannot_parse_is_refused_not_dropped():
+    wgsl = "@group(0) @binding(0) var<uniform> P : Params;\n@binding(1) @group(0) @align(16) var<uniform> Q : Params;\n"
+    with pytest.raises(e.EmitError, match=r"2 @binding attributes, 1 read"):
+        e.wgsl_bindings(wgsl)
+
+
 def test_a_failure_while_replacing_is_partial_names_what_was_replaced_and_leaves_the_manifest(
     monkeypatch, tmp_path, dest
 ):

@@ -5,7 +5,8 @@ written by hand.
 
 HogNoise's noise as compute shaders for a host that does not run WGSL: naga's translation of
 [`noise.wgsl`](../wgsl/noise.wgsl), the shader the wgpu rung runs, into HLSL, GLSL and SPIR-V. Read them with
-`hog_noise.shaders`, which needs only the standard library:
+`hog_noise.shaders`, which needs no `wgpu` and no GPU (only numpy, the package's one dependency), or take the files
+from this folder:
 
 ```python
 from hog_noise import shaders
