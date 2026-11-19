@@ -1178,8 +1178,8 @@ jobs:
   release waits only on the owner's go.
 - [x] The journal: an entry in the build's session file, for a person: what naga wrote, what each compiler said, any
   finding.
-- [ ] The deliberate review (`local-review` skill) of the whole diff, findings answered in *Review* (P-8).
-- [ ] The pull request body: *Verified* (the test counts, the two emitter runs, the instrument's two failures, the
+- [x] The deliberate review (`local-review` skill) of the whole diff, findings answered in *Review* (P-8).
+- [x] The pull request body: *Verified* (the test counts, the two emitter runs, the instrument's two failures, the
   compile logs, the wheel listing), *Decisions* (this plan's table and anything the build added), *Not covered*
   (running the files against the vectors; Metal; PyPI).
 - [ ] `gh pr checks <n> --watch`: every leg green, the three shader jobs included. Out of draft. The owner merges.
