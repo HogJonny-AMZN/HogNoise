@@ -24,6 +24,28 @@ comparison sheet under `vectors/reports/` and waits for a human verdict in `acce
 - `vectors/tolerance/wgpu.json`, `vectors/portability-gpu.md` and a GPU record's `record.md` come from
   `hog-noise-measure-gpu derive`, and each GPU adapter's measurement record under `vectors/reports/gpu/<commit>/` from
   `hog-noise-measure-gpu run`.
+- Every file in `packages/python/hog-noise/src/hog_noise/shaders/` but `__init__.py` and `README.md` comes from
+  `make shaders` (`hog-noise-emit-shaders`), below.
+
+## The emitted shaders
+
+`noise.wgsl` is the source; naga's HLSL, GLSL and SPIR-V of it, `tables.f32` and `manifest.json` are generated. Three
+things hold them:
+
+- **The drift tests** (`packages/python/hog-noise/tests/test_shaders.py`, every `tests.yml` leg): the manifest names the
+  current WGSL's hash, every file matches its manifest entry, and `tables.f32` is `tables.binding_table()`. Each was seen
+  to fail on a one-character change. They fail with "make shaders".
+- **The regeneration job** (`shaders.yml`, `regenerate`): on every push it builds the pinned naga-cli, emits, and fails on
+  any difference or new file. It catches what the drift tests cannot: a shader edited by hand together with its hash.
+- **The compile jobs** (`shaders.yml`, `hlsl` and `glsl-spirv`): `hog-noise-compile-shaders` runs FXC (`cs_5_0`) and DXC
+  (`cs_6_0`) on every entry point on Windows, and `glslangValidator` on each GLSL file and `spirv-val` on the SPIR-V on
+  Ubuntu.
+
+Regenerating locally needs the pinned naga-cli, the version in `apps/hog-noise-tools/naga-version.txt`; the emitter
+refuses any other, with nothing written. **`HOG_NOISE_NAGA`** points at it when the `naga` on `PATH` is another version:
+`cargo install naga-cli --version 29.0.2 --locked --root <folder>`, then `HOG_NOISE_NAGA=<folder>/bin/naga make shaders`.
+A second run changes nothing. The emitter's own tests (`apps/hog-noise-tools/tests/test_emit_shaders.py`) drive it with
+a fake naga, so they need none.
 
 ## The environments that must pass
 

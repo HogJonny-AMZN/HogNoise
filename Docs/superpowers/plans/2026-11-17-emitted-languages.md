@@ -1137,7 +1137,7 @@ jobs:
 ```
 
   Use the `actions/cache` and `astral-sh/setup-uv` versions `ci.yml` already pins, if they differ from these.
-- [ ] **Step 2:** Push; `gh pr checks <n> --watch`; read each job's log: the regeneration job's `git diff` empty, ten HLSL
+- [x] **Step 2:** Push; `gh pr checks <n> --watch`; read each job's log: the regeneration job's `git diff` empty, ten HLSL
   `ok` lines, five GLSL and one SPIR-V. **If GLSL fails** on `core430` (glslang reads the `#version 430 core` naga
   writes), stop and bring the error to the owner: decision 4 is theirs.
 - [ ] **Step 3: prove the regeneration job can fail.** Push a commit that edits one line of `noise.hlsl` and its hash in
@@ -1160,15 +1160,15 @@ jobs:
 
 ### Task 12: the documents
 
-- [ ] `README.md` and `llms.txt`: the shaders ship (HLSL SM 5.0, GLSL 430, SPIR-V), how to read them
+- [x] `README.md` and `llms.txt`: the shaders ship (HLSL SM 5.0, GLSL 430, SPIR-V), how to read them
   (`hog_noise.shaders`), what is proven (each compiles, each matches the WGSL it came from) and what is not (no host runs
   them against the vectors yet; Metal is not shipped).
-- [ ] `Docs/glossary.md`: **Emitted shader** and **Shader manifest** lose "(spec, Accepted)" for the built module's
+- [x] `Docs/glossary.md`: **Emitted shader** and **Shader manifest** lose "(spec, Accepted)" for the built module's
   link; no new term (the compile script and the pin file are not concepts).
-- [ ] `Docs/standards/testing-project.md`: the drift test, the regeneration job, the compile jobs, `HOG_NOISE_NAGA`,
+- [x] `Docs/standards/testing-project.md`: the drift test, the regeneration job, the compile jobs, `HOG_NOISE_NAGA`,
   and *Generated files* gains `hog_noise/shaders/`.
-- [ ] `Docs/standards/python-project.md`, *The package boundary*: `hog_noise.shaders` is standard library only.
-- [ ] `uv run python tools/check.py`, unpiped: every stage passes. **Commit** ("Documents: the emitted shaders").
+- [x] `Docs/standards/python-project.md`, *The package boundary*: `hog_noise.shaders` is standard library only.
+- [x] `uv run python tools/check.py`, unpiped: every stage passes. **Commit** ("Documents: the emitted shaders").
 
 ### Task 13: the review, the records, out of draft
 
