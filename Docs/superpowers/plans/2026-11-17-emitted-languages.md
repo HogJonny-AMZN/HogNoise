@@ -408,7 +408,7 @@ def binding_table() -> NDArray[np.float32]:
 
 **Files:** create `packages/python/hog-noise/src/hog_noise/shaders/__init__.py`; extend `test_shaders.py`.
 
-- [ ] **Step 1: the failing tests.** Append to `test_shaders.py`:
+- [x] **Step 1: the failing tests.** Append to `test_shaders.py`:
 
 ```python
 import subprocess
@@ -451,8 +451,8 @@ def test_wgsl_is_the_rungs_source():
     assert "@compute" in shaders.source("wgsl")
 ```
 
-- [ ] **Step 2:** Run them. Expected: FAIL, `ImportError: cannot import name 'shaders'`.
-- [ ] **Step 3:** Write `shaders/__init__.py`:
+- [x] **Step 2:** Run them. Expected: FAIL, `ImportError: cannot import name 'shaders'`.
+- [x] **Step 3:** Write `shaders/__init__.py`:
 
 ```python
 """
@@ -543,7 +543,7 @@ if __name__ == "__main__":
             print(f"{lang:6} {ep or '':18} {path(lang, ep)}")
 ```
 
-- [ ] **Step 4:** The Step 1 tests pass (the ones reading emitted files wait for Task 8). The package boundary test
+- [x] **Step 4:** The Step 1 tests pass (the ones reading emitted files wait for Task 8). The package boundary test
   passes: the module imports the standard library only. **Commit**.
 
 ### Task 7: the emitter, test first, P-13 from the start
