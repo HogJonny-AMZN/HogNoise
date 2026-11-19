@@ -356,7 +356,7 @@ def test_no_marker_says_which_and_where(tmp_path):
   is next.
 - [x] `uv run python tools/check.py`, unpiped: every stage passes, the boundary check included (the app imports only
   `hog_noise`, and both packages are in `[layers]` from Task 2, Step 7).
-- [ ] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
+- [x] The deliberate review (`local-review` skill, `diff`), findings answered in *Review*; then out of draft;
   `gh pr checks <n> --watch` green on every leg, the probe jobs included. The owner merges.
 
 ---
@@ -369,7 +369,7 @@ It opens as a draft at Task 5's first push.
 **Files:** modify `packages/python/hog-noise/src/hog_noise/tables.py`, `gpu.py`; test in
 `packages/python/hog-noise/tests/test_shaders.py` (created here).
 
-- [ ] **Step 1: the failing test.** Create `test_shaders.py` with:
+- [x] **Step 1: the failing test.** Create `test_shaders.py` with:
 
 ```python
 """
@@ -389,9 +389,9 @@ def test_the_binding_table_is_the_four_tables_in_order():
     assert np.array_equal(t, np.concatenate(parts))
 ```
 
-- [ ] **Step 2:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`. Expected: FAIL,
+- [x] **Step 2:** `uv run pytest packages/python/hog-noise/tests/test_shaders.py -q`. Expected: FAIL,
   `AttributeError: module 'hog_noise.tables' has no attribute 'binding_table'`.
-- [ ] **Step 3:** Add to `tables.py`, after `RAND_VECS_3D`:
+- [x] **Step 3:** Add to `tables.py`, after `RAND_VECS_3D`:
 
 ```python
 def binding_table() -> NDArray[np.float32]:
@@ -401,7 +401,7 @@ def binding_table() -> NDArray[np.float32]:
 ```
 
   and in `gpu.py:203` replace the inline `np.concatenate([...])` with `table = tables.binding_table()`.
-- [ ] **Step 4:** The new test passes; `uv run --group gpu pytest packages/python/hog-noise/tests/test_gpu.py -q` passes
+- [x] **Step 4:** The new test passes; `uv run --group gpu pytest packages/python/hog-noise/tests/test_gpu.py -q` passes
   as before. **Commit**.
 
 ### Task 6: `hog_noise.shaders`, the accessors and the shared hash

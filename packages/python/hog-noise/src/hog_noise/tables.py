@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 
 _MODULE_NAME = "hog_noise.tables"
 __version__ = "0.1.0"
-__updated__ = "2026-09-13"
+__updated__ = "2026-11-18"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: 128 unit 2D gradients, interleaved (x, y). Index with ``hash & (127 << 1)``.
@@ -2096,6 +2096,12 @@ RAND_VECS_3D: NDArray[np.float32] = np.array(
 
 assert GRADIENTS_2D.shape == (256,) and GRADIENTS_3D.shape == (256,)
 assert RAND_VECS_2D.shape == (512,) and RAND_VECS_3D.shape == (1024,)
+
+
+def binding_table() -> NDArray[np.float32]:
+    """The four tables in the order a shader reads them at binding 1: the 2D and 3D gradients, then the 2D and 3D
+    random vectors, 2,048 float32. ``gpu.py`` uploads it, and the emitter writes it as ``shaders/tables.f32``."""
+    return np.concatenate([GRADIENTS_2D, GRADIENTS_3D, RAND_VECS_2D, RAND_VECS_3D]).astype(np.float32, copy=False)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ from hog_noise.samplers import CAPABILITY
 
 _MODULE_NAME = "hog_noise.gpu"
 __version__ = "0.1.0"
-__updated__ = "2026-11-14"
+__updated__ = "2026-11-18"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: Part of an adapter's name: the first adapter whose name contains it is used instead of wgpu's default.
@@ -200,8 +200,7 @@ class _Gpu:
         }
         self.build_seconds = time.perf_counter() - t0
         _LOGGER.info(f"noise.wgsl: {len(ENTRY_POINTS)} pipelines built in {1000 * self.build_seconds:.0f} ms")
-        table = np.concatenate([tables.GRADIENTS_2D, tables.GRADIENTS_3D, tables.RAND_VECS_2D, tables.RAND_VECS_3D])
-        self.tables = self.storage(table)
+        self.tables = self.storage(tables.binding_table())
         self.unused = self.storage(np.zeros(1, np.float32))  # bound where an entry point reads nothing
         self.no_grid = self.uniform(bytes(48))
 
