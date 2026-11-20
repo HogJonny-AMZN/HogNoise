@@ -48,6 +48,40 @@ deliberate: a page that does not mention a path is not proof that the harness ig
 - **Claude Code's native `AGENTS.md` reading is no reason to drop `CLAUDE.md`**: it applies only when no `CLAUDE.md` exists, and
   only from the version named, so a one-line `CLAUDE.md` is the fallback for older versions and for a repository that
   already has one.
+- **Claude Code refuses an inline script before it runs** (ledger entry 48): `.claude/hooks/no_inline_python.py` is a
+  `PreToolUse` hook on its shell tools, and refuses Python started with `-c`, `-`, or no script file. It is wired in
+  `.claude/settings.json`, which is seeded only where a repository has none; one that has its own adds this under
+  `"hooks"`, beside any `PreToolUse` it already has, and `tests/test_no_inline_python_hook.py` fails until it does.
+  - **From the vendor's page** ([hooks](https://code.claude.com/docs/en/hooks), 2026-11-17): the matcher
+    `Bash|PowerShell` covers both shell tools; `shell` picks the shell that runs the command; exit code 2 blocks the
+    call with stderr shown to the agent; any other exit, or a hook that cannot start, is a non-blocking error and the
+    call goes ahead.
+  - **So it fails open:** the command needs `bash` and `uv` on the path; without either, every shell call shows a hook
+    error and nothing is refused.
+  - **Observed, not documented** (a made repository, 2026-11-16): a running session loads a new hook once `/hooks` is
+    opened or the session restarts.
+  - No other harness's hook is verified, so none is shipped.
+  - The command runs `uv run --no-config`, so a uv floor in `pyproject.toml` cannot refuse it. That also skips a
+    user's or a system `uv.toml`; a machine that needs one for the hook's Python sets the `UV_*` environment
+    variable instead.
+
+  ```json
+  "PreToolUse": [
+    {
+      "matcher": "Bash|PowerShell",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "uv run --no-config --no-project --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/no_inline_python.py\"",
+          "shell": "bash",
+          "timeout": 10,
+          "statusMessage": "Checking for inline Python (failure-modes entry 48)"
+        }
+      ]
+    }
+  ]
+  ```
+
 - **Not checked:** whether the tool that replaces Gemini CLI for some users (a banner on its documentation says it was
   replaced on 2026-06-18) behaves the same, and what Codex and Cursor read beyond `AGENTS.md`. The rows say `not verified`
   until a probe says otherwise.

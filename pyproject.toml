@@ -9,6 +9,7 @@ members = ["apps/*", "packages/python/*"]
 dev = [
     "hog-noise[fast,reference,sheets]",
     "pytest>=8",
+    "pytest-xdist>=3.8",
     "ruff>=0.17.5",
 ]
 # The wgpu rung's extra, for a machine with an adapter: uv run --group gpu pytest.
@@ -16,6 +17,10 @@ gpu = ["hog-noise[gpu]"]
 
 [tool.uv.sources]
 hog-noise = { workspace = true }
+
+[tool.uv]
+# The first uv that writes uv.lock's revision 5; an older one rewrites it as revision 3 (ai-first-template 0.11.0).
+required-version = ">=0.12.22"
 
 # =========================================================================
 # Code Quality Tools
@@ -45,7 +50,9 @@ indent-style = "space"
 testpaths = ["tests", "apps/*/tests", "packages/*/*/tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-ra --tb=short --strict-markers --import-mode=importlib"
+# -n auto runs the tests in parallel, one worker per processor (pytest-xdist): a test that fails only in parallel shares
+# state (Docs/standards/testing.md); fix it, or leave -n auto out until it is fixed.
+addopts = "-ra --tb=short --strict-markers --import-mode=importlib -n auto"
 pythonpath = ["tests"]
 markers = [
     "slow: slow-running tests (a second process, a cache prime)",

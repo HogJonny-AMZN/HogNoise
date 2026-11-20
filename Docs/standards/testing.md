@@ -17,7 +17,14 @@ uv run pytest                          # the whole suite
 uv run pytest tests/test_x.py -v       # one file
 uv run pytest tests/test_x.py::test_y  # one test
 uv run pytest -k "parse and not slow"
+uv run pytest -n0 tests/test_x.py::test_y  # with -n auto in addopts (pytest-xdist): in this process, for -s or a debugger
 ```
+
+**A test shares nothing with another:** no fixed file, folder or port, no environment variable set outside
+`monkeypatch`, and an assertion that a run left nothing behind looks only at what the run could leave (its own
+`tmp_path`, the names its own code provides), not the whole temp folder or `sys.modules`. Where `pyproject.toml`'s
+`addopts` has `-n auto`, as the seed's does, the suite runs in parallel (pytest-xdist) and a test that shares fails
+there. Without pytest-xdist installed, pytest stops with `unrecognized arguments: -n`.
 
 **`python -m pytest` puts the working directory on `sys.path`. The console script does not, and the console script is what CI
 runs.** So a root-relative import passes locally and fails on CI, and an import failure at collection takes down the whole

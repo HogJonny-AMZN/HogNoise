@@ -57,15 +57,22 @@ workflow is the project's own file. Whether the record is the template's is `--u
 
 A repository that predates the template is brought under it by `init adopt`, not `init new`: [adopting.md](adopting.md).
 
-`uv run python tools/framework_sync.py --upstream` is the other half, and is **not** a stage: it needs the network and `gh`.
-It reads the latest `vX.Y.Z` tag of the repository named by `[framework] upstream` in `framework.toml`, and if the lock is
+`uv run python tools/framework_sync.py --upstream` is the other half, and is **not** a stage: it needs the network and git.
+It reads the newest `vX.Y.Z` tag of the repository named by `[framework] upstream` in `framework.toml` (`git ls-remote`
+on `https://<host>/<owner>/<name>.git`, the host `[framework] upstream` names or github.com for a bare `owner/name`, so
+a private one needs git's own credentials for that host), and if the lock is
 behind it lists the managed files that would change, appear or go, by running the tag's own `init` read-only, in a child
 process with a scrubbed environment (**it executes code from the release**: the trust is whoever can push a `vX.Y.Z` tag
-to the upstream, and the child is isolated but not a sandbox). The window counts from the day of a published GitHub Release
-for the tag when there is one, else from the tagged commit's date, and the report says which. It exits 0
-when current or behind for no more than `max_age_days` (default 14, counted from the tag's date), 1 when behind for longer,
-and 2 when it could not tell (no `gh`, no tag, no upstream, a download that is not a payload). Run it by hand or from a
-scheduled review; it writes nothing.
+to the upstream, and the child is isolated but not a sandbox). The window counts from the tag's day (an annotated
+tag's tagger date, a lightweight tag's commit date). It exits 0 when current or behind for no more than
+`max_age_days` (default 14), 1 when behind for longer, and 2 when it could not tell (no git, no tag, no upstream, a
+release that is not a payload, a credential git cannot get). Run it by hand or from a scheduled review; it writes
+nothing.
+
+`uv run python tools/framework_sync.py --update` takes the newest release onto a new local branch,
+`template-update/vB`, as one commit, and is **not** a stage either: it writes. It refuses a repository that is not
+clean, decides everything before it writes, rolls back a failure, runs no hook, and pushes nothing; what it leaves to
+a person is in [updating.md](updating.md), *With `--update`*.
 
 A test compares this table with the stages the runner has, in both directions and in order: a stage that runs and is not
 listed, or listed and not run, fails it.

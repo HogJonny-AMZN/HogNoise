@@ -1,8 +1,9 @@
 # Taking a template release into a repository
 
 **Status:** Living. Managed by the template: a repository's copy must match, so do not edit it here; propose a change to the
-template. How a repository made from the template (`init new`) or brought under it (`init adopt`) takes a newer release. It is
-a **hand procedure** until `framework_sync.py --update` exists; when that does, it replaces steps 2 to 5.
+template. How a repository made from the template (`init new`) or brought under it (`init adopt`) takes a newer release:
+`framework_sync.py --update` does the mechanical part on a local branch (*With `--update`*), and the steps by hand stay,
+as what it does and for a release it cannot take.
 
 **This project's additions** go in `updating-project.md` beside this file, when it has any: an extension adds rules and
 never weakens these. To relax or contradict a rule here, override this file in `framework.toml` with a reason that names
@@ -43,12 +44,50 @@ happens, so that the template is fixed for the next one: the log is how a reposi
 - **Where it goes.** The update's pull request (step 7) has a section *Template findings*: the log, or "none". A
   repository with a handoff notes it there too, for a session that resumes the update.
 - **Back to the template.** Once the pull request is open, file the log as one issue on the upstream
-  (`gh issue create --repo <upstream>`, the upstream from `framework.toml`), and link each to the other. **Filing waits
-  for the owner's go**: it writes to another repository.
+  (`gh issue create --repo <upstream>`, where `<upstream>` is the upstream as `--upstream`'s first line prints it,
+  with its host: `github.com/owner/name` for a bare value), and link each to the other. **Filing waits for the owner's
+  go**: it writes to another repository.
 - **Do not fix the template from here.** Work around the finding, say so in the entry, and leave the fix to the
   template's own pull request.
 
+## With `--update`
+
+`uv run python tools/framework_sync.py --update` does steps 2 to 5 below and commits the result as **one commit on a new
+local branch**, `template-update/vB`. The code that runs is the repository's own copy of the tool, so the release that
+first ships `--update` is taken by hand, by its own section; every later release can be taken with it.
+
+- **Where it starts.** On the branch the update goes on top of (usually the default branch), with a clean tree and a
+  clean `--check`, as *Before you start* says; it makes the branch itself. It refuses, exit 1 and nothing written, a
+  dirty tree (it lists the paths), a detached `HEAD`, a sync finding, a `--root` below the top level, and a branch
+  `template-update/vB` that already exists. When the lock is the newest release, or ahead of it, it says so and writes
+  nothing.
+- **What it does.** It lists the tags with `git ls-remote`, fetches the newest and the locked one, and plans with each
+  release's own `init` in a child process (the same trust `--upstream` extends). It decides every path as step 4 does,
+  edits `framework.toml` as text (the version, and any override the release made stale or no longer names), keeping its
+  comments, and checks the commit message with the repository's own `tools/check_commit_msg.py`, all before it writes.
+  Then it writes on the new branch, runs `--check`, and commits with no hook run. A failure in the write or the commit
+  rolls back to where it started. A `--check` finding after the write is the tool's own fault: it keeps the branch,
+  uncommitted, and prints how to drop it.
+- **What it leaves to you.** Each overridden file the release changed, listed in the message with the `git diff` that
+  shows what changed (step 4's judgment); the release's hand steps, their titles a checklist in the commit message and
+  their text in the report, read by *Several releases at once*: each *Take* is marked as the render it did, and a
+  skipped release's *Check it* as waiting for the one check against B; `make sync` and `make check` on the branch; and
+  step 7: push the branch and open one pull request with *Template findings*. It pushes nothing.
+- **What it does not take.** A release whose plan refuses this repository, a path the repository's `.gitignore`
+  ignores, a `framework.toml` it cannot edit by plain lines (an override in an inline table), and a message the
+  repository's check rejects are each refused, exit 1, nothing written: take that release by the steps below, or fix
+  the cause and run it again.
+- **Credentials.** It reads the upstream with git, at `https://<upstream>.git`, so a private upstream needs git's own
+  credentials (a credential manager, or SSH through git's configuration), not `gh`'s login. An upstream on another
+  GitHub host is named `host/owner/name` in `framework.toml`; git needs a credential for that host too. It never
+  prompts: a credential git cannot get is exit 2, with git's own words. `git ls-remote https://<upstream>.git` from the
+  repository shows whether git can read it. Until a repository has taken the release that accepts `host/owner/name`,
+  configuration that sends git to another host (`url.<base>.insteadOf`) goes in the global config, not the
+  repository's: the fetch runs in a scratch folder, which does not read the repository's configuration.
+
 ## The steps
+
+By hand: what `--update` does, and the way to take a release it cannot.
 
 1. **See what moved.** `uv run python tools/framework_sync.py --upstream` prints `lock is behind: A locked, B current, N managed
    file(s) changed` and lists each path as `changed`, `added` or `removed` (and marks one the repository overrides). It writes
@@ -57,16 +96,17 @@ happens, so that the template is fixed for the next one: the log is how a reposi
    the version bump merges before its tag, so for a while `main` names a version that is not yet one to take
    ([#178](https://github.com/HogJonny-AMZN/ai-first-template/issues/178)).
 2. **Get the release.** Clone the tag into a scratch folder **outside** the repository:
-   `gh repo clone <upstream> <scratch>/template -- --branch vB --depth 1` (the upstream is `[framework] upstream` in
-   `framework.toml`). The tag is annotated, so the clone prints `warning: refs/tags/vB ... is not a commit!` and git's
-   advice about a detached HEAD: both are expected, and the checkout is the release. Read
-   `gh release view vB --repo <upstream>` (`--repo`, because `gh` otherwise looks at the repository you
-   are standing in): it says what a repository has to do beyond the files.
+   `git clone --branch vB --depth 1 https://<upstream>.git <scratch>/template` (`<upstream>` is the upstream as
+   `--upstream`'s first line prints it, with its host). The tag is annotated, so the clone prints
+   `warning: refs/tags/vB ... is not a commit!` and git's advice about a detached HEAD: both are expected, and the
+   checkout is the release. Read the release's notes (`https://<upstream>/releases/tag/vB`, or
+   `gh release view vB --repo <upstream>`): they say what a repository has to do beyond the files.
 3. **Render it for this repository.** Make `<scratch>/rendered` and copy the repository's `project.json`, `framework.toml` and
-   `framework.lock` into it, then change `template_version` to B **in the copies of the last two** (so `init` accepts the lock).
-   They are in two formats: `template_version = "B"` in `framework.toml` (TOML), and `"template_version": "B"` in
-   `framework.lock` (JSON). A lock left at A makes `init` refuse, or render against the wrong release, and nothing names
-   the cause.
+   `framework.lock` into it, then change `"template_version": "A"` to `"B"` **in the lock's copy** (JSON), so `init`
+   accepts it. A lock left at A is refused, and the refusal names the cause: `framework.lock is for template A but this
+   payload is B`. The `framework.toml` copy stays as it is: `init` takes the version from the release, and reads only
+   the module choices, the overrides and the roster from it
+   ([#224](https://github.com/HogJonny-AMZN/ai-first-template/issues/224)).
    `init` reads the repository's module choices and overrides from `framework.toml`, and the day it was first run from the
    lock, not from `project.json`: render into an empty folder and a module the repository turned off comes back on and a
    dated file takes today's name. Then, from the repository's root:
@@ -146,12 +186,19 @@ the repository. The release locked must be one that ships the module; take that 
 
 ## When it goes wrong
 
-- *Step 3 refuses (exit 1) or fails (exit 2).* The message names the file or the answer. The usual causes are a `--target` that
-  is not empty, or a release that changed what `project.json` must hold (read the release notes). The rendered folder is
-  scratch: delete it and run again.
+- *Step 3 refuses (exit 1) or fails (exit 2).* The message names the file or the answer: the lock's copy left at A (step
+  3), a managed file in the folder that differs and the lock does not record, two names that differ only in capitals,
+  a file where a folder must go, or a release that changed what `project.json` must hold (read the release notes). A
+  folder that is not empty is not refused as such ([#224](https://github.com/HogJonny-AMZN/ai-first-template/issues/224)).
+  The rendered folder is scratch: delete it and run again.
+- *`--update` refuses (exit 1) or cannot tell (exit 2).* Its first line says which and why, and nothing was written,
+  unless it says it kept its branch after a `--check` finding: then it prints the steps that drop it. A refusal it
+  cannot get past is a release to take by the steps above, and a finding for the log.
 - *`--check` reports `edited` after step 5.* A path from the list in step 1 was not ported, or was ported from the wrong
   folder. Run `diff <path> <scratch>/rendered/<path>`.
 - *`--check` reports `override-stale`.* A kept override now equals the template's version: delete the override.
+- *`--upstream` says git has no credential for a host.* An enterprise host is a separate sign-in: sign in to it once
+  with git, or run `gh auth login --hostname <host>` and `gh auth setup-git --hostname <host>`, then run step 1 again.
 - *`--upstream` still says behind.* The version in `framework.toml` or the lock was not set to B, or B is not the latest
   release: run step 1 again.
 - *A file you did not expect is in the list.* The release changed a managed file for every repository; read the release
@@ -508,3 +555,49 @@ only: no tool, no contract, no stage, no finding name and no framework ledger en
      step 4's kept-override clause asks whether a check that runs here enforces the new text, however it arrived;
    - `journal.md`: a session continued past midnight names its next-day file for the time it opens, in UTC.
 3. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.10.2 locked`.
+
+## 0.11.0: `--update`, and `--upstream` on git
+
+0.11.0 adds `framework_sync.py --update` (*With `--update`*, above) and moves `--upstream` from `gh` to git,
+ships a harness hook for ledger entry 48, and brings parallel suites and a uv floor. It gains no stage and adds no finding name. A repository on 0.10.1 or earlier
+does the hand steps of each release it skipped too, by *Several releases at once*. Before taking it, an `upstream` in
+`framework.toml` that ends in `.git` loses the suffix: 0.11.0 refuses it, since the URL git is given adds its own
+`.git` ([#238](https://github.com/HogJonny-AMZN/ai-first-template/issues/238)).
+
+1. **Take 0.11.0 by hand**, by the steps above. The repository's own `framework_sync.py` is the one that runs, and
+   before this release it has no `--update`; every later release can be taken with it. `make check` brings no new
+   finding.
+2. **`--upstream` reads the upstream with git, not `gh`.** A private upstream now needs git's credentials for
+   `https://github.com/<upstream>.git`: run `git ls-remote https://github.com/<upstream>.git` from the repository to see
+   that git can read it. The report's first line says `newest release vB`, with the tag's day when the lock is behind,
+   and the window counts from the tag's day, not from a published GitHub Release's.
+3. **The guide says more.** *With `--update`*; step 2 clones with git; step 3 sets the version in the lock's copy only,
+   and a lock left at the old version is refused with its cause named; *When it goes wrong* names the refusals `init`
+   makes ([#224](https://github.com/HogJonny-AMZN/ai-first-template/issues/224)).
+4. **Wire the inline-script hook** (ledger entry 48), when `harness-adapters` is on. The managed list brings the hook
+   and its test; the settings file that runs it is project-owned, so no list brings it. The
+   [compatibility matrix](compatibility-matrix.md) names that file:
+   - **The repository has none:** copy the one the render seeded, from `<scratch>/rendered/`.
+   - **It has its own:** add the entry the matrix's *What follows from the matrix* shows, beside what is already
+     there.
+
+   The entry runs the hook with `uv run --no-config`, so a uv below the floor of step 5 cannot refuse it, and
+   every shell call with it (with a floor, the hook's test fails a command without it). The hook's test fails until one of the two is done. Prove it once more by hand: ask the agent to run an inline
+   script, and the call is refused with the entry's advice. A repository that already carries its own copy of the hook
+   replaces it with this one, and adds a `**Promoted:**` line to its project entry.
+5. **Parallel suites and a uv floor**, in this order:
+   - **Update uv first** to 0.12.22 or later (`uv self update`), the first uv that writes `uv.lock`'s revision 5;
+     an older one rewrites the lock as revision 3 and no check sees it. Once the floor is in `pyproject.toml`, an
+     older uv refuses every `uv run` in the repository, and the hook too if its command lacks `--no-config`.
+   - **The hook's command** is the one with `--no-config` (step 4). That also skips a user's or a system `uv.toml`
+     (a Python install mirror, `native-tls`): a machine that needs one for the hook's Python sets the matching
+     `UV_*` environment variable instead.
+   - **The repository's own `pyproject.toml`** (project-owned, so no list brings it): `"pytest-xdist>=3.8"` in the
+     `dev` group, `-n auto` at the end of `[tool.pytest.ini_options]` `addopts`, and
+     `[tool.uv]` `required-version = ">=0.12.22"`. Then `uv lock`: the lock's first lines read `revision = 5`,
+     whatever an older uv had written. `uv run` installs pytest-xdist with its next sync; where it cannot sync
+     (`UV_NO_SYNC` set, or a sync that failed), run `uv sync` first, or pytest stops with `unrecognized
+     arguments: -n`.
+   - **A test of the project's own that fails only in parallel shares state** ([testing.md](testing.md)): fix it,
+     or leave `-n auto` out until it is fixed. The managed files work without it.
+6. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.0 locked`.

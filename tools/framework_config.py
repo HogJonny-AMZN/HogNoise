@@ -47,8 +47,8 @@ from typing import Any
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.framework_config"
-__version__ = "0.6.2"
-__updated__ = "2026-11-12"
+__version__ = "0.7.1"
+__updated__ = "2026-11-17"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 MODULES = (
@@ -82,6 +82,8 @@ HANDOFF_OVERRIDE_TARGET = "handoff_max_lines"
 
 _SEMVER_RE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 _UPSTREAM_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+_HOST_LABEL = r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?"  # 1 to 63 characters, no hyphen at either end
+_HOST_RE = re.compile(rf"{_HOST_LABEL}(\.{_HOST_LABEL})+")  # two labels or more: a hostname, never one word
 _SLUG_RE = re.compile(r"[a-z][a-z0-9]*(-[a-z0-9]+)*")
 _EMAIL_LOCAL = r"[A-Za-z0-9_%+-]+(\.[A-Za-z0-9_%+-]+)*"  # dot-separated; no leading, trailing or doubled dot
 _EMAIL_LABEL = r"[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?"  # no leading or trailing hyphen
@@ -191,7 +193,7 @@ class FrameworkConfig:
     docs: DocsConfig = DocsConfig()
     hygiene_allow: tuple[HygieneAllow, ...] = ()
     layers: LayersConfig | None = None  # None: no [layers] table, so nothing for the boundary test to hold
-    upstream: str | None = None  # owner/repo of the template this repository was made from (``--upstream`` reads it)
+    upstream: str | None = None  # [host/]owner/name of the template this repository came from (``--upstream`` reads it)
     max_age_days: int = DEFAULT_MAX_AGE_DAYS
     people: tuple[Person, ...] = ()  # the [[people]] roster; empty: no roster, so nothing checks authorship
 
@@ -254,13 +256,48 @@ def _table(data: Any, field: str, allowed: tuple[str, ...], required: tuple[str,
     return data
 
 
-def _is_repository(value: Any) -> bool:
-    """``owner/name``: two names of letters, digits, ``_``, ``.`` and ``-``, neither of them only dots."""
+def _ends_in_git(value: Any) -> bool:
+    """A clone URL's ``.git`` on the name, in any case: ``release_url`` adds its own, so it would be ``.git.git``."""
+    return isinstance(value, str) and value.lower().endswith(".git")
+
+
+def _is_owner_name(value: str) -> bool:
+    """``owner/name``: two names of letters, digits, ``_``, ``.`` and ``-``, neither of them only dots, and the name
+    not ending in ``.git``."""
     return (
-        isinstance(value, str)
-        and _UPSTREAM_RE.fullmatch(value) is not None
+        _UPSTREAM_RE.fullmatch(value) is not None
         and not any(part.strip(".") == "" for part in value.split("/"))
+        and not _ends_in_git(value)
     )
+
+
+def _is_repository(value: Any) -> bool:
+    """``owner/name`` on github.com, or ``host/owner/name`` on another GitHub host.
+
+    Two parts are ``owner/name``. Three are a host of two labels or more (``_HOST_RE``), then ``owner/name``. Any other
+    number of parts is not a repository. Whether git can reach the host is git's error at run time, not this rule's.
+    """
+    if not isinstance(value, str):
+        return False
+    parts = value.split("/")
+    if len(parts) == 2:
+        return _is_owner_name(value)
+    if len(parts) == 3:
+        return _HOST_RE.fullmatch(parts[0]) is not None and _is_owner_name(f"{parts[1]}/{parts[2]}")
+    return False
+
+
+def split_upstream(value: str) -> tuple[str, str]:
+    """The host and the ``owner/name`` of an upstream: ``("github.com", value)`` for two parts, the host as written.
+
+    Raises ``ValueError`` on a value the parser refuses, so a caller that skipped validation never hands git a bad host.
+    """
+    if not _is_repository(value):
+        raise ValueError(f"not a repository like owner/name or host/owner/name: {value!r}")
+    parts = value.split("/")
+    if len(parts) == 2:
+        return "github.com", value
+    return parts[0], f"{parts[1]}/{parts[2]}"
 
 
 def _is_plain_int(value: Any) -> bool:
@@ -703,8 +740,14 @@ def parse_framework(data: Any) -> FrameworkConfig:
     if not isinstance(version, str) or not _SEMVER_RE.fullmatch(version):
         raise ConfigError("framework.template_version", "must be a version like 1.2.3")
     upstream = framework.get("upstream")
+    if "upstream" in framework and _ends_in_git(upstream):
+        raise ConfigError(
+            "framework.upstream", "must name the repository without .git, like owner/name or host/owner/name"
+        )
     if "upstream" in framework and not _is_repository(upstream):
-        raise ConfigError("framework.upstream", "must be a repository like owner/name")
+        raise ConfigError(
+            "framework.upstream", "must be a repository like owner/name, or host/owner/name for another GitHub host"
+        )
     max_age = framework.get("max_age_days", DEFAULT_MAX_AGE_DAYS)
     age_low, age_high = MAX_AGE_RANGE
     if not _is_plain_int(max_age) or not age_low <= max_age <= age_high:
