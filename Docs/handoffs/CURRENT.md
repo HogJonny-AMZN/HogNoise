@@ -4,7 +4,7 @@
 preference worth carrying forward.
 
 **Last updated:** 2026-11-20: ai-first-template 0.11.1 taken with HogNoise's own `--update`, its first run of its
-own copy, on `template-update/v0.11.1`. Before it, 0.11.0 (`--update`, `--upstream` on git, the no-inline-python
+own copy, merged 2026-11-20 ([PR #36](https://github.com/HogJonny-AMZN/HogNoise/pull/36), `8527b17`). Before it, 0.11.0 (`--update`, `--upstream` on git, the no-inline-python
 hook, parallel suites and a uv floor) merged 2026-11-20 ([PR #35](https://github.com/HogJonny-AMZN/HogNoise/pull/35),
 `be723d2`). Before that, stage 3's emitter merged
 2026-11-19 ([PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34), `7dfec85`), after the move of the tools into an app ([PR #33](https://github.com/HogJonny-AMZN/HogNoise/pull/33)); with it the GPU fast track's three stages are done, and the PyPI release's condition (numpy, WGSL, at least HLSL) is met. Before that, the GPU port
