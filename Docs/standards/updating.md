@@ -564,13 +564,25 @@ does the hand steps of each release it skipped too, by *Several releases at once
 `framework.toml` that ends in `.git` loses the suffix: 0.11.0 refuses it, since the URL git is given adds its own
 `.git` ([#238](https://github.com/HogJonny-AMZN/ai-first-template/issues/238)).
 
+**The order, for a template on another GitHub host:** take 0.11.0 with the bare `owner/name` still in `upstream`,
+and only then change it to `host/owner/name`. The tools a repository runs before the update refuse the host form;
+until then git reaches a template on another host with a global `url.<base>.insteadOf`, as *Credentials* says.
+Step 1 runs the repository's own `--upstream`, which before 0.11.0 reads with `gh`, and `gh` ignores git's
+`insteadOf`: set `GH_HOST=<host>` for that run and log `gh` in to the host (`gh auth login --hostname <host>`),
+or skip step 1 and read the release's version from its notes.
+
 1. **Take 0.11.0 by hand**, by the steps above. The repository's own `framework_sync.py` is the one that runs, and
    before this release it has no `--update`; every later release can be taken with it. `make check` brings no new
    finding.
 2. **`--upstream` reads the upstream with git, not `gh`.** A private upstream now needs git's credentials for
-   `https://github.com/<upstream>.git`: run `git ls-remote https://github.com/<upstream>.git` from the repository to see
-   that git can read it. The report's first line says `newest release vB`, with the tag's day when the lock is behind,
+   `https://<upstream>.git` (with `github.com/` before a bare `owner/name`): run `git ls-remote https://<upstream>.git`
+   from the repository to see that git can read it. The report's first line says `newest release vB`, with the tag's day when the lock is behind,
    and the window counts from the tag's day, not from a published GitHub Release's.
+   **`upstream` can name its host:** `host/owner/name` is accepted, and the report names the host. A repository does
+   nothing unless its template lives on another GitHub host; then it sets `upstream = "host/owner/name"` and gives
+   git a credential for that host. Only a release that carries this change reads a host-qualified value, since
+   `--upstream` and `--update` plan with the release's own `init`, which reads `framework.toml` with the release's
+   own validator.
 3. **The guide says more.** *With `--update`*; step 2 clones with git; step 3 sets the version in the lock's copy only,
    and a lock left at the old version is refused with its cause named; *When it goes wrong* names the refusals `init`
    makes ([#224](https://github.com/HogJonny-AMZN/ai-first-template/issues/224)).
@@ -582,8 +594,11 @@ does the hand steps of each release it skipped too, by *Several releases at once
      there.
 
    The entry runs the hook with `uv run --no-config`, so a uv below the floor of step 5 cannot refuse it, and
-   every shell call with it (with a floor, the hook's test fails a command without it). The hook's test fails until one of the two is done. Prove it once more by hand: ask the agent to run an inline
-   script, and the call is refused with the entry's advice. A repository that already carries its own copy of the hook
+   every shell call with it (with a floor, the hook's test fails a command without it). The hook's test fails until one of the two is done. Prove it once more by hand, from the repository's root:
+   `printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python -c 1"}}' | <the entry's command>`, with
+   the project folder variable in it replaced by `.`, exits 2 with the entry's advice, and the same with `git status` exits 0. Asking the agent to run an inline
+   script proves it too, but only in a session whose project folder is this repository (a downstream test of the
+   0.11.0 candidate). A repository that already carries its own copy of the hook
    replaces it with this one, and adds a `**Promoted:**` line to its project entry.
 5. **Parallel suites and a uv floor**, in this order:
    - **Update uv first** to 0.12.22 or later (`uv self update`), the first uv that writes `uv.lock`'s revision 5;
@@ -598,6 +613,11 @@ does the hand steps of each release it skipped too, by *Several releases at once
      whatever an older uv had written. `uv run` installs pytest-xdist with its next sync; where it cannot sync
      (`UV_NO_SYNC` set, or a sync that failed), run `uv sync` first, or pytest stops with `unrecognized
      arguments: -n`.
+   - **A conftest hook that reports what tests set** (a terminal summary, a session-finish writer) prints nothing
+     in parallel, with no failure: the tests run in workers and the hook in the controller. Look for one, and
+     have the workers hand the state over or write it where the controller reads it (a downstream test of 0.11.0).
    - **A test of the project's own that fails only in parallel shares state** ([testing.md](testing.md)): fix it,
-     or leave `-n auto` out until it is fixed. The managed files work without it.
+     or leave `-n auto` out until it is fixed. The managed files work without it, but not quickly: 0.11.0's
+     `--update` and upstream tests run git many times, and on Windows they took one repository's serial suite from about
+     2 minutes to about 10 (in parallel, under 3).
 6. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.0 locked`.

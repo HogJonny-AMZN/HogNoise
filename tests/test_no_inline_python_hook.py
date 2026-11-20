@@ -189,6 +189,9 @@ def test_the_hook_refuses_with_exit_2_and_advice() -> None:
     done = _run(json.dumps({"tool_name": "Bash", "tool_input": {"command": 'python -c "1"'}}))
     assert done.returncode == 2
     assert "entry 48" in done.stderr and "Write tool" in done.stderr
+    # Named, so a repository that keeps its own ledger can still find it (a downstream test of 0.11.0).
+    assert "the template's failure-modes ledger" in done.stderr
+    assert "An interpreter started with nothing to read" in done.stderr
 
 
 def test_the_hook_allows_with_exit_0_and_says_nothing() -> None:

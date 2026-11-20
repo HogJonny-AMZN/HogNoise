@@ -24,7 +24,9 @@ uv run pytest -n0 tests/test_x.py::test_y  # with -n auto in addopts (pytest-xdi
 `monkeypatch`, and an assertion that a run left nothing behind looks only at what the run could leave (its own
 `tmp_path`, the names its own code provides), not the whole temp folder or `sys.modules`. Where `pyproject.toml`'s
 `addopts` has `-n auto`, as the seed's does, the suite runs in parallel (pytest-xdist) and a test that shares fails
-there. Without pytest-xdist installed, pytest stops with `unrecognized arguments: -n`.
+there. Shared state in a session hook goes quiet instead: a `pytest_terminal_summary` or `pytest_sessionfinish` that
+reads what tests set runs in the controller, while the tests run in workers, so its output is missing with no
+failure. Without pytest-xdist installed, pytest stops with `unrecognized arguments: -n`.
 
 **`python -m pytest` puts the working directory on `sys.path`. The console script does not, and the console script is what CI
 runs.** So a root-relative import passes locally and fails on CI, and an import failure at collection takes down the whole

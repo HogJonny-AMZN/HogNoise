@@ -35,11 +35,13 @@ import sys
 # module global scope
 _MODULE_NAME = "claude.hooks.no_inline_python"
 __version__ = "0.1.0"
-__updated__ = "2026-11-17"
+__updated__ = "2026-11-20"
 _LOGGER = _logging.getLogger(_MODULE_NAME)  # declared by the standard; the advice on stderr is the hook's record
 
 _ADVICE = (
-    "Refused by the no-inline-python hook (Docs/standards/failure-modes.md, entry 48): {why}. Write the script to a "
+    # The template's entry, by its name: a repository that keeps its own failure-modes.md may have no entry 48.
+    "Refused by the no-inline-python hook (the template's failure-modes ledger, entry 48, An interpreter started "
+    "with nothing to read): {why}. Write the script to a "
     "file in your scratchpad with the Write tool, then run the file, e.g. `uv run python <scratchpad>/probe.py`."
 )
 
