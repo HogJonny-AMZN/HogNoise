@@ -104,6 +104,7 @@ dev = [
     { name = "pillow" },
     { name = "pyfastnoiselite" },
     { name = "pytest" },
+    { name = "pytest-xdist" },
     { name = "ruff" },
 ]
 fast = [
@@ -120,6 +121,7 @@ sheets = [
 ]
 test = [
     { name = "pytest" },
+    { name = "pytest-xdist" },
 ]
 
 [package.metadata]
@@ -130,6 +132,7 @@ requires-dist = [
     { name = "pillow", marker = "extra == 'sheets'", specifier = ">=10.0.0" },
     { name = "pyfastnoiselite", marker = "extra == 'reference'", specifier = ">=0.0.7" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4.0" },
+    { name = "pytest-xdist", marker = "extra == 'test'", specifier = ">=3.8" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.5" },
     { name = "wgpu", marker = "extra == 'gpu'", specifier = ">=0.33,<0.34" },
 ]
