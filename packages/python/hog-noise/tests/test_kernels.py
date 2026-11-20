@@ -698,14 +698,20 @@ def _timed(sampler, coords, out):
 @pytest.mark.slow
 @pytest.mark.skipif(not HAVE_NUMBA, reason="numba not installed")
 def test_warm_start_from_cache_is_fast():
-    """Second process pays cache load, not compilation: under 1.5 s (measured 0.26 s warm)."""
+    """
+    Second process pays cache load, not compilation: under 5 s.
+
+    Measured 2026-11-20 on an i7-13700K with an empty NUMBA_CACHE_DIR: 22.64 s cold, then 0.22 to 0.26 s warm. The bound
+    was 1.5 s until the suite ran in parallel (-n auto, ai-first-template 0.11.0): with every core of CI's 4-core runner
+    busy, a warm load took 1.72 s. 5 s is still more than four times below a cold compile here, and CI compiles slower.
+    """
     code = "import time; import hog_noise as nk; t=time.perf_counter(); nk.warm_up(); print(time.perf_counter()-t)"
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(sys.path)
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True, env=env)  # prime the cache
     second = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True, env=env)
     elapsed = float(second.stdout.strip().splitlines()[-1])
-    assert elapsed < 1.5, f"warm-up from cache took {elapsed:.2f} s"
+    assert elapsed < 5.0, f"warm-up from cache took {elapsed:.2f} s"
 
 
 def test_scalar_and_vectorized_expose_the_same_driver_signatures():
