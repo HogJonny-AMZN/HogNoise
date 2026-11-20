@@ -539,6 +539,36 @@ def test_normalise_perturb_keeps_the_origin_finite_and_exact_between_rungs(mode,
         assert np.array_equal(wide, base.sample_grid((-48, 0, -48), (96, 1, 96))) and np.isfinite(wide).all()
 
 
+def _committed_portability_keys() -> set[tuple[str, str, str]]:
+    """The (feature, left, right) of every row in the committed table: the rows a full run must measure again."""
+    keys = set()
+    for line in PORTABILITY.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 7 and cells[0] not in ("Feature", "---"):
+            keys.add((cells[0], cells[1], cells[2]))
+    return keys
+
+
+def _unmeasured_portability_rows(rows) -> set[tuple[str, str, str]]:
+    """Committed rows this process did not measure: any at all, and writing `rows` would drop them from the table."""
+    return _committed_portability_keys() - {(r.feature, r.left, r.right) for r in rows}
+
+
+def test_committed_portability_keys_read_every_row():
+    """The writer's guard is only as good as this reader: it must see every data row, and only data rows."""
+    data_rows = [ln for ln in PORTABILITY.read_text(encoding="utf-8").splitlines() if ln.startswith("| ")]
+    assert len(_committed_portability_keys()) == len(data_rows) - 2  # less the header and separator rows
+    assert len(data_rows) > 100
+
+
+def test_a_partial_set_of_rows_is_never_complete():
+    """A worker of a split run holds some of the committed rows: the guard calls that partial, and all of them not."""
+    stats = compare.compare_values(np.zeros(4, np.float32), np.zeros(4, np.float32))
+    every = [compare.PortabilityRow(f, left, right, stats) for f, left, right in sorted(_committed_portability_keys())]
+    assert not _unmeasured_portability_rows(every)
+    assert len(_unmeasured_portability_rows(every[: len(every) // 4])) == len(every) - len(every) // 4
+
+
 def test_write_portability_table():
     """Runs last in this module: regenerates the portability table from what the tests measured."""
     from hog_noise.samplers import _have_fastnoiselite
@@ -549,6 +579,18 @@ def test_write_portability_table():
         # The committed table lists every rung pair. A run without numba or the binding measures fewer rows, and
         # writing them would silently replace the full table in the working tree with a partial one.
         pytest.skip("partial environment: the committed table is regenerated only when every rung was compared")
+    missing = _unmeasured_portability_rows(_portability_rows)
+    if missing and os.environ.get("PYTEST_XDIST_WORKER"):
+        # pytest-xdist (the root's -n auto) spreads this module's comparisons over workers, and this writer sees only
+        # its own worker's rows: writing them would replace the committed table with a partial one.
+        pytest.skip(
+            f"split across workers ({len(missing)} committed row(s) measured elsewhere): regenerate the table with "
+            "`uv run pytest -n 0 packages/python/hog-noise/tests/test_kernels.py`"
+        )
+    assert not missing, (
+        f"{len(missing)} committed portability row(s) were not measured, e.g. {sorted(missing)[:3]}: a comparison "
+        "removed on purpose deletes its row from vectors/portability.md by hand. Nothing was written."
+    )
     path = compare.write_portability(_portability_rows, PORTABILITY)
     text = path.read_text(encoding="utf-8")
     assert "| Feature |" in text and ("numba" in text or "numpy" in text)

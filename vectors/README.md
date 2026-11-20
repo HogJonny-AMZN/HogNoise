@@ -23,7 +23,7 @@ original/fnl/  fns/       what FastNoiseLite and FastNoiseSIMD produced (see NOT
 hog/fnl/  hog/fns/        what HogNoise's numpy rendering produces; every CPU rendering must match it bit for bit
 tolerance/wgpu.json       the GPU rendering's bounds against the hog set (see Tolerance files)
 accepted.json             a person's verdict on an advisory mismatch, by feature name
-portability.md            how closely each pair of renderings agreed, rewritten by a full test run
+portability.md            how closely each pair of renderings agreed, rewritten by a full test run in one process
 portability-gpu.md        the GPU rendering against the hog set, per feature and GPU adapter
 reports/                  the comparison sheet behind each verdict
 reports/gpu/<commit>/     the measurement records the tolerance file was derived from, one JSON file per GPU adapter

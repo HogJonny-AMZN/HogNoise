@@ -20,7 +20,9 @@ comparison sheet under `vectors/reports/` and waits for a human verdict in `acce
 - `vectors/manifest.json` and every `.f32` file come from `hog-noise-vectors` (`--set hog` anywhere numpy is;
   `--set original` where the bindings are), which recomputes every digest; `load` refuses a hand-edited file.
 - `vectors/portability.md` is rewritten by a full-environment test run (numba and `pyfastnoiselite` both
-  installed). A partial run skips the writer on purpose, so a numpy-only run cannot replace the full table with a partial one.
+  installed) in one process: `uv run pytest -n 0 packages/python/hog-noise/tests/test_kernels.py`. A partial run skips
+  the writer on purpose, so a numpy-only run cannot replace the full table with a partial one; so does a run split across
+  pytest-xdist workers, the default `-n auto`, whose writer sees only its own worker's rows (ledger P-15).
 - `vectors/tolerance/wgpu.json`, `vectors/portability-gpu.md` and a GPU record's `record.md` come from
   `hog-noise-measure-gpu derive`, and each GPU adapter's measurement record under `vectors/reports/gpu/<commit>/` from
   `hog-noise-measure-gpu run`.

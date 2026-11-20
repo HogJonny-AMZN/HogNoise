@@ -13,7 +13,7 @@ refused as current.
 | **Rung** | One implementation of a capability on the ladder: `numba` (compiled kernels), `numpy` (the base), `fastnoiselite` (the reference binding, priority -10) and `wgpu` (the WGSL shader on a GPU, `hog_noise.gpu`, priority -20); the last two are override only, chosen by name and never by the ladder. |
 | **Ladder** | The ordered rungs for one capability, chosen by `hog_noise.backends.select`: the best available wins, an override-only rung (negative priority) is never chosen automatically, and an explicit override (`HOG_NOISE_BACKEND_<CAPABILITY>`) never falls through. |
 | **Oracle vectors** | The outputs captured from the original libraries, the *original* reference set under `vectors/original/`, which every rung is compared against. |
-| **Portability table** | `vectors/portability.md`: every comparison and how closely it agreed, rewritten by a full-environment test run. |
+| **Portability table** | `vectors/portability.md`: every comparison and how closely it agreed, rewritten by a full-environment test run in one process (`-n 0`). |
 | **North star** | The end state the [roadmap](design/2026-11-01-north-star-roadmap.md) defines: one self-contained package with FastNoise2 parity, 4D, and every rendering of every noise on CPU and GPU. |
 | **Rendering** | One way a noise is computed: numba, numpy, or a shader language (WGSL, HLSL, GLSL, Metal). The renderings of one graph must agree to their tolerance contract. |
 | **Tolerance contract** | The stated bound a rendering must meet against the oracle vectors: zero (bit-identical) for the CPU renderings; for the GPU, a measured bound per feature in its tolerance file. |
