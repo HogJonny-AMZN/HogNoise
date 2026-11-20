@@ -3,8 +3,10 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-20: ai-first-template 0.11.0 taken from its tag (`--update`, `--upstream` on git, the
-no-inline-python hook, parallel suites and a uv floor), on `chore/template-0.11.0`. Before it, stage 3's emitter merged
+**Last updated:** 2026-11-20: ai-first-template 0.11.1 taken with HogNoise's own `--update`, its first run of its
+own copy, on `template-update/v0.11.1`. Before it, 0.11.0 (`--update`, `--upstream` on git, the no-inline-python
+hook, parallel suites and a uv floor) merged 2026-11-20 ([PR #35](https://github.com/HogJonny-AMZN/HogNoise/pull/35),
+`be723d2`). Before that, stage 3's emitter merged
 2026-11-19 ([PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34), `7dfec85`), after the move of the tools into an app ([PR #33](https://github.com/HogJonny-AMZN/HogNoise/pull/33)); with it the GPU fast track's three stages are done, and the PyPI release's condition (numpy, WGSL, at least HLSL) is met. Before that, the GPU port
 ([PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22), merged 2026-11-15); ai-first-template 0.10.2
 ([PR #23](https://github.com/HogJonny-AMZN/HogNoise/pull/23)) landed first. Before them, 0.9.4 and its workspace layout
@@ -13,8 +15,8 @@ no-inline-python hook, parallel suites and a uv floor), on `chore/template-0.11.
 ([PR #20](https://github.com/HogJonny-AMZN/HogNoise/pull/20)), and so is its plan
 ([PR #21](https://github.com/HogJonny-AMZN/HogNoise/pull/21)).
 Published 2026-11-01 at
-[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.11.0
-(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1, 0.10.2 and 0.11.0) with no
+[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.11.1
+(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1, 0.10.2, 0.11.0 and 0.11.1) with no
 overrides
 ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2, locking the
 [north-star roadmap](../design/2026-11-01-north-star-roadmap.md), waits on the owner and blocks neither.
