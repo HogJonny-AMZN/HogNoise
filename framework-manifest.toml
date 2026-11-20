@@ -161,6 +161,23 @@ pattern = "tests/test_sync_adapters.py"
 module = "harness-adapters"
 kind = "managed"
 
+# The harness hook for failure-modes entry 48 (compatibility-matrix.md), and the settings that wire it. The settings belong to the
+# project once seeded (its own permissions go there); a repository that has its own adds the hook by hand (updating.md).
+[[rule]]
+pattern = ".claude/hooks/*"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/test_no_inline_python_hook.py"
+module = "harness-adapters"
+kind = "managed"
+
+[[rule]]
+pattern = ".claude/settings.json"
+module = "harness-adapters"
+kind = "project-owned"
+
 [[rule]]
 pattern = "Docs/standards/compatibility-matrix.md"
 module = "harness-adapters"
@@ -183,6 +200,11 @@ kind = "managed"
 
 [[rule]]
 pattern = "tests/pins.py"
+module = "core"
+kind = "managed"
+
+[[rule]]
+pattern = "tests/git_upstream.py"
 module = "core"
 kind = "managed"
 

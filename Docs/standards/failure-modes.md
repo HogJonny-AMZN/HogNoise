@@ -54,6 +54,7 @@ Entries are append-only. Never rewrite one; add a new entry that supersedes it a
 | A test asserts a date the code writes as the UTC day | 45 |
 | A number or a "cannot" is going into a pull request description or a reply | 46 |
 | About to switch, stash or reset in a checkout another session may hold, or another repository's | 47 |
+| A shell command about to start an interpreter with its script inline, or fed by a heredoc or a pipe | 48 |
 
 ## The ledger
 
@@ -579,6 +580,20 @@ branch while the template's session was writing uncommitted ledger entries there
 the full test run blamed the fix for their three failures in progress, and that work briefly sat on the fix branch.
 Nothing was lost: the checkout went back with exactly their changes, the fix was rebuilt in a worktree, and the other
 session was told.
+
+### 48 · An interpreter started with nothing to read
+
+**Trigger:** A shell command that starts an interpreter with its script anywhere but a file: inline (`-c`, `-e`), or
+on stdin (`-`, or no script at all, fed by a heredoc, a pipe or a redirect), under any wrapper (a package runner, `env`,
+a shell's own `-c`).
+**Do:** Write the script to a file in the scratchpad with the editor's write tool and run the file. Where a harness can
+refuse a command before it runs, the framework ships a hook that refuses this one and says what to do instead; the
+[compatibility matrix](compatibility-matrix.md) says which harness and how it is wired. Extends entry 3.
+**Because:** An interpreter whose script arrives on stdin waits for ever when the script comes out empty, and holds the
+session's shell until it times out; an inline script is the same habit one step removed, with entry 3's quoting faults.
+In a repository made from the template the rule was written, applied and broken again: five subagents broke it in one
+session (2026-11-15) with the rule in their brief. A hook held it for every agent in the session. Its first version
+matched the command's text and had five faults a review found; it now reads the command as a shell does.
 
 ## How to add an entry
 

@@ -978,12 +978,77 @@ def test_upstream_and_max_age_days_round_trip(framework_data: dict) -> None:
     assert "max_age_days = 30" in text
 
 
-@pytest.mark.parametrize(
-    "value", ["", "template", "a/b/c", "owner/", "/repo", "own er/repo", "../x", "owner/repo name", 5, None, ["a/b"]]
-)
-def test_an_upstream_must_be_owner_slash_repo(framework_data: dict, value: object) -> None:
+#: Each accepted upstream, with what ``split_upstream`` gives for it: the host as written.
+ACCEPTED_UPSTREAMS = [
+    ("owner/name", ("github.com", "owner/name")),
+    ("github.com/owner/name", ("github.com", "owner/name")),
+    ("github.sie.example.com/team/template", ("github.sie.example.com", "team/template")),
+    ("GitHub.Example.COM/team/template", ("GitHub.Example.COM", "team/template")),
+    ("a.b/c", ("github.com", "a.b/c")),
+    ("x-1.example.com/o/r", ("x-1.example.com", "o/r")),
+    ("a" * 63 + ".example.com/o/r", ("a" * 63 + ".example.com", "o/r")),
+]
+
+#: Values that are not a repository: two parts that fail the name rule, or a host that is not a hostname.
+REFUSED_UPSTREAMS = [
+    pytest.param("https://github.example.com/team/template", id="a-scheme"),
+    pytest.param("github.example.com:8443/team/template", id="a-port"),
+    pytest.param("localhost/team/template", id="a-host-of-one-label"),
+    pytest.param("a/b/c", id="a-host-of-one-label-a"),
+    pytest.param("a/../c", id="a-host-of-one-label-and-dots"),
+    pytest.param("github.example.com/team/template/tree/main", id="four-parts"),
+    pytest.param("-bad.example.com/team/template", id="a-label-starting-with-a-hyphen"),
+    pytest.param("bad-.example.com/team/template", id="a-label-ending-with-a-hyphen"),
+    pytest.param("a" * 64 + ".example.com/o/r", id="a-label-of-64"),
+    pytest.param("github..example.com/team/template", id="an-empty-label"),
+    pytest.param("github.example.com/../c", id="an-owner-of-only-dots"),
+    pytest.param("github.example.com/owner/..", id="a-name-of-only-dots"),
+    pytest.param("github.com/o/r\n", id="a-trailing-newline"),
+    pytest.param("", id="empty"),
+    pytest.param("template", id="one-part"),
+    pytest.param("owner/", id="no-name"),
+    pytest.param("/repo", id="no-owner"),
+    pytest.param("own er/repo", id="a-space-in-the-owner"),
+    pytest.param("../x", id="dots-for-an-owner"),
+    pytest.param("owner/repo name", id="a-space-in-the-name"),
+    pytest.param(5, id="a-number"),
+    pytest.param(None, id="none"),
+    pytest.param(["a/b"], id="a-list"),
+]
+
+UPSTREAM_WORDS = "must be a repository like owner/name, or host/owner/name for another GitHub host"
+
+
+@pytest.mark.parametrize(("value", "split"), ACCEPTED_UPSTREAMS)
+def test_an_upstream_is_owner_slash_name_or_names_its_host(framework_data: dict, value: str, split: tuple) -> None:
     framework_data["framework"]["upstream"] = value
-    _refused(fc.parse_framework, framework_data, "framework.upstream")
+    assert fc.parse_framework(framework_data).upstream == value
+
+
+@pytest.mark.parametrize("value", REFUSED_UPSTREAMS)
+def test_an_upstream_that_is_not_a_repository_is_refused_in_the_new_words(framework_data: dict, value: object) -> None:
+    framework_data["framework"]["upstream"] = value
+    caught = _refused(fc.parse_framework, framework_data, "framework.upstream")
+    assert UPSTREAM_WORDS in str(caught)
+
+
+@pytest.mark.parametrize(("value", "split"), ACCEPTED_UPSTREAMS)
+def test_split_upstream_gives_the_host_as_written_and_owner_slash_name(value: str, split: tuple) -> None:
+    assert fc.split_upstream(value) == split
+
+
+@pytest.mark.parametrize("value", REFUSED_UPSTREAMS)
+def test_split_upstream_raises_on_a_value_the_parser_refuses(value: object) -> None:
+    with pytest.raises(ValueError, match="not a repository"):
+        fc.split_upstream(value)  # type: ignore[arg-type]
+
+
+def test_a_host_qualified_upstream_round_trips_as_written(framework_data: dict) -> None:
+    framework_data["framework"]["upstream"] = "GitHub.SIE.Example.com/team/template"
+    config = fc.parse_framework(framework_data)
+    text = fc.dump_framework(config)
+    assert 'upstream = "GitHub.SIE.Example.com/team/template"' in text
+    assert fc.parse_framework_text(text) == config
 
 
 @pytest.mark.parametrize("value", [0, -1, 366, True, 1.5, "14", None])
@@ -1002,6 +1067,53 @@ def test_the_dumper_refuses_an_upstream_the_parser_would(framework_data: dict) -
     config = fc.parse_framework(framework_data)
     bad = fc.FrameworkConfig(
         config.template_version, config.modules, config.harnesses, 150, (), upstream="not a repository"
+    )
+    with pytest.raises(fc.ConfigError, match="framework.upstream"):
+        fc.dump_framework(bad)
+
+
+#: A clone URL's ``.git`` on the name (#238): ``release_url`` adds its own, so the name must not carry one.
+GIT_SUFFIXED_UPSTREAMS = [
+    pytest.param("acme/template.git", id="owner-name"),
+    pytest.param("github.sie.example.com/acme/template.git", id="host-owner-name"),
+    pytest.param("acme/template.GIT", id="any-case"),
+]
+
+GIT_SUFFIX_WORDS = "must name the repository without .git, like owner/name or host/owner/name"
+
+
+@pytest.mark.parametrize("value", GIT_SUFFIXED_UPSTREAMS)
+def test_an_upstream_ending_in_git_is_refused_with_words_to_drop_it(framework_data: dict, value: str) -> None:
+    framework_data["framework"]["upstream"] = value
+    caught = _refused(fc.parse_framework, framework_data, "framework.upstream")
+    assert GIT_SUFFIX_WORDS in str(caught)
+
+
+@pytest.mark.parametrize("value", GIT_SUFFIXED_UPSTREAMS)
+def test_split_upstream_raises_on_a_name_ending_in_git(value: str) -> None:
+    with pytest.raises(ValueError, match="not a repository"):
+        fc.split_upstream(value)
+
+
+def test_the_dumper_refuses_a_name_ending_in_git(framework_data: dict) -> None:
+    config = fc.parse_framework(framework_data)
+    bad = fc.FrameworkConfig(
+        config.template_version, config.modules, config.harnesses, 150, (), upstream="acme/template.git"
+    )
+    with pytest.raises(fc.ConfigError, match="without .git"):
+        fc.dump_framework(bad)
+
+
+@pytest.mark.parametrize("value", ["acme/template.github", "acme/my.git.tools", "acme/git"])
+def test_git_inside_a_name_is_not_the_suffix(framework_data: dict, value: str) -> None:
+    framework_data["framework"]["upstream"] = value
+    assert fc.parse_framework(framework_data).upstream == value
+
+
+def test_the_dumper_refuses_a_host_the_parser_would(framework_data: dict) -> None:
+    config = fc.parse_framework(framework_data)
+    bad = fc.FrameworkConfig(
+        config.template_version, config.modules, config.harnesses, 150, (), upstream="localhost/team/template"
     )
     with pytest.raises(fc.ConfigError, match="framework.upstream"):
         fc.dump_framework(bad)

@@ -184,6 +184,23 @@ settings, on the Bash and PowerShell tools, refuses the command before it runs
 python - rule"; it now matches an interpreter only in command position, and the self-test holds both cases. **Mechanised on the owner's machine only:** the hook is not in this repository, so
 another machine, another person or another agent is not covered, and the rule above still applies to them.
 
+### P-15 · P-2 again, by a new way to run only part: tests split across workers
+
+**Trigger:** a change to how the suite runs (parallel workers, a new scheduler, a filter in `addopts`), or a diff in a
+generated file that you are about to revert as "only its date".
+**Do:** read the diff's size before reverting it: `git diff --stat` on the file, not `git checkout` on reflex. A test
+that writes a committed file checks that it measured every row the file holds before it writes, rather than trusting
+the environment to be whole.
+**Because:** ai-first-template 0.11.0 turned on `-n auto` ([PR #35](https://github.com/HogJonny-AMZN/HogNoise/pull/35)).
+pytest-xdist spread `test_kernels.py` over the workers, and `test_write_portability_table`, seeing only its own
+worker's rows, replaced `vectors/portability.md` (210 table lines) with 47; its header-only assertion passed. P-2's
+guard checked the environment (numba and the binding installed), and that was whole. Every gate run on the branch did
+it, and each time the diff was reverted as the usual date stamp, unread; Copilot's review found it. xdist's
+`--dist loadgroup` would have kept the module on one worker, but on pytest 9.2.0 and pytest-xdist 3.8.0 it did not
+group even a minimal module (measured 2026-11-20). **Mechanised:** the writer now compares what it measured with every
+row of the committed table; under xdist it skips with the command that regenerates the table (`-n 0`), and in one
+process a missing row fails. `test_a_partial_set_of_rows_is_never_complete` holds the guard.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

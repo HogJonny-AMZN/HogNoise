@@ -1182,7 +1182,8 @@ jobs:
 - [x] The pull request body: *Verified* (the test counts, the two emitter runs, the instrument's two failures, the
   compile logs, the wheel listing), *Decisions* (this plan's table and anything the build added), *Not covered*
   (running the files against the vectors; Metal; PyPI).
-- [ ] `gh pr checks <n> --watch`: every leg green, the three shader jobs included. Out of draft. The owner merges.
+- [x] `gh pr checks <n> --watch`: every leg green, the three shader jobs included. Out of draft. The owner merges.
+  (13 of 13 at `df3aa48`; merged 2026-11-19 as `7dfec85`.)
 
 ---
 

@@ -85,14 +85,14 @@ def test_every_skill_is_a_folder_with_a_skill_md_whose_name_is_the_folder() -> N
         assert 60 <= len(meta["description"]) <= 1024, f"{folder.name}: description length {len(meta['description'])}"
 
 
-def _links_that_do_not_resolve(path: Path) -> list[str]:
+def _links_that_do_not_resolve(path: Path, root: Path = ROOT) -> list[str]:
     broken = []
     for target in re.findall(r"\]\(([^)\s]+)\)", path.read_text(encoding="utf-8")):
         if re.match(r"[a-zA-Z][a-zA-Z0-9+.-]*:", target) or target.startswith("#"):
             continue
         resolved = Path(os.path.normpath(path.parent / target.split("#")[0]))
-        current = ROOT
-        for part in resolved.relative_to(ROOT).parts:  # case-exact, as a case-sensitive runner will see it
+        current = root
+        for part in resolved.relative_to(root).parts:  # case-exact, as a case-sensitive runner will see it
             if part not in {child.name for child in current.iterdir()}:
                 broken.append(target)
                 break
@@ -106,12 +106,14 @@ def test_links_in_the_skills_and_the_template_resolve_with_the_right_case() -> N
 
 
 def test_the_link_check_sees_a_fragment_and_a_case_mistake(tmp_path: Path) -> None:
-    probe = ROOT / ".agents" / "skills" / "local-review" / "_probe.md"
+    # In a folder of the test's own: a probe written into the repository's skills is read by the link test on another
+    # worker (project ledger P-29).
+    skill = tmp_path / ".agents" / "skills" / "local-review"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+    probe = skill / "_probe.md"
     probe.write_text("[ok](SKILL.md#x) [bad](skill.md#x) [bad2](references/missing.md)\n", encoding="utf-8")
-    try:
-        assert _links_that_do_not_resolve(probe) == ["skill.md#x", "references/missing.md"]
-    finally:
-        probe.unlink()
+    assert _links_that_do_not_resolve(probe, tmp_path) == ["skill.md#x", "references/missing.md"]
 
 
 NEUTRAL_DOCUMENTS = shipped(ROOT, sorted(p.relative_to(ROOT).as_posix() for p in [*SKILLS.rglob("*.md"), TEMPLATE]))

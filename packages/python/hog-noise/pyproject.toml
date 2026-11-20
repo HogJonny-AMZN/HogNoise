@@ -54,6 +54,9 @@ sheets = [
 ]
 test = [
     "pytest>=7.4.0",
+    # The workspace runs the suite with -n auto (the root pyproject.toml), so a leg that installs this extra by pip
+    # needs the runner too, or pytest stops on an unrecognized -n.
+    "pytest-xdist>=3.8",
 ]
 gpu = [
     # The override-only wgpu rung (hog_noise.gpu): noise.wgsl on any adapter. Not in dev, so dev installs without a GPU.
