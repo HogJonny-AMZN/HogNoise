@@ -18,6 +18,7 @@ uv run pytest tests/test_x.py -v       # one file
 uv run pytest tests/test_x.py::test_y  # one test
 uv run pytest -k "parse and not slow"
 uv run pytest -n0 tests/test_x.py::test_y  # with -n auto in addopts (pytest-xdist): in this process, for -s or a debugger
+uv run pytest -n0 -k core                  # a filtered run: each worker collects the whole suite first, so -n0 can be faster
 ```
 
 **A test shares nothing with another:** no fixed file, folder or port, no environment variable set outside
@@ -26,7 +27,8 @@ uv run pytest -n0 tests/test_x.py::test_y  # with -n auto in addopts (pytest-xdi
 `addopts` has `-n auto`, as the seed's does, the suite runs in parallel (pytest-xdist) and a test that shares fails
 there. Shared state in a session hook goes quiet instead: a `pytest_terminal_summary` or `pytest_sessionfinish` that
 reads what tests set runs in the controller, while the tests run in workers, so its output is missing with no
-failure. Without pytest-xdist installed, pytest stops with `unrecognized arguments: -n`.
+failure. A time bound measured on an idle machine fails in parallel too, once every core is busy: set it from a
+loaded run, with room, or measure something other than the wall clock. Without pytest-xdist installed, pytest stops with `unrecognized arguments: -n`.
 
 **`python -m pytest` puts the working directory on `sys.path`. The console script does not, and the console script is what CI
 runs.** So a root-relative import passes locally and fails on CI, and an import failure at collection takes down the whole

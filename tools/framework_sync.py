@@ -1465,12 +1465,17 @@ def _report(plan: UpdatePlan) -> list[str]:
     for version, _, text in plan.hand_steps:
         lines += ["", *_marked_steps(text, version, newest)]
     lines += [""] + [f"note: {note}" for note in plan.notes]
+    if plan.seeds:
+        # A hand step that copies a seed from the render is done: this run wrote it (a downstream finding on 0.11.0).
+        lines.append(
+            f"seeded by this run, so a hand step that copies one from the render is done: {', '.join(plan.seeds)}"
+        )
     lines += [
         f"release: https://{qualified(plan.upstream)}/releases/tag/{plan.tag}",
         f"branch: {plan.branch}, one commit, not pushed",
         # make sync first: a fresh clone's environment is not CI's until it is synced the way CI syncs it
-        "next: make sync, then make check on the branch; the hand steps and the kept overrides; then push it and",
-        "      open one pull request with Template findings (updating.md, step 7)",
+        "next: make sync, then make check on the branch (its commit ran no hooks); the hand steps and the kept",
+        "      overrides; then push it and open one pull request with Template findings (updating.md, step 7)",
     ]
     return lines
 

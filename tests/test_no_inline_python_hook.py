@@ -71,6 +71,25 @@ REFUSED = [
     "timeout 10 python -c 1",
     "timeout -s KILL 10 python -",
     "nice -n 5 python -c 1",
+    # #241: xargs, sudo and cmd /c, with their options
+    "xargs python -c 1",
+    "xargs -n 1 -P 4 python -c 1",
+    "sudo python -c 1",
+    "sudo -u root -E python -",
+    "sudo -- python -c 1",
+    "cmd /c python -c 1",
+    "cmd.exe /d /c python -c 1",
+    "CMD /C uv run python -c 1",
+    # Copilot's review of #248: bare GNU long options with an optional value, a short cluster, cmd's one-string line
+    "xargs --replace python -c 1",
+    "xargs --eof python -c 1",
+    "xargs --max-lines python -c 1",
+    "sudo -Eu root python -c 1",
+    'cmd /c "C:/Program Files/Python314/python.exe" -c 1',
+    'cmd /c "python -c 1"',
+    'cmd /c "echo x & python -c 1"',
+    # a downstream review: a substitution in a heredoc body may span lines
+    "cat <<EOF\n$(\npython -c 'print(1)'\n)\nEOF",
     # Copilot's review: a quoted ")" does not close a substitution; backquotes run inside double quotes; an unquoted
     # heredoc's body runs its substitutions; a quoted assignment value is still an assignment
     "echo \"$(printf ')'; python -c 'print(1)')\"",
@@ -124,6 +143,18 @@ ALLOWED = [
     "uv --quiet run python tools/check.py",
     "timeout 10 uv run python tools/check.py",
     "nice -n 5 python tools/check.py",
+    "xargs -n 1 python tools/check.py",
+    "sudo -u root python tools/check.py",
+    "cmd /c python tools/check.py",
+    "cmd /c dir",
+    # sudo's queries run nothing; cmd's quoted text is text
+    "sudo -l python -c 1",
+    "sudo --list python -c 1",
+    'cmd /c echo "literal & python -c 1"',
+    # a downstream review: a heredoc's delimiter runs nothing, and an escaped one makes the body data
+    'cat <<"$(python -c 1)"\nplain data\n$(python -c 1)\n',
+    "cat <<\\EOF\n$(python -c 'print(1)')\nEOF",
+    "xargs grep -l python",
     # the Windows launcher's queries list interpreters
     "py -0p",
     "py --list",
@@ -167,6 +198,8 @@ POWERSHELL_ALLOWED = [
     'Write-Host "a`nb"; uv run python tools/check.py',
     'Write-Host "a`"b python -c 1"',
     "Write-Host done`; python -c 1",
+    # Copilot's review of #248: cmd reads a backquote as text
+    "cmd /c 'echo `python -c 1`'",
 ]
 
 
