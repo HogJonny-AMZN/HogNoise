@@ -1566,6 +1566,16 @@ def test_write_atomic_sets_the_executable_bit_only_when_asked(tmp_path: Path) ->
     assert (tmp_path / "run.sh").read_bytes() == b"exec true\n"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows keeps no executable bit")
+def test_write_atomic_makes_an_existing_file_executable_when_asked(tmp_path: Path) -> None:
+    # Copilot's review of a downstream update: the old file's mode was copied over the new executable bit.
+    hook = tmp_path / "hook.sh"
+    hook.write_bytes(b"old\n")
+    hook.chmod(0o644)
+    ini.write_atomic(hook, b"new\n", executable=True)
+    assert hook.stat().st_mode & 0o111 and hook.read_bytes() == b"new\n"
+
+
 def test_a_launchers_sh_is_planned_executable_even_from_a_checkout_without_modes(
     source: Path, answers: Path, tmp_path: Path
 ) -> None:

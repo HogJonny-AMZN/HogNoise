@@ -1327,9 +1327,27 @@ def test_the_report_is_the_message_then_each_hand_step_s_text_then_where_and_wha
     assert rest[-4:] == [
         "release: https://github.com/acme/template/releases/tag/v0.2.0",
         "branch: template-update/v0.2.0, one commit, not pushed",
-        "next: make sync, then make check on the branch; the hand steps and the kept overrides; then push it and",
-        "      open one pull request with Template findings (updating.md, step 7)",
+        "next: make sync, then make check on the branch (its commit ran no hooks); the hand steps and the kept",
+        "      overrides; then push it and open one pull request with Template findings (updating.md, step 7)",
     ]
+
+
+def test_the_report_names_the_seeds_it_wrote_so_a_hand_step_that_copies_one_is_seen_done() -> None:
+    # A downstream finding on 0.11.0: the hand step said to copy the seeded settings, which --update had written.
+    plan = fs.UpdatePlan(
+        tag="v0.2.0",
+        old_tag="v0.1.0",
+        start="main",
+        branch="template-update/v0.2.0",
+        scratch=Path("."),
+        upstream="acme/template",
+        seeds=[".claude/settings.json"],
+        message="m",
+    )
+    seeded = "seeded by this run, so a hand step that copies one from the render is done: .claude/settings.json"
+    assert seeded in fs._report(plan)
+    plan.seeds = []
+    assert not any(line.startswith("seeded by this run") for line in fs._report(plan))
 
 
 def test_the_report_carries_the_notes(made: Callable[..., Path]) -> None:

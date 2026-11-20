@@ -54,7 +54,9 @@ happens, so that the template is fixed for the next one: the log is how a reposi
 
 `uv run python tools/framework_sync.py --update` does steps 2 to 5 below and commits the result as **one commit on a new
 local branch**, `template-update/vB`. The code that runs is the repository's own copy of the tool, so the release that
-first ships `--update` is taken by hand, by its own section; every later release can be taken with it.
+first ships `--update` is taken by hand, by its own section; every later release can be taken with it. That release
+can also be taken by running its own `tools/framework_sync.py --update --root <repository>` from a clone of its tag:
+the same trust as step 3's render, which runs the release's code too.
 
 - **Where it starts.** On the branch the update goes on top of (usually the default branch), with a clean tree and a
   clean `--check`, as *Before you start* says; it makes the branch itself. It refuses, exit 1 and nothing written, a
@@ -65,18 +67,22 @@ first ships `--update` is taken by hand, by its own section; every later release
   release's own `init` in a child process (the same trust `--upstream` extends). It decides every path as step 4 does,
   edits `framework.toml` as text (the version, and any override the release made stale or no longer names), keeping its
   comments, and checks the commit message with the repository's own `tools/check_commit_msg.py`, all before it writes.
-  Then it writes on the new branch, runs `--check`, and commits with no hook run. A failure in the write or the commit
+  Then it writes on the new branch, runs `--check`, and commits with no hook run, so `make check` on the branch is
+  the commit's first check. A failure in the write or the commit
   rolls back to where it started. A `--check` finding after the write is the tool's own fault: it keeps the branch,
   uncommitted, and prints how to drop it.
 - **What it leaves to you.** Each overridden file the release changed, listed in the message with the `git diff` that
   shows what changed (step 4's judgment); the release's hand steps, their titles a checklist in the commit message and
-  their text in the report, read by *Several releases at once*: each *Take* is marked as the render it did, and a
+  their text in the report, read by *Several releases at once*: each *Take* is marked as the render it did, the
+  seeds it wrote are named, so a step that copies one is done, and a
   skipped release's *Check it* as waiting for the one check against B; `make sync` and `make check` on the branch; and
   step 7: push the branch and open one pull request with *Template findings*. It pushes nothing.
 - **What it does not take.** A release whose plan refuses this repository, a path the repository's `.gitignore`
   ignores, a `framework.toml` it cannot edit by plain lines (an override in an inline table), and a message the
   repository's check rejects are each refused, exit 1, nothing written: take that release by the steps below, or fix
-  the cause and run it again.
+  the cause and run it again. So is a file the release first makes managed that the repository already has a copy
+  of, which the lock does not record (`exists with different content and is not recorded in framework.lock`):
+  commit the removal of the repository's own copy first, then run it again, and the release's copy is written.
 - **Credentials.** It reads the upstream with git, at `https://<upstream>.git`, so a private upstream needs git's own
   credentials (a credential manager, or SSH through git's configuration), not `gh`'s login. An upstream on another
   GitHub host is named `host/owner/name` in `framework.toml`; git needs a credential for that host too. It never
@@ -599,7 +605,8 @@ or skip step 1 and read the release's version from its notes.
    the project folder variable in it replaced by `.`, exits 2 with the entry's advice, and the same with `git status` exits 0. Asking the agent to run an inline
    script proves it too, but only in a session whose project folder is this repository (a downstream test of the
    0.11.0 candidate). A repository that already carries its own copy of the hook
-   replaces it with this one, and adds a `**Promoted:**` line to its project entry.
+   replaces it with this one, and adds a `**Promoted:**` line to its project entry; with `--update`, it commits the
+   removal of its own copy and of the copy's test first, or `--update` refuses to plan (*With `--update`*).
 5. **Parallel suites and a uv floor**, in this order:
    - **Update uv first** to 0.12.22 or later (`uv self update`), the first uv that writes `uv.lock`'s revision 5;
      an older one rewrites the lock as revision 3 and no check sees it. Once the floor is in `pyproject.toml`, an
@@ -613,11 +620,38 @@ or skip step 1 and read the release's version from its notes.
      whatever an older uv had written. `uv run` installs pytest-xdist with its next sync; where it cannot sync
      (`UV_NO_SYNC` set, or a sync that failed), run `uv sync` first, or pytest stops with `unrecognized
      arguments: -n`.
+   - **Everything else that runs pytest gets pytest-xdist too:** a workflow, script, tox or nox session that
+     installs a member's extras with pip, not the root's `dev` group, still reads `-n auto` from the root's
+     `addopts` and stops with `unrecognized arguments: -n`. `make check` cannot see it, since it syncs the `dev`
+     group; add `pytest-xdist>=3.8` to the extra those runs install, and relock (a downstream test of 0.11.0).
    - **A conftest hook that reports what tests set** (a terminal summary, a session-finish writer) prints nothing
      in parallel, with no failure: the tests run in workers and the hook in the controller. Look for one, and
      have the workers hand the state over or write it where the controller reads it (a downstream test of 0.11.0).
-   - **A test of the project's own that fails only in parallel shares state** ([testing.md](testing.md)): fix it,
+     The controller loads only the conftest at a test root, so the hook that reports goes there, not in a deeper
+     folder's conftest; and a run started above a test root (`pytest packages`) loads none of them, so run the
+     configured test paths.
+   - **A test of the project's own that fails only in parallel shares state, or has a time bound** set on an idle
+     machine, which a run with every core busy exceeds ([testing.md](testing.md)): fix it,
      or leave `-n auto` out until it is fixed. The managed files work without it, but not quickly: 0.11.0's
      `--update` and upstream tests run git many times, and on Windows they took one repository's serial suite from about
      2 minutes to about 10 (in parallel, under 3).
 6. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.0 locked`.
+
+## 0.11.1: the hook's wrappers and heredocs, and what 0.11.0's downstream updates found
+
+0.11.1 is a patch: it fixes managed files and asks nothing new of a repository. The inline-script hook reads `xargs`,
+`sudo` and `cmd /c` ([#241](https://github.com/HogJonny-AMZN/ai-first-template/issues/241)), reads a heredoc's body
+whole, and no longer refuses a delimiter that holds `$(...)` or an escaped `<<\EOF`; `init` keeps the executable bit
+when a release asks for it on a file that exists (from the update after this one: `--update` writes with the
+repository's own `init`); `--update`'s report names the seeds it wrote and says its commit ran
+no hooks. It gains no stage and adds no finding name or framework ledger entry. A repository on 0.10.x takes 0.11.0's
+hand steps too, by *Several releases at once*.
+
+1. **Take 0.11.1.** A repository on 0.11.0 runs its own `uv run python tools/framework_sync.py --update`, the first
+   release it can take that way (*With `--update`*); one that keeps its own copy of the hook commits the removal of the
+   copy first, or `--update` refuses to plan. `make check` brings no new finding.
+2. **The guide says more about 0.11.0's step 5.** A repository that took 0.11.0 reads its new bullets: everything else
+   that runs pytest (a pip extra, tox, nox) needs pytest-xdist too; a time bound set on an idle machine fails in
+   parallel; a reporting conftest hook lives at a test root, and a run started above one loads none. `testing.md` says
+   a filtered run (`-k`) can be slower in parallel.
+3. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.1 locked`.

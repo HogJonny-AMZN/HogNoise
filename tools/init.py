@@ -769,8 +769,8 @@ def write_atomic(dest: Path, data: bytes, *, create_only: bool = False, executab
         if create_only:
             _publish_new(temp, dest)
         else:
-            if dest.exists():
-                os.chmod(temp, stat.S_IMODE(dest.stat().st_mode))
+            if dest.exists():  # the old file's mode, and the executable bit when the release now asks for it
+                os.chmod(temp, stat.S_IMODE(dest.stat().st_mode) | (0o111 if executable else 0))
             os.replace(temp, dest)
     finally:
         if temp.exists():

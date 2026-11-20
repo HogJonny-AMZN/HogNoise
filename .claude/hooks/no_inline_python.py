@@ -13,8 +13,9 @@ The command is read the way a shell reads it, enough for this question: words wi
 are data. A command substitution (``$(...)``, or backquotes in Bash) runs wherever it is not single-quoted, an
 unquoted heredoc's body included, so each is judged as a command of its own. Each simple command is then judged by
 its command word, after assignments and wrappers (``uv run``, ``env``, ``exec``, ``time``, ``nohup``,
-``command``); a shell's ``-c`` script and PowerShell's ``-Command`` are judged too. Bash and PowerShell differ in
-places: a backslash outside quotes is kept, so Windows paths survive, and a command from the PowerShell tool reads
+``command``, ``xargs``, ``sudo``); ``cmd /c``'s command, a shell's ``-c`` script and PowerShell's ``-Command``
+are judged too. Bash and PowerShell differ in places:
+a backslash outside quotes is kept, so Windows paths survive, and a command from the PowerShell tool reads
 a backquote as PowerShell's escape character (an escaped character is text, and one before a newline continues
 the line), not as a substitution. Neither is parsed in full, only as far as finding the Python a command starts.
 
@@ -68,6 +69,29 @@ _UV_VALUED = {
     "--refresh-package", "--upgrade-package", "-P", "--reinstall-package", "--no-binary-package",
     "--no-build-package", "--config-setting", "-C",
 }  # fmt: skip
+# The wrappers #241 named: the short letters and long options that take a value, and the options that make the
+# wrapper a query that runs nothing. A GNU long option whose value is optional (xargs --replace) takes it only with =.
+_XARGS_VALUED = (
+    "adEILnPs",
+    {"--arg-file", "--delimiter", "--max-args", "--max-procs", "--max-chars", "--process-slot-var"},
+)
+_SUDO_VALUED = (
+    "ugCDhprtUTR",
+    {
+        "--user",
+        "--group",
+        "--close-from",
+        "--chdir",
+        "--prompt",
+        "--role",
+        "--type",
+        "--other-user",
+        "--command-timeout",
+        "--chroot",
+        "--host",
+    },
+)
+_SUDO_QUERIES = ("lvV", {"--list", "--validate", "--version"})
 _PY_SAFE_LONG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
 _PY_VALUED_LONG = {"--check-hash-based-pycs"}
 
@@ -168,7 +192,7 @@ def _simple_commands(command: str, substitutions: list[str], powershell: bool = 
     commands: list[list[Token]] = []
     tokens: list[Token] = []
     buf: list[str] = []
-    state = {"in_word": False, "quoted": False, "want_delimiter": None, "prefix": None}
+    state = {"in_word": False, "quoted": False, "want_delimiter": None, "prefix": None, "delimiter_at": 0}
     heredocs: list[tuple[str, bool, bool]] = []  # (delimiter, strip tabs, body expanded)
     i, n = 0, len(command)
     escape = "`" if powershell else "\\"
@@ -182,7 +206,13 @@ def _simple_commands(command: str, substitutions: list[str], powershell: bool = 
         if state["in_word"]:
             text = "".join(buf)
             if state["want_delimiter"]:
-                heredocs.append((text, state["want_delimiter"] == "<<-", not state["quoted"]))
+                # A delimiter's quotes and backslashes are removed and nothing in it runs; either makes the body data.
+                del substitutions[state["delimiter_at"] :]
+                escaped = "\\" in text and not powershell
+                body_runs = not (state["quoted"] or escaped)
+                heredocs.append(
+                    (text.replace("\\", "") if escaped else text, state["want_delimiter"] == "<<-", body_runs)
+                )
                 state["want_delimiter"] = None
             lead = text[: state["prefix"]] if state["prefix"] is not None else text
             tokens.append((text, state["quoted"] and not _ASSIGNMENT.match(lead)))
@@ -249,14 +279,16 @@ def _simple_commands(command: str, substitutions: list[str], powershell: bool = 
             end_command()
             i += 1
             for delimiter, strip_tabs, expanded in heredocs:
+                body: list[str] = []
                 while i < n:
                     close = command.find("\n", i)
                     line = command[i : n if close < 0 else close].rstrip("\r")
                     i = n if close < 0 else close + 1
                     if (line.lstrip("\t") if strip_tabs else line) == delimiter:
                         break
-                    if expanded:  # an unquoted delimiter: the body's text is data, its substitutions run
-                        _expanded_substitutions(line, substitutions)
+                    body.append(line)
+                if expanded:  # an unquoted delimiter: the body's text is data, its substitutions run, across lines too
+                    _expanded_substitutions("\n".join(body), substitutions)
             heredocs.clear()
         elif ch in "<>" or (ch == "&" and nxt == ">"):
             if state["in_word"] and not state["quoted"] and "".join(buf).isdigit():
@@ -267,6 +299,7 @@ def _simple_commands(command: str, substitutions: list[str], powershell: bool = 
             tokens.append((op, None))
             if op in ("<<", "<<-"):
                 state["want_delimiter"] = op
+                state["delimiter_at"] = len(substitutions)
             i += len(op)
         elif ch in ";&|()":
             end_command()
@@ -337,6 +370,21 @@ def _judge_command(words: list[tuple[str, bool]]) -> str | None:
                 i += 2 if words[i][0] in ("-n", "-s", "-k", "--signal", "--kill-after", "--adjustment") else 1
             if name == "timeout":
                 i += 1  # the duration
+        elif name in ("xargs", "sudo"):
+            after = _past_options(words, i + 1, *(_XARGS_VALUED if name == "xargs" else _SUDO_VALUED),
+                                  *(("", set()) if name == "xargs" else _SUDO_QUERIES))  # fmt: skip
+            if after is None:
+                return None  # sudo -l, -v, -V: a query, nothing runs
+            i = after
+        elif name in ("cmd", "cmd.exe"):
+            for k in range(i + 1, len(words)):
+                if words[k][0].lower() in ("/c", "/k"):
+                    rest = words[k + 1 :]
+                    # One word is cmd's whole line, read as cmd reads it; several keep the boundaries the shell gave.
+                    return _judge_cmd_line(rest[0][0]) if len(rest) == 1 else _judge_command(rest)
+                if not words[k][0].startswith("/"):
+                    return None
+            return None
         elif name == "command":
             i += 1
             while i < len(words) and words[i][0].startswith("-"):
@@ -359,6 +407,73 @@ def _judge_command(words: list[tuple[str, bool]]) -> str | None:
             return _judge_python(args)
         else:
             return None
+    return None
+
+
+def _past_options(
+    words: list[tuple[str, bool]], i: int, valued: str, valued_long: set[str], queries: str, query_long: set[str]
+) -> int | None:
+    """The index of the first word after a wrapper's options from ``i``, or ``None`` when one makes it a query.
+
+    A short option cluster (``-Eu``) is read letter by letter: a letter that takes a value takes the rest of the word,
+    or the next word when nothing is left.
+    A long option takes the next word only when it needs a value and has no ``=``.
+    """
+    while i < len(words) and words[i][0].startswith("-") and words[i][0] != "-":
+        option = words[i][0]
+        i += 1
+        if option == "--":
+            break
+        if option.startswith("--"):
+            name = option.split("=", 1)[0]
+            if name in query_long:
+                return None
+            if name in valued_long and "=" not in option:
+                i += 1
+            continue
+        letters = option[1:]
+        for at, letter in enumerate(letters):
+            if letter in queries:
+                return None
+            if letter in valued:
+                if at == len(letters) - 1:
+                    i += 1
+                break
+    return i
+
+
+def _judge_cmd_line(line: str) -> str | None:
+    """``cmd /c``'s command given as one string, read as cmd reads it: ``&`` and ``|`` (doubled or not) separate
+    commands outside double quotes, a double quote groups a word, and a backquote or a single quote is text."""
+    commands: list[list[tuple[str, bool]]] = [[]]
+    buf: list[str] = []
+    quoted = in_quote = False
+
+    def end_word() -> None:
+        nonlocal quoted
+        if buf or quoted:
+            commands[-1].append(("".join(buf), quoted))
+        buf.clear()
+        quoted = False
+
+    for ch in line:
+        if ch == '"':
+            in_quote, quoted = not in_quote, True
+        elif in_quote:
+            buf.append(ch)
+        elif ch in "&|":
+            end_word()
+            if commands[-1]:
+                commands.append([])
+        elif ch in " \t":
+            end_word()
+        else:
+            buf.append(ch)
+    end_word()
+    for words in commands:
+        reason = _judge_command(words) if words else None
+        if reason:
+            return reason
     return None
 
 
