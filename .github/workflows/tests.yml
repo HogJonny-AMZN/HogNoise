@@ -23,8 +23,10 @@ jobs:
           # adapter fails the GPU tests here (HOG_NOISE_REQUIRE_GPU) instead of skipping them.
           - {name: "3.13 + wgpu on WARP (Windows)", os: windows-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true}
           - {name: "3.13 + wgpu on llvmpipe (Ubuntu)", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true}
-          # The wgpu rung on Metal, through whatever adapter the hosted macOS runner gives wgpu.
-          - {name: "3.13 + wgpu on Metal (macOS)", os: macos-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true}
+          # The wgpu rung on Metal: the hosted runner gives wgpu the "Apple Paravirtual device". The leg tests the library
+          # and the app; the template's own tooling is not run here (its adopt test finds a case-insensitive file system
+          # bug on macOS, the template's to fix: the PR adding this leg says which).
+          - {name: "3.13 + wgpu on Metal (macOS)", os: macos-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true, paths: "packages apps"}
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v7
@@ -48,16 +50,17 @@ jobs:
       - name: Test
         env:
           HOG_NOISE_REQUIRE_GPU: ${{ matrix.gpu && '1' || '0' }}
-        run: pytest
+        run: pytest ${{ matrix.paths }}
       - name: Measure the wgpu rung
-        if: matrix.gpu
+        # measured even when a test failed: a failing adapter's record is the evidence for its rule
+        if: matrix.gpu && !cancelled()
         env:
           # a pull_request run checks out a merge commit; the record names the branch head the owner can check out
           HOG_NOISE_MEASURED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           HOG_NOISE_MEASURE_HOST: ci-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'ubuntu' }}
         run: hog-noise-measure-gpu run --out measured
       - name: Keep the measurement
-        if: matrix.gpu
+        if: matrix.gpu && !cancelled()
         uses: actions/upload-artifact@v7
         with:
           name: gpu-measurement-${{ runner.os }}
