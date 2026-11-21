@@ -46,7 +46,7 @@ value = sampler.sample(10.0, 20.0, 0.0)  # one point
 
 ### On the GPU
 
-Every noise above also runs as one WGSL compute shader on whatever GPU adapter [wgpu](https://github.com/pygfx/wgpu-py) finds. It has been run on Vulkan, Direct3D 12 and OpenGL, hardware and software adapters both; Metal is untested. Install the `[gpu]` extra and ask for it by name; `make_sampler` never chooses it for you, so installing wgpu changes nothing until you do.
+Every noise above also runs as one WGSL compute shader on whatever GPU adapter [wgpu](https://github.com/pygfx/wgpu-py) finds. It has been run on Vulkan, Direct3D 12, OpenGL and Metal, hardware and software adapters both; Metal only on a hosted macOS runner's virtual GPU, not on Apple hardware directly. Install the `[gpu]` extra and ask for it by name; `make_sampler` never chooses it for you, so installing wgpu changes nothing until you do.
 
 ```python
 sampler, _ = make_sampler(params, backend="wgpu")  # or set HOG_NOISE_BACKEND_NOISE=wgpu

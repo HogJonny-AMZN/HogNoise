@@ -13,7 +13,7 @@ Use it when someone wants seeded 2D or 3D noise over numpy arrays: terrain and h
 ## Evidence
 
 - [vectors/portability.md](vectors/portability.md): every comparison, with its largest difference
-- [vectors/portability-gpu.md](vectors/portability-gpu.md) and [vectors/tolerance/wgpu.json](vectors/tolerance/wgpu.json): the GPU rung against every hog feature on six GPU adapters, and the bounds derived from that measurement
+- [vectors/portability-gpu.md](vectors/portability-gpu.md) and [vectors/tolerance/wgpu.json](vectors/tolerance/wgpu.json): the GPU rung against every hog feature on seven GPU adapters, and the bounds derived from that measurement
 - [vectors/README.md](vectors/README.md): the reference vectors' format, and how any port checks itself against them
   (`python -m hog_noise.conformance vectors --rendering numpy`)
 - [packages/python/hog-noise/src/hog_noise/shaders/README.md](packages/python/hog-noise/src/hog_noise/shaders/README.md): the emitted HLSL, GLSL and SPIR-V, their bindings per language, the dispatch and the uniforms
