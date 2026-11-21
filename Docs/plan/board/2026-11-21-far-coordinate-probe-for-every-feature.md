@@ -1,8 +1,8 @@
 # A far-coordinate probe for every feature, to size the large-coordinate stage
 
-**Section:** icebox
-**Owner:** none
-**State:** Iceboxed
+**Section:** now
+**Owner:** @HogJonny-AMZN
+**State:** Landed 2026-11-21 in [PR #41](https://github.com/HogJonny-AMZN/HogNoise/pull/41), on the owner's "proceed": [the probe](../../../Spikes/far_coordinates/README.md) on three adapters; the noise rules hold to 1,048,576 units, the warp outputs' absolute rules do not, and the bounds miss rare points inside the range
 **Cost:** 0.5 d (a probe script and a table; the fix is the large-coordinate row's own cost)
 **Verdict:** Proposed: Needed before the GPU is used for a large world; measure before fixing. The owner's to confirm
 **Raised:** [the account](../../design/2026-11-20-gpu-fast-track-account.md), gap 1, [PR #39](https://github.com/HogJonny-AMZN/HogNoise/pull/39)
