@@ -65,6 +65,12 @@ four adapters and applies one of three rules. Each result is rounded up to the n
 | 6 | **The two adapter variables do not combine** | With `HOG_NOISE_WGPU_ADAPTER` unset, wgpu's `WGPU_BACKEND_TYPE` chooses the back end: D3D12 and OpenGL each passed all 368 cases that way today, through the module's own command. With it set, the first device whose name matches wins, and `WGPU_BACKEND_TYPE` is ignored. The 5090 is offered three times under one name, so that is always Vulkan. Nothing documents either behaviour | **Good, very cheap**: `WGPU_BACKEND_TYPE=D3D12 hog-noise-measure-gpu run` can already record today's two new passes. Only naming a device and a back end together needs code | Say so in the README, and record the 5090's D3D12 and OpenGL runs. Optionally, match the variable against `device (backend)` | 0.5 d with the records and the re-derivation |
 | 7 | **Past a device's buffer limit** | The device takes the adapter's limits: 2 GiB per storage binding on the 5090, about 536 million float32 values per axis. The 128 MiB default was suspected and disproved today: 2^25 and 2^25 + 64 points both ran. There is no chunking, and a call past the real limit has never been tried. The software adapters' limits are not recorded | **Minor**: the likely result is wgpu's own validation error, not a wrong answer, but nobody has seen it. A clear refusal naming the limit would be enough | One test past the limit on WARP, and a refusal before dispatch if the error is unclear | 0.5 d |
 
+**Since the account:** gap 6 was closed on 2026-11-21 ([PR #40](https://github.com/HogJonny-AMZN/HogNoise/pull/40)).
+Gap 1 was measured the same day by [the far-coordinate probe](../../Spikes/far_coordinates/README.md), with two
+corrections to this page:
+- far out, the discrete features hold and only the warp outputs fail;
+- C2's bounds hold on the vectors' points, while on fresh points in the range about 1 to 10 in a million exceed them.
+
 Nothing in the account changes a bound, the tolerance file or a record. Today's runs are evidence for this page, not
 measurement records. Recording them means a new record folder and a re-derivation, which is gap 6's work.
 
