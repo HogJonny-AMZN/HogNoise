@@ -107,7 +107,7 @@ set only; the original cases keep their own rules for every rendering.
   "format": 1,
   "rendering": "wgpu",
   "range": {"frequency": [0.01], "noise_coordinate_max": 40.96},
-  "measured": {"record": "reports/gpu/0d419e9/", "adapters": ["NVIDIA GeForce RTX 5090 (Vulkan) on local", "..."]},
+  "measured": {"record": "reports/gpu/efb910a/", "adapters": ["NVIDIA GeForce RTX 5090 (Vulkan) on local", "..."]},
   "rules": [
     {"feature": "fnl/simplex_fbm", "kind": "continuous", "bound": {"scale": 2e-05, "coordinate_scaled": true}},
     {"feature": "fnl/warp_opensimplex2_none", "output": "noise", "kind": "continuous",
@@ -145,7 +145,9 @@ worst over every adapter, rounded up to a 1, 2 or 5 step (the 99th percentile, f
 rounded down to three places, the correlation to at most 0.999). A
 measurement the rules cannot hold, such as a discrete feature flipping more than 1% of its points, stops the
 derivation as a measurement finding for a person, and so does a folder of records that are not all exactly the hog
-set's cases; nothing is written then. `wgpu.json` was derived from four records at commit `0d419e9`: an RTX 5090
-(Vulkan) and Direct3D 12's WARP on one machine, and WARP and Mesa's llvmpipe (Vulkan) on CI. A test recomputes every
-number from that record, so a number edited by hand fails it. A rule is never loosened to make a run pass: an adapter
+set's cases; nothing is written then. `wgpu.json` was derived from six records at commit `efb910a`: an RTX 5090
+on Vulkan, Direct3D 12 and OpenGL, and Direct3D 12's WARP, on one machine; WARP and Mesa's llvmpipe (Vulkan) on CI.
+The first derivation, from four records at `0d419e9`, is kept beside it; adding the 5090's Direct3D 12 and OpenGL
+records moved two rules, `cubic_none` in both libraries, from 2e-7 to 5e-7 (both back ends drift 1.19e-7 there,
+which the doubling and the 1-2-5 step make 5e-7). A test recomputes every number from the record the file names, so a number edited by hand fails it. A rule is never loosened to make a run pass: an adapter
 that fails one is a measurement finding, and loosening it is a person's decision.

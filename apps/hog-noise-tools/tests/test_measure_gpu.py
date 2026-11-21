@@ -183,8 +183,9 @@ def test_a_hand_edited_number_is_caught(tmp_path):
 
 # -------------------------------------------------------------------------
 # derive_files and read_records on a copy of vectors/: never the real one (ledger P-2)
-RECORD = "reports/gpu/0d419e9"
 REAL_VECTORS = m.VECTORS
+#: The record folder the committed tolerance file names, so a new measurement never leaves this pointing at the old one.
+RECORD = json.loads(TOLERANCE.read_text(encoding="utf-8"))["measured"]["record"].rstrip("/")
 
 
 @pytest.fixture(scope="module")

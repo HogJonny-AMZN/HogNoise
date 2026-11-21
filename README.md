@@ -46,16 +46,16 @@ value = sampler.sample(10.0, 20.0, 0.0)  # one point
 
 ### On the GPU
 
-Every noise above also runs as one WGSL compute shader on whatever GPU adapter [wgpu](https://github.com/pygfx/wgpu-py) finds. It has been run on Vulkan and Direct3D 12, hardware and software adapters both; Metal is untested. Install the `[gpu]` extra and ask for it by name; `make_sampler` never chooses it for you, so installing wgpu changes nothing until you do.
+Every noise above also runs as one WGSL compute shader on whatever GPU adapter [wgpu](https://github.com/pygfx/wgpu-py) finds. It has been run on Vulkan, Direct3D 12 and OpenGL, hardware and software adapters both; Metal is untested. Install the `[gpu]` extra and ask for it by name; `make_sampler` never chooses it for you, so installing wgpu changes nothing until you do.
 
 ```python
 sampler, _ = make_sampler(params, backend="wgpu")  # or set HOG_NOISE_BACKEND_NOISE=wgpu
 height = sampler.sample_grid((0, 0, 0), (256, 1, 256))[:, 0, :]
 ```
 
-The sampler has the same calls as the CPU ones. `HOG_NOISE_WGPU_ADAPTER` picks an adapter by part of its name (`"Microsoft Basic Render Driver"` is Windows' software adapter); one device is made per process and kept. Without wgpu or an adapter, asking for the rung raises `BackendUnavailable` saying which. An `octaves` or `perturb_octaves` above 32 is refused on the GPU, since a loop that long can stall the device.
+The sampler has the same calls as the CPU ones. `HOG_NOISE_WGPU_ADAPTER` picks an adapter by part of its name (`"Microsoft Basic Render Driver"` is Windows' software adapter); one device is made per process and kept. To choose a back end instead, leave it unset and set wgpu's own `WGPU_BACKEND_TYPE` (`Vulkan`, `D3D12`, `OpenGL`, `Metal`). The two do not combine: a GPU offered on several back ends has one name, and with a name set the first back end listed wins. Without wgpu or an adapter, asking for the rung raises `BackendUnavailable` saying which. An `octaves` or `perturb_octaves` above 32 is refused on the GPU, since a loop that long can stall the device.
 
-What it claims: it is float32, so it is close to the CPU's numbers, not equal to them. Every feature is held to a bound per feature, measured on four GPU adapters (an RTX 5090, two builds of Windows' WARP and Mesa's llvmpipe) and written down in [a tolerance file](vectors/README.md#tolerance-files), over what the vectors sample: frequency 0.01 and coordinates up to 4,096 units. Nothing is claimed outside that, and nothing about speed: it has not been benchmarked.
+What it claims: it is float32, so it is close to the CPU's numbers, not equal to them. Every feature is held to a bound per feature, measured on six GPU adapters (an RTX 5090 on each of Vulkan, Direct3D 12 and OpenGL, two builds of Windows' WARP and Mesa's llvmpipe) and written down in [a tolerance file](vectors/README.md#tolerance-files), over what the vectors sample: frequency 0.01 and coordinates up to 4,096 units. Nothing is claimed outside that, and nothing about speed: it has not been benchmarked.
 
 ### The same shader in another host
 
