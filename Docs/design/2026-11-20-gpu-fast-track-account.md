@@ -69,7 +69,9 @@ four adapters and applies one of three rules. Each result is rounded up to the n
 Gap 1 was measured the same day by [the far-coordinate probe](../../Spikes/far_coordinates/README.md), with two
 corrections to this page:
 - far out, the discrete features hold and only the warp outputs fail;
-- C2's bounds hold on the vectors' points, while on fresh points in the range about 1 to 10 in a million exceed them.
+- C2's bounds hold on the vectors' points. On fresh points in the range, pooled over every noise probe, 1 to 10 points
+  in a million go past the outer bound, depending on the adapter. Separately, on D3D12, three NoiseLookup 2D probes
+  miss their tight bound on about 0.1% of points.
 
 Nothing in the account changes a bound, the tolerance file or a record. Today's runs are evidence for this page, not
 measurement records. Recording them means a new record folder and a re-derivation, which is gap 6's work.

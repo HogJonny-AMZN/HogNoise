@@ -46,8 +46,8 @@ the 5090's Vulkan. "Points past" counts out of 228 x 65,536 = 14,942,208 per ban
 | [32,768, 262,144) | 3 / 228 (2) | 18 / 18 | 0.0938 | 0.0312 |
 | [262,144, 1,048,576) | 2 / 228 (2) | 18 / 18 | 0.5 | 0.125 |
 
-WARP's measured-range row is 23 / 228 (156 points). Its other rows are like the 5090's. The full rows are in
-`results_*.json`, one file per adapter.
+The other two adapters' bands past 4,096 units are like these; their measured-range rows are below, in *What it says*
+item 3. The full rows are in `results_*.json`, one file per adapter.
 
 ## What it says
 
@@ -62,17 +62,26 @@ WARP's measured-range row is 23 / 228 (156 points). Its other rows are like the 
    warped, so it grows as the coordinate does. An absolute bound (5e-4 to 5e-3) cannot hold that far out for any
    float32 shader. A coordinate-scaled rule for the warp outputs would follow the drift, as it already does for the
    noise.
-3. **The bounds miss rare points even inside the measured range.** On fresh points in [0, 4,096):
-   - on the 5090, 10 noise probes and 2 warp outputs exceed their rule at 1 or 2 points in 65,536, at most 8.5 times
-     the bound for the warps and 4.9 times for the noise (`fnl/simplex_smooth_fbm`, 3D);
-   - on WARP, 23 noise probes do, 156 points in all;
-   - on D3D12 (the 5090 and WARP alike), three of those are NoiseLookup in 2D, a discrete rule, with 0.11 to 0.13% of
-     points outside its tight bound where the rule asks for none. Their outer bound and correlation still hold. On
-     Vulkan they pass.
+3. **The bounds miss rare points even inside the measured range.** On fresh points in [0, 4,096), by adapter, with
+   two kinds of failure kept apart:
+   - **past the outer bound**: a point beyond the rule's bound;
+   - **outside the tight bound**: a discrete rule's share of points within its tight bound, below what it asks.
+
+   | Adapter | Continuous noise probes failing (of 202) | Points past the outer bound, all 228 noise probes pooled | Discrete probes failing on the tight bound | Warp outputs failing (of 18) |
+   | --- | --- | --- | --- | --- |
+   | RTX 5090, Vulkan | 10 | 15 of 14,942,208 (1.0 per million) | 0 | 2 |
+   | RTX 5090, D3D12 | 9 | 14 (0.94 per million) | 3 | 2 |
+   | WARP (D3D12) | 20 | 156 (10.4 per million) | 3 | 2 |
+
+   The worst continuous noise probe is 4.9 times its bound (`fnl/simplex_smooth_fbm`, 3D), and the worst warp output
+   8.5 times. The three discrete probes are NoiseLookup in 2D (Euclidean, Manhattan and Natural). On D3D12 alone, 0.11
+   to 0.13% of their points fall outside the tight bound, where the rule asks for none; their outer bound and
+   correlation hold.
 
    The rules were derived from the vectors' 4,096 points per case, so a tail rarer than about 1 in 4,096 is never seen.
-   The claim "each feature is within its bound" therefore holds on the vectors' points. On any point in the range it
-   holds for all but about 1 to 10 in a million.
+   The claim "each feature is within its bound" therefore holds on the vectors' points. The per-million figures pool
+   every noise probe on one adapter. They are not a rate for any one feature, and not a guarantee for points this
+   probe did not draw.
 
 ## What it changes
 
