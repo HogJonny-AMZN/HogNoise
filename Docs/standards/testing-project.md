@@ -55,11 +55,14 @@ Three, because each catches what the others cannot: Python 3.13 with every extra
 floor); and numpy alone, with no extras, which proves the package stands on its one runtime dependency. A test that names the
 best rung it expects computes it from what is installed (`HAVE_NUMBA`, `_have_fastnoiselite()`).
 
-And two for the `wgpu` rung, each Python 3.13 with the `dev` and `gpu` extras on a software GPU adapter, so CI runs the
-GPU tests with no GPU: Windows with Direct3D 12's WARP ("Microsoft Basic Render Driver"), and Ubuntu with Mesa's
-llvmpipe Vulkan driver (`mesa-vulkan-drivers`). Both set `HOG_NOISE_REQUIRE_GPU=1`, print the adapter they found, and
-after the tests measure the rung with `hog-noise-measure-gpu run`, kept as the run's artifact. The other legs install no `wgpu`,
-and their GPU tests skip with the reason.
+And three for the `wgpu` rung, each Python 3.13 with the `dev` and `gpu` extras on the hosted runner's own adapter, so
+CI runs the GPU tests with no GPU of ours: Windows with Direct3D 12's WARP ("Microsoft Basic Render Driver"), Ubuntu
+with Mesa's llvmpipe Vulkan driver (`mesa-vulkan-drivers`), and macOS with the "Apple Paravirtual device" on Metal, a
+virtual GPU. Each pins its back end with `WGPU_BACKEND_TYPE` and fails in its Adapter step if the device is on another,
+sets `HOG_NOISE_REQUIRE_GPU=1`, and after the tests measures the rung with `hog-noise-measure-gpu run` (even when a test
+failed), kept as the run's artifact. The macOS leg runs `pytest packages apps`: the template's own tests fail there on
+a case-insensitive file system bug ([ai-first-template issue #265](https://github.com/HogJonny-AMZN/ai-first-template/issues/265)).
+The other legs install no `wgpu`, and their GPU tests skip with the reason.
 
 ## The GPU tests
 
@@ -69,8 +72,8 @@ naming why ("wgpu is not installed: install hog-noise[gpu]", "no adapter: ...").
 - **`uv run --group gpu pytest`** installs `wgpu` (the root `gpu` group) and runs them. A plain `uv run pytest` does not
   remove a `wgpu` already installed, because `uv run` syncs inexactly; a run without it is
   `uv run --exact pytest`. A later `--group gpu` puts it back.
-- **`HOG_NOISE_REQUIRE_GPU=1`** turns those skips into failures, so a leg that loses its adapter cannot go green. The two
-  software-adapter legs set it; set it locally to prove a run really used the GPU.
+- **`HOG_NOISE_REQUIRE_GPU=1`** turns those skips into failures, so a leg that loses its adapter cannot go green. The three
+  GPU legs set it; set it locally to prove a run really used the GPU.
 - **`HOG_NOISE_WGPU_ADAPTER`** picks the adapter: the first whose name contains it, ignoring case, instead of wgpu's
   default. On Windows, `HOG_NOISE_WGPU_ADAPTER="Microsoft Basic Render Driver"` runs the suite on WARP beside a real GPU.
   A name that matches nothing is "no adapter", naming the ones found. One device is made per process, so set it before
@@ -79,8 +82,8 @@ naming why ("wgpu is not installed: install hog-noise[gpu]", "no adapter: ...").
   from `hog-noise-measure-gpu derive` over the committed record, and `apps/hog-noise-tools/tests/test_measure_gpu.py` recomputes them: a number
   edited by hand fails it. A rule a GPU adapter fails is a measurement finding to record, never a number to loosen in
   the same change ([vectors/README.md](../../vectors/README.md), *Tolerance files*). Re-measuring is
-  `uv run --group gpu hog-noise-measure-gpu run` on each local adapter, CI's two records downloaded into the same `vectors/reports/gpu/<commit>/`,
-  then `uv run hog-noise-measure-gpu derive vectors/reports/gpu/<commit>`.
+  `uv run --group gpu hog-noise-measure-gpu run` on each local adapter, CI's three records (WARP, llvmpipe and Metal) downloaded into the same
+  `vectors/reports/gpu/<commit>/`, then `uv run hog-noise-measure-gpu derive vectors/reports/gpu/<commit>`.
 
 What the GPU tests do not show, found while building the rung
 ([the plan](../superpowers/plans/2026-11-14-gpu-port.md), Tasks 7, 10 and 12):
