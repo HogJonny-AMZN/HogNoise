@@ -201,6 +201,67 @@ group even a minimal module (measured 2026-11-20). **Mechanised:** the writer no
 row of the committed table; under xdist it skips with the command that regenerates the table (`-n 0`), and in one
 process a missing row fails. `test_a_partial_set_of_rows_is_never_complete` holds the guard.
 
+### P-16 · A plan's own code breaks a rule the ledger already has
+
+**Trigger:** a plan, or its self-review, contains code for a tool that writes a committed file.
+**Do:** hold that code to P-13 in the plan's self-review, before any task runs: what it does on an input that yields
+nothing, a partial one and a malformed one, and whether it writes before it has built everything. A plan's code is
+copied into the build, so a fault in the plan is a fault in the product.
+**Because:** stage 3's plan gave the shader emitter code that wrote `manifest.json` with blank binding entries when it
+could not read naga's output, which is what P-13 forbids. The plan's self-review passed it; the deliberate review on
+[PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34) caught it, and `241768c` made the emitter refuse an
+incomplete binding table and write nothing. Not mechanised: a plan is prose, and no check reads its code against the
+ledger.
+
+### P-17 · A parser of a real language, tested only on the forms the repository happens to contain
+
+**Trigger:** you write or review code that reads a language by hand (a regex or a scanner over WGSL, HLSL, TOML,
+markdown) rather than through that language's own parser.
+**Do:** test it against the variants the grammar allows that the repository does not use today: whitespace inside
+tokens, every comment form (nested ones too where the language nests them), and a form it cannot read, which it
+refuses rather than skips. Better, read the language's own tool's output when one exists.
+**Because:** the emitter's binding reader handled `@binding(6)` as the WGSL was written, but not `@binding( 6 )`, which
+WGSL allows, and it counted declarations inside `/* */` comments. Copilot's review on
+[PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34) found it, not ours. `f155da5` reads the attribute with
+spaces, skips comments as WGSL does, refuses a binding it cannot read, and adds three tests, each seen to fail first.
+
+### P-18 · A claim true of a module, written as if true of importing it
+
+**Trigger:** a document says what something needs or does not need: "standard library only", "no GPU", "no numpy".
+**Do:** state it of the thing a user does (`from hog_noise import shaders`), not of one file, and prove it in a fresh
+interpreter with the dependency blocked, as the no-wgpu test does. A claim no test has seen fail is not yet a claim.
+**Because:** "`hog_noise.shaders` needs only the standard library" held for `shaders/__init__.py`, but importing it
+loads the package, which imports numpy. The claim reached five documents before Copilot's review on
+[PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34) questioned it; `f155da5` corrected the five. The claim
+the spec needed (reading a shader needs no wgpu) was already held by a test. The owner's "verify the exact claim"
+rule again, recorded because it spread.
+
+### P-19 · A file written by a heredoc, against a rule already written down
+
+**Trigger:** you are about to write or append a file from a shell heredoc (`cat > f <<EOF`, `tee f <<EOF`) or a
+PowerShell here-string piped to `Set-Content` or `Out-File`.
+**Do:** write it with the Write tool (or edit it with Edit), then run or commit the file.
+**Because:** HogShade's ledger has the rule as its P-2, and memory carried it. Still, on 2026-11-19 the journal of
+[PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34) was appended with a heredoc (the text came out right),
+and on 2026-11-20 an empty, pointless heredoc wrote a scratch script. As with P-14, a ledger line had not held, so the
+class is mechanised: a Claude Code `PreToolUse` hook in the owner's user settings, on the Bash and PowerShell tools,
+refuses the command before it runs (`~/.claude/hooks/refuse_heredoc_file_write.py`, with a `--self-test` of 13
+refused and 11 allowed forms; proven on 2026-11-20 by a heredoc into the scratchpad, refused, nothing written). A
+heredoc fed to a command (`git commit -F - <<EOF`) is not refused. **Mechanised on the owner's machine only**, as P-14.
+
+### P-20 · A green local gate, when a release changes how pytest runs
+
+**Trigger:** a template release, or your own change, edits pytest's configuration (`addopts`, a plugin, a marker) or
+the test dependencies.
+**Do:** list every workflow that runs pytest and how each installs its tools (`grep -n pytest .github/workflows/*`),
+and check each gets what the new configuration needs. `make check` proves only the environment `make` builds.
+**Because:** ai-first-template 0.11.0 put `-n auto` in the root's `addopts` and `pytest-xdist` in the root's `dev`
+group, which `make check` installs. `tests.yml` installs the library's extras with pip, so on the first push of
+[PR #35](https://github.com/HogJonny-AMZN/HogNoise/pull/35) all six of its legs stopped on
+`unrecognized arguments: -n` while the local gate was green. `e26a833` puts `pytest-xdist` in the `test` extra. The
+template's guide now says it too ([ai-first-template PR #248](https://github.com/HogJonny-AMZN/ai-first-template/pull/248)).
+Not mechanised here beyond CI itself, which caught it.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
