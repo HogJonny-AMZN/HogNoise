@@ -262,6 +262,21 @@ group, which `make check` installs. `tests.yml` installs the library's extras wi
 template's guide now says it too ([ai-first-template PR #248](https://github.com/HogJonny-AMZN/ai-first-template/pull/248)).
 Not mechanised here beyond CI itself, which caught it.
 
+### P-21 · A number from one run, written as if it held for every run
+
+**Trigger:** you write a figure or a "every", "all", "none" from measurements taken on more than one adapter, back end,
+host or run.
+**Do:** name the run a number came from beside it ("the 5090 on Vulkan"), say what a pooled figure pools, and check
+every general claim against every result file with a script before the text is committed. Reading one file and
+remembering the others is not the check.
+**Because:** the far-coordinate probe of [PR #41](https://github.com/HogJonny-AMZN/HogNoise/pull/41) ran on three
+adapters, and its write-up was drafted from the Vulkan results. A script over all three files caught two claims that
+held on Vulkan alone ("all 18 warps fail past 4,096"; "every discrete rule passes"), both fixed before the commit.
+Copilot's review then caught two more of the same class the script had not been asked about: a pooled "1 to 10 in a
+million" that did not say what it pooled, and in-range counts that were the Vulkan run's, unlabelled. `35b77c5` made
+the finding a table per adapter. P-10 asks that a count come from a command; this asks that it also say which run it
+counts. Not mechanised: the check is a script per write-up, kept with the evidence.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

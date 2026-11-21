@@ -73,6 +73,12 @@ corrections to this page:
   in a million go past the outer bound, depending on the adapter. Separately, on D3D12, three NoiseLookup 2D probes
   miss their tight bound on about 0.1% of points.
 
+Gap 3 was tried the same day ([PR #42](https://github.com/HogJonny-AMZN/HogNoise/pull/42)). GitHub's macOS runner
+gives wgpu an "Apple Paravirtual device" on Metal, a virtual GPU, not Apple hardware directly. On it, 365 of the 368
+hog cases passed the rules of the time. The three NoiseLookup 2D cases flipped 0.02% of their points past the tight
+bound, on the vectors' own points. The owner chose to take its record, and the re-derivation from seven adapters
+loosened five FastNoiseSIMD fields ([vectors/README.md](../../vectors/README.md), *Tolerance files*).
+
 Nothing in the account changes a bound, the tolerance file or a record. Today's runs are evidence for this page, not
 measurement records. Recording them means a new record folder and a re-derivation, which is gap 6's work.
 

@@ -8,8 +8,9 @@
     "noise_coordinate_max": 40.96
   },
   "measured": {
-    "record": "reports/gpu/efb910a/",
+    "record": "reports/gpu/5340a3f/",
     "adapters": [
+      "Apple Paravirtual device (Metal) on ci-macos",
       "llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan) on ci-ubuntu",
       "Microsoft Basic Render Driver (D3D12) on ci-windows",
       "Microsoft Basic Render Driver (D3D12) on local",
@@ -701,7 +702,7 @@
       "feature": "fns/cellular_euclidean_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 5e-07,
         "coordinate_scaled": true
       }
     },
@@ -755,7 +756,7 @@
       "within": {
         "scale": 5e-07,
         "coordinate_scaled": true,
-        "fraction": 1.0
+        "fraction": 0.999
       },
       "min_correlation": 0.999
     },
@@ -839,7 +840,7 @@
       "within": {
         "scale": 5e-07,
         "coordinate_scaled": true,
-        "fraction": 1.0
+        "fraction": 0.999
       },
       "min_correlation": 0.999
     },
@@ -923,7 +924,7 @@
       "within": {
         "scale": 5e-07,
         "coordinate_scaled": true,
-        "fraction": 1.0
+        "fraction": 0.999
       },
       "min_correlation": 0.999
     },
@@ -987,9 +988,9 @@
         "coordinate_scaled": false
       },
       "within": {
-        "scale": 0.0002,
+        "scale": 0.0005,
         "coordinate_scaled": true,
-        "fraction": 0.986
+        "fraction": 0.992
       },
       "min_correlation": 0.999
     },

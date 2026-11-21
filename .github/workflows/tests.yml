@@ -20,9 +20,14 @@ jobs:
           - {name: "3.13, numpy only (no numba, no binding)", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "test"}
           - {name: "3.13 on Windows", os: windows-latest, python: "3.13", numpy: "numpy", extras: "dev"}
           # The wgpu rung on a software adapter: Direct3D 12's WARP, and Mesa's llvmpipe Vulkan driver. A missing wgpu or
-          # adapter fails the GPU tests here (HOG_NOISE_REQUIRE_GPU) instead of skipping them.
-          - {name: "3.13 + wgpu on WARP (Windows)", os: windows-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true}
-          - {name: "3.13 + wgpu on llvmpipe (Ubuntu)", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true}
+          # adapter fails the GPU tests here (HOG_NOISE_REQUIRE_GPU) instead of skipping them. `backend` is pinned with
+          # WGPU_BACKEND_TYPE and checked in the Adapter step, so a leg cannot go green on another back end.
+          - {name: "3.13 + wgpu on WARP (Windows)", os: windows-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true, backend: D3D12}
+          - {name: "3.13 + wgpu on llvmpipe (Ubuntu)", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true, backend: Vulkan}
+          # The wgpu rung on Metal: the hosted runner gives wgpu the "Apple Paravirtual device". The leg tests the library
+          # and the app; the template's own tooling is not run here (its adopt test finds a case-insensitive file system
+          # bug on macOS, the template's to fix: the PR adding this leg says which).
+          - {name: "3.13 + wgpu on Metal (macOS)", os: macos-latest, python: "3.13", numpy: "numpy", extras: "dev,gpu", gpu: true, backend: Metal, paths: "packages apps"}
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v7
@@ -42,20 +47,27 @@ jobs:
           python -m pip install --no-deps -e apps/hog-noise-tools
       - name: Adapter
         if: matrix.gpu
-        run: python -c "from hog_noise import gpu; print(gpu.adapter_info())"
+        env:
+          WGPU_BACKEND_TYPE: ${{ matrix.backend }}
+        # fails unless the device is on the leg's back end
+        run: python -c "from hog_noise import gpu; i = gpu.adapter_info(); print(i); assert i['backend_type'] == '${{ matrix.backend }}', i"
       - name: Test
         env:
           HOG_NOISE_REQUIRE_GPU: ${{ matrix.gpu && '1' || '0' }}
-        run: pytest
+          # empty on the legs without wgpu, where nothing reads it
+          WGPU_BACKEND_TYPE: ${{ matrix.backend }}
+        run: pytest ${{ matrix.paths }}
       - name: Measure the wgpu rung
-        if: matrix.gpu
+        # measured even when a test failed: a failing adapter's record is the evidence for its rule
+        if: matrix.gpu && !cancelled()
         env:
           # a pull_request run checks out a merge commit; the record names the branch head the owner can check out
           HOG_NOISE_MEASURED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-          HOG_NOISE_MEASURE_HOST: ci-${{ runner.os == 'Windows' && 'windows' || 'ubuntu' }}
+          HOG_NOISE_MEASURE_HOST: ci-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'ubuntu' }}
+          WGPU_BACKEND_TYPE: ${{ matrix.backend }}
         run: hog-noise-measure-gpu run --out measured
       - name: Keep the measurement
-        if: matrix.gpu
+        if: matrix.gpu && !cancelled()
         uses: actions/upload-artifact@v7
         with:
           name: gpu-measurement-${{ runner.os }}
