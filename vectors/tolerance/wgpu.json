@@ -8,11 +8,13 @@
     "noise_coordinate_max": 40.96
   },
   "measured": {
-    "record": "reports/gpu/0d419e9/",
+    "record": "reports/gpu/efb910a/",
     "adapters": [
       "llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan) on ci-ubuntu",
       "Microsoft Basic Render Driver (D3D12) on ci-windows",
       "Microsoft Basic Render Driver (D3D12) on local",
+      "NVIDIA GeForce RTX 5090 (D3D12) on local",
+      "NVIDIA GeForce RTX 5090/PCIe/SSE2 (OpenGL) on local",
       "NVIDIA GeForce RTX 5090 (Vulkan) on local"
     ]
   },
@@ -309,7 +311,7 @@
       "feature": "fnl/cubic_none",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 5e-07,
         "coordinate_scaled": true
       }
     },
@@ -937,7 +939,7 @@
       "feature": "fns/cubic_none",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 5e-07,
         "coordinate_scaled": true
       }
     },

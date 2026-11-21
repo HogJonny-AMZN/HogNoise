@@ -1,8 +1,8 @@
 # Record the 5090's D3D12 and OpenGL runs, and say how to choose a back end
 
-**Section:** icebox
-**Owner:** none
-**State:** Iceboxed
+**Section:** now
+**Owner:** @HogJonny-AMZN
+**State:** Started 2026-11-21 on the owner's "proceed": six measurement records at `efb910a` (the 5090 on Vulkan, D3D12 and OpenGL, WARP local and on CI, llvmpipe), the tolerance file derived from them, the README says how to choose a back end; the optional `device (backend)` match is not done
 **Cost:** 0.5 d (two measurement records, a re-derivation of the tolerance file, a README paragraph; the optional `device (backend)` match is a test and a few lines more)
 **Verdict:** Proposed: Good, very cheap, and first in the account's order. The owner's to confirm
 **Raised:** [the account](../../design/2026-11-20-gpu-fast-track-account.md), gap 6, [PR #39](https://github.com/HogJonny-AMZN/HogNoise/pull/39)
