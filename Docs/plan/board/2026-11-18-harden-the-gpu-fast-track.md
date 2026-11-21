@@ -2,7 +2,7 @@
 
 **Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** Started 2026-11-20: [the account](../../design/2026-11-20-gpu-fast-track-account.md), Proposed: eight claims hold within the measured range, seven gaps each with a proposed verdict; the CI proof is not part of it
+**State:** Landed 2026-11-20 in [PR #39](https://github.com/HogJonny-AMZN/HogNoise/pull/39): [the account](../../design/2026-11-20-gpu-fast-track-account.md), Proposed: eight claims hold within the measured range, seven gaps each with a proposed verdict waiting on the owner; the CI proof is not part of it
 **Cost:** 1 to 2 d (the account; each gap it finds is sized there)
 **Verdict:** Needed: the track was fast by design, so what it rests on is written down before anything is built on it
 **Raised:** [the session journal, 2026-11-18](../../journal/2026-11/2026-11-18-HogJonny-AMZN-0147.md)

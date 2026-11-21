@@ -6,7 +6,11 @@
 **Cost:** 3 to 5 d (about 1 d per language, plus the harness's shared half)
 **Verdict:** Good: the cheapest step from "compiles" to "proven", and what every host trial waits on
 **Raised:** [the session journal, 2026-11-18](../../journal/2026-11/2026-11-18-HogJonny-AMZN-0147.md)
-**Waits on:** [the hardening](2026-11-18-harden-the-gpu-fast-track.md)
+
+Decided again 2026-11-20, when the hardening landed: [the account](../../design/2026-11-20-gpu-fast-track-account.md)
+makes this its gap 4, its own work rather than part of the hardening, and recommends it before the PyPI release. On
+that day the RTX 5090 ran naga's HLSL, GLSL and SPIR-V translations of the shader through wgpu and passed every hog case,
+which lowers the risk of the HLSL and GLSL legs. Those were not the shipped files.
 
 The [emitted shaders](../../../packages/python/hog-noise/src/hog_noise/shaders/README.md) compile in each language's
 own tools and match their WGSL, and nothing more: no host has run them. This row runs each one on a software GPU CI
