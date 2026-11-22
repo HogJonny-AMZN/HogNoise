@@ -277,6 +277,20 @@ million" that did not say what it pooled, and in-range counts that were the Vulk
 the finding a table per adapter. P-10 asks that a count come from a command; this asks that it also say which run it
 counts. Not mechanised: the check is a script per write-up, kept with the evidence.
 
+### P-22 · A leg that proves something exists, named as if it proved the one thing it is for
+
+**Trigger:** you add a CI leg, a test or a probe named for one specific thing (a back end, an adapter, a language, a
+shipped file), and its pass condition is that *something* ran.
+**Do:** assert the specific thing itself (the back end the device reports, the hash of the file loaded), and see the
+assertion fail once on the wrong thing before trusting its pass.
+**Because:** [PR #42](https://github.com/HogJonny-AMZN/HogNoise/pull/42)'s "wgpu on Metal" leg required an adapter,
+not Metal: `gpu._pick_adapter` takes wgpu's own choice, so a runner image that changed it would have stayed green on
+another back end. Copilot's review caught it, and the WARP and llvmpipe legs had the same gap. `a1c355f` pins each
+GPU leg's back end with `WGPU_BACKEND_TYPE` and asserts it in the Adapter step; pinned to OpenGL and expecting D3D12,
+the check exited 1 locally. Mechanised for the GPU legs by that assertion; the
+[CI proof's spec](../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md) applies it to each host harness, which
+checks the loaded file's hash against the manifest.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

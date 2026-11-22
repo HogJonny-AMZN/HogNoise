@@ -1,8 +1,8 @@
 # The emitted shaders run against the vectors, headless in CI
 
-**Section:** icebox
-**Owner:** none
-**State:** Iceboxed
+**Section:** now
+**Owner:** @HogJonny-AMZN
+**State:** Started 2026-11-22 on the owner's "your best recommendations": [the spec](../../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md), Proposed, with five decisions for the owner; nothing built
 **Cost:** 3 to 5 d (about 1 d per language, plus the harness's shared half)
 **Verdict:** Good: the cheapest step from "compiles" to "proven", and what every host trial waits on
 **Raised:** [the session journal, 2026-11-18](../../journal/2026-11/2026-11-18-HogJonny-AMZN-0147.md)
