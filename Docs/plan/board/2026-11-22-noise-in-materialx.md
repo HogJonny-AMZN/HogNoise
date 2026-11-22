@@ -1,8 +1,8 @@
 # Noise in MaterialX: present HogNoise to it, and respect its own noise through the look-dev chain
 
-**Section:** next
+**Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** Queued 2026-11-22 on the owner's ask, after the CI proof's spec; the research has started (facts only, gathered for the survey)
+**State:** Started 2026-11-22: [the survey](../../design/2026-11-22-noise-in-materialx.md), Proposed, recommends option C (MaterialX as a third original library first, then a `hognoise:` MaterialX library); three questions wait on the owner
 **Cost:** 1 d (the survey; anything it recommends is sized there)
 **Verdict:** Good, and well timed: OpenPBR content is MaterialX graphs, so a noise that does not line up with MaterialX's forks a material's look between hosts
 **Raised:** [the session journal, 2026-11-22](../../journal/2026-11/2026-11-22-HogJonny-AMZN-0712.md)
