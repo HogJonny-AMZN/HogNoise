@@ -1,6 +1,6 @@
 # Noise in MaterialX: what it defines, how far hosts agree, and where HogNoise fits
 
-**Status:** Proposed 2026-11-22: a survey with options and a recommendation for the owner, nothing built.
+**Status:** Accepted 2026-11-22: option C with A first, and the other two decisions as recommended (*Decisions*, below), on the owner's "Go with your best recommendations". A survey; nothing built.
 **Board:** [`2026-11-22-noise-in-materialx`](../plan/board/2026-11-22-noise-in-materialx.md)
 
 The owner, 2026-11-22, with two goals: **(1) present HogNoise's noise to MaterialX**, and **(2) MaterialX's own noise
@@ -38,8 +38,10 @@ modified version and that "produced results should be identical", and its MDL li
 - **Fractal:** plain fBm, no per-octave offset and no normalisation (three octaves at 0.5 peak at 1.75 times one).
 - **Worley:** the 3 by 3 (or 3 by 3 by 3) cells around the point, the feature point at
   `cell + (cellnoise - 0.5) * jitter + 0.5`, always Euclidean in every node implementation.
-- **Unified noise** is a node graph over the others; its "jitter" on Perlin, cell and fractal is a rotation of the
-  domain by `(jitter - 1) * 90000` degrees.
+- **Unified noise** is a node graph over the others, and its "jitter" differs by branch. In `unifiednoise3d` it rotates
+  the domain by `(jitter - 1) * 90000` degrees for Perlin, cell and fractal alike. In `unifiednoise2d` it rotates the
+  domain for Perlin and cell only; the fractal branch samples 3D fBm at the unrotated, frequency- and offset-adjusted
+  coordinates, with `(jitter - 1) * 90000` as Z (`NG_unifiednoise2d`'s `N_combine_with_jitter`).
 
 ## How far the code generators agree
 
@@ -107,16 +109,42 @@ A custom node library is a folder of `.mtlx` files and source, found through `MA
 - **Not every host would see it.** Storm runs a GLSL implementation. Unreal documents no way to load a third-party
   pattern library, so a HogNoise node would not survive an Unreal import. Karma and Arnold are not established.
 
+**Node graphs instead of source.** A noise built only from standard-library nodes needs no source per target, so it
+would run wherever MaterialX graphs run. Asked by the owner 2026-11-22. Read in v1.39.5's `stdlib_defs.mtlx`:
+
+- **HogNoise's own numbers cannot be built this way, in practice.** FastNoiseLite's hash multiplies 32-bit integers by
+  primes with wraparound, then XORs and shifts. The standard library has integer `add`, `subtract`, `floor`, `ceil` and
+  `round`, but no integer `multiply` or `modulo`, and no bitwise node (`xor` is the boolean one). A float32 holds
+  integers exactly only up to 2^24, so emulating the hash means splitting each word into small limbs and rebuilding XOR
+  bit by bit: thousands of nodes per hash, called 8 to 27 times per sample per octave. Not a serious option.
+- **HogNoise's algorithms can, with MaterialX's hash.** `cellnoise2d` and `cellnoise3d` are MaterialX's lookup3 hash of an
+  integer cell, so they can stand in as the random source. OpenSimplex2's lattice and gradients, value noise, and Worley
+  with other distance metrics and returns (F2, F2 minus F1, Manhattan, Chebyshev) are floors, dot products and
+  comparisons over a fixed set of cells. That is the same shapes, not HogNoise's numbers.
+- **The costs:** graphs have no loops, so each octave count is its own unrolled nodedef; a 3D Worley over 27 cells is
+  hundreds of nodes; and a large graph runs slower than the same function as source. Whether Unreal imports such a
+  graph depends on whether Interchange maps every node it uses, which is not established.
+- **Why it is worth considering:** if HogNoise ports MaterialX's lookup3 under option A, HogNoise can render the same
+  algorithms with that hash. The graphs would then have a HogNoise reference to be measured against, like every other
+  rendering.
+
 ## For goal 2: MaterialX's noise respected through the chain
 
 What it takes is a numeric reference for MaterialX's own noise and a way to hold every renderer to it, which is what
 HogNoise is built to do:
 
 - **MaterialX as a third original library**, beside FastNoiseLite and FastNoiseSIMD: its Perlin, cell, fBm and
-  Worley ported from `mx_noise.glsl` (Apache-2.0; HogNoise is MIT, so its NOTICE names the source) into numpy and WGSL.
+  Worley ported from `mx_noise.glsl` into numpy and WGSL. **Licences:** `mx_noise.glsl` is Apache-2.0 at the project
+  level but keeps OSL's BSD-3-Clause copyright, conditions and disclaimer (its lines 9 to 25), which the Apache licence
+  does not replace. The port keeps that whole notice in its source files and in the distribution's licence files
+  (sdist and wheel), beside MaterialX's Apache-2.0 notice, and HogNoise's NOTICE names both; naming the source alone
+  would not meet the BSD conditions.
 - **Oracle vectors captured from MaterialX's own code**, the way the others come from FastNoiseLite's: `mx_noise.glsl` run
-  headless (the CI proof's GLSL harness can run it) and OSL's `oslnoise.h`, so the vectors say whether GLSL and OSL
-  agree, a number no one has published.
+  headless (the CI proof's GLSL harness can run it), and the OSL that MaterialX's OSL generator emits for each node, run
+  through OSL's `testshade`. That OSL includes MaterialX's own helpers in `genosl/include/mx_funcs.h` (its fBm and
+  Worley, which are not in `oslnoise.h`), so the comparison is between the two node implementations, not between GLSL
+  and a library that only some of them call. The vectors then say whether GLSL and OSL agree, a number no one has
+  published.
 - **Every HogNoise rendering held to them**, wgpu included, so our renderer's MaterialX noise matches Storm within a
   measured bound.
 
@@ -134,14 +162,25 @@ exists or is about to, and measures how far MaterialX's own GLSL and OSL agree. 
 port must match. B's GLSL half follows cheaply; its OSL and MDL halves wait until a host that needs them is named. A
 waits on the CI proof's first pull request, which brings the GLSL harness.
 
-**Outward-facing, not recommended now:** offering MaterialX a numeric cross-generator test, or HogNoise's vectors, is
-an ASWF contribution and the owner's call.
+B now has two forms. In the first, B's source library is written per target. In the second, B's graphs are built from
+standard nodes with MaterialX's hash, wherever a graph is small enough. The choice between them is made after A, when
+the lookup3 port exists to measure the graphs against.
 
-## Open questions for the owner
+**Outward-facing:** offering MaterialX a numeric cross-generator test, or HogNoise's vectors, is an ASWF contribution
+and the owner's call. The owner has a contact who works on MaterialX (2026-11-22), and may send them findings later.
+What A would give that contact is the measured GLSL-against-OSL agreement of the standard noise nodes, the oracle
+vectors that measure it, and the unified-noise branch differences above.
 
-1. Option A, B, C or D.
-2. MaterialX's oracle vectors from its GLSL alone, or GLSL and OSL (OSL needs an OSL build in CI).
-3. Whether HogShade's board takes a row pointing here (the material schema is HogShade's, its ADR-009).
+## Decisions
+
+The owner, 2026-11-22: "Go with your best recommendations". Each as recommended:
+
+1. **Option C, with A first.** A waits on the CI proof's first pull request.
+2. **Oracle vectors from GLSL and OSL.** The OSL vectors are captured with `testshade` and committed. That run happens
+   locally, against an OSL version recorded with the vectors, so CI needs no OSL build: it holds the renderings to the
+   committed vectors, as it does for FastNoiseLite.
+3. **HogShade's board takes a row pointing here**, since the material schema is HogShade's (its ADR-009). That is a
+   pull request in HogShade.
 
 ## Not established
 

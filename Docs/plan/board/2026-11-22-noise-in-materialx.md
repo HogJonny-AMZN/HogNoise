@@ -2,7 +2,7 @@
 
 **Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** Started 2026-11-22: [the survey](../../design/2026-11-22-noise-in-materialx.md), Proposed, recommends option C (MaterialX as a third original library first, then a `hognoise:` MaterialX library); three questions wait on the owner
+**State:** Started 2026-11-22: [the survey](../../design/2026-11-22-noise-in-materialx.md) Accepted 2026-11-22 on the owner's "Go with your best recommendations": option C, MaterialX as a third original library first (after the CI proof's first pull request), its oracle vectors from GLSL and OSL, and a row on HogShade's board; nothing built
 **Cost:** 1 d (the survey; anything it recommends is sized there)
 **Verdict:** Good, and well timed: OpenPBR content is MaterialX graphs, so a noise that does not line up with MaterialX's forks a material's look between hosts
 **Raised:** [the session journal, 2026-11-22](../../journal/2026-11/2026-11-22-HogJonny-AMZN-0712.md)
