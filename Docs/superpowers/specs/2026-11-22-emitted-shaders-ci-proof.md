@@ -1,7 +1,7 @@
 # Spec: the emitted shaders run against the vectors, headless in CI
 
-**Status:** Proposed 2026-11-22, for the owner's decisions below. Written on the owner's "your best recommendations"
-(2026-11-22) from [the account](../../design/2026-11-20-gpu-fast-track-account.md)'s gap 4, the next in its order.
+**Status:** Accepted 2026-11-22, with its five decisions as recommended, on the owner's "Go with your best
+recommendations". Written on the owner's "your best recommendations" (2026-11-22) from [the account](../../design/2026-11-20-gpu-fast-track-account.md)'s gap 4, the next in its order.
 **Board:** [`2026-11-18-emitted-shaders-run-against-the-vectors`](../../plan/board/2026-11-18-emitted-shaders-run-against-the-vectors.md)
 
 What gets built, exactly enough that a plan is a list of tasks and a reviewer can check the result against this page.
@@ -61,14 +61,21 @@ README fails the proof.
   | `hlsl-d3d12` | `noise.hlsl`, DXC `cs_6_0` | Windows, WARP | the same harness |
   | `spirv-vulkan` | `noise.spv` | Ubuntu, Mesa lavapipe | the same harness, a Vulkan back end |
 
-  The C++ harness (`apps/hog-noise-tools/hosts/`) reads one batch file the Python side writes (each dispatch's entry
-  point, uniforms and coordinates), runs every dispatch, and writes the outputs; Python judges them. One process per
-  run, not per case.
+  The C++ harness (`apps/hog-noise-tools/hosts/`) is a persistent process speaking request and response over its
+  standard input and output: Python starts it once per run, and each `run(...)` call writes one dispatch (entry point,
+  uniforms, coordinates) and blocks until that dispatch's output comes back. That keeps the synchronous contract
+  `conformance.check` needs, since `_check_case` consumes each result before asking for the next case
+  (`conformance.py:573-585`), and the negative controls are ordinary requests on the same process. One process per run,
+  not per case; a batch file is not used, because the callback cannot return its first result before the batch has run.
 - **Tests,** in `apps/hog-noise-tools/tests/`: per host, every hog case against `vectors/tolerance/wgpu.json`; the
   seed-plus-one control and a rule at 0.9 of its worst both fail, as `test_gpu.py` does for the rung. Without the host
   they skip, naming why; `HOG_NOISE_REQUIRE_HOST=<host>` turns the skip into a failure, as `HOG_NOISE_REQUIRE_GPU` does.
-- **CI:** a `hosts.yml` workflow, one job per host, each failing unless its host ran (`HOG_NOISE_REQUIRE_HOST`) and
-  each printing the adapter it ran on; `spirv-naga` joins the three existing GPU legs in `tests.yml` instead.
+- **Each host asserts its target** (P-22): before its first dispatch it reads back the back end and the adapter or
+  renderer it got, and fails unless they match its row in the hosts table (D3D11 or D3D12 on WARP; OpenGL on
+  llvmpipe; Vulkan on lavapipe; for `spirv-naga`, the leg's pinned back end, as `tests.yml` already asserts). A
+  mismatched-target control, the host told to expect another adapter, must fail that check.
+- **CI:** a `hosts.yml` workflow, one job per host, each failing unless its host ran (`HOG_NOISE_REQUIRE_HOST`) on the
+  target it names, and each printing the adapter it ran on; `spirv-naga` joins the three existing GPU legs in `tests.yml` instead.
 - **The README's claims** move from "compiles" to "runs": the shaders README's *What is proven* and the top README's
   GPU section say which host ran which file, on which adapter.
 
@@ -84,11 +91,13 @@ rule is a finding for the owner, never a rule loosened in the same change (`vect
 - Metal Shading Language: not shipped (stage 3's decision 1).
 - Speed.
 
-## Decisions for the owner
+## Decisions
+
+Taken by the owner 2026-11-22, each as recommended.
 
 | # | Decision | Recommended | Alternative |
 | --- | --- | --- | --- |
-| 1 | SPIR-V | Both tiers: `spirv-naga` now (proven above, no dependency, on three back ends), and `spirv-vulkan` on lavapipe so a driver consumes the shipped bytes | `spirv-naga` only: cheaper by about 1 d, but no driver ever reads the file a host ships |
+| 1 | SPIR-V | Both tiers: `spirv-naga` now (no dependency; measured above on the 5090's Vulkan and D3D12 only, and planned on the three existing GPU legs: WARP, llvmpipe and Metal), and `spirv-vulkan` on lavapipe so a driver consumes the shipped bytes | `spirv-naga` only: cheaper by about 1 d, but no driver ever reads the file a host ships |
 | 2 | GLSL host | moderngl on llvmpipe through EGL, a dependency group `hosts` in the tools app, never the library's | PyOpenGL (more code, the same driver); or C++ beside the HLSL harness |
 | 3 | HLSL host | A small C++ harness built by MSVC on the Windows runner, D3D11 (FXC `cs_5_0`) and D3D12 (DXC `cs_6_0`), both on WARP | Python over COM with `ctypes` (no compiler, but fragile vtable code); or D3D11 only (half a day less; DXC's output never runs) |
 | 4 | The judge | `vectors/tolerance/wgpu.json`, as the row says: the same float32 shader, so the same bound | A tolerance file per host, measured from its own runs: hosts that fail would set their own bounds |
