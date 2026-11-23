@@ -706,12 +706,38 @@ def test_warm_start_from_cache_is_fast():
     busy, a warm load took 1.72 s. 5 s is still more than four times below a cold compile here, and CI compiles slower.
     """
     code = "import time; import hog_noise as nk; t=time.perf_counter(); nk.warm_up(); print(time.perf_counter()-t)"
-    env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join(sys.path)
-    subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True, env=env)  # prime the cache
-    second = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True, env=env)
+    _run_child(code)  # prime the cache
+    second = _run_child(code)
     elapsed = float(second.stdout.strip().splitlines()[-1])
     assert elapsed < 5.0, f"warm-up from cache took {elapsed:.2f} s"
+
+
+def _run_child(code: str) -> subprocess.CompletedProcess:
+    """
+    Run ``code`` in a fresh interpreter on this process's path; on failure, fail with the child's own output.
+
+    ``check=True`` alone reports the command and not the child's stderr, which hid why the warm-start test's first
+    child exited 1 once under ``-n auto`` (2026-11-21).
+    """
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    if done.returncode != 0:  # raised, not asserted: the message is ours alone, not pytest's rewritten repr
+        raise AssertionError(
+            f"child exited {done.returncode}\n--- stdout ---\n{done.stdout}\n--- stderr ---\n{done.stderr}"
+        )
+    return done
+
+
+def test_a_failing_child_shows_its_stderr():
+    """
+    The instrument for the warm-start flake: a child that fails must put its stderr in the failure.
+
+    The child builds its words at run time (``"-".join``), so the hyphenated text exists only in its stderr, never in
+    the code passed to it: a message that showed the command and not the stderr would not match.
+    """
+    with pytest.raises(AssertionError, match="own-words-of-the-child"):
+        _run_child("import sys; sys.exit('-'.join(['own', 'words', 'of', 'the', 'child']))")
 
 
 def test_scalar_and_vectorized_expose_the_same_driver_signatures():

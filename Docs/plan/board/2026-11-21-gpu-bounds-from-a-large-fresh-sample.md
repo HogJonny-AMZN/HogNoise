@@ -1,10 +1,10 @@
 # GPU bounds derived from a large fresh sample, not only the vectors' points
 
-**Section:** icebox
-**Owner:** none
-**State:** Iceboxed
+**Section:** next
+**Owner:** @HogJonny-AMZN
+**State:** Queued 2026-11-23: after the warp rules and the CI proof's first pull request, before PyPI
 **Cost:** 1 to 2 d (`hog-noise-measure-gpu run` adds fresh points per feature against numpy, the records grow, `derive` reads both; tests; a re-derivation on every adapter)
-**Verdict:** Proposed: Needed before the bounds are quoted as holding anywhere in the range; today they hold on the vectors' points. The owner's to confirm
+**Verdict:** Needed before the bounds are quoted as holding anywhere in the range; it measures the real tail, which is the owner's decision, not a rule loosened to pass. Taken by the owner's "take them" (2026-11-23)
 **Raised:** [the far-coordinate probe](../../../Spikes/far_coordinates/README.md), 2026-11-21
 
 On 65,536 fresh points per probe inside the measured range, some probes fail their rule on every adapter:

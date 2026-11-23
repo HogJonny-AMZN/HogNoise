@@ -4,7 +4,7 @@
 
 | Read this | For |
 | --- | --- |
-| [design/2026-11-01-north-star-roadmap.md](design/2026-11-01-north-star-roadmap.md) | the north star and the roadmap to it (Proposed) |
+| [design/2026-11-01-north-star-roadmap.md](design/2026-11-01-north-star-roadmap.md) | the north star and the roadmap to it (Accepted 2026-11-23, gate G2 closed) |
 | [design/2026-11-02-conformance-harness.md](design/2026-11-02-conformance-harness.md) | the conformance harness and the portable vectors (Accepted 2026-11-11) |
 | [design/2026-11-20-gpu-fast-track-account.md](design/2026-11-20-gpu-fast-track-account.md) | the GPU fast track accounted for: each claim with its evidence, each gap with a proposed verdict and cost (Proposed) |
 | [design/2026-11-22-noise-in-materialx.md](design/2026-11-22-noise-in-materialx.md) | noise in MaterialX: what it defines, how far its generators and hosts agree, and where HogNoise fits, with options (Accepted: option C, MaterialX as a third original library first) |
