@@ -64,7 +64,7 @@ gpu = [
 ]
 dev = [
     "hog-noise[fast,reference,sheets,test]",
-    "ruff>=0.17.5",
+    "ruff>=0.17.6",
 ]
 
 [build-system]
