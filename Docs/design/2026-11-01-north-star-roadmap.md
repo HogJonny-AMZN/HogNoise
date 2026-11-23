@@ -1,6 +1,6 @@
 # The north star, and the roadmap to it
 
-**Status:** Proposed. The owner's intent, 2026-11-01, written down for the owner to lock: FastNoise2 parity, 4D, a GPU path,
+**Status:** Accepted 2026-11-23 on the owner's "take them" (2026-11-23): gate G2 closed with the four decisions below. The owner's intent, 2026-11-01: FastNoise2 parity, 4D, a GPU path,
 and equivalent shader versions (HLSL, WGSL and the rest), byte-identical on the CPU and loose on the GPU.
 **Board:** [`2026-11-01-g2-lock-the-north-star-roadmap`](../plan/board/2026-11-01-g2-lock-the-north-star-roadmap.md)
 
@@ -76,16 +76,20 @@ The owner brought the GPU forward: today's noise on wgpu in WGSL first, the othe
 node graph and FastNoise2 parity. Stages 6 and 7 below are therefore served first by [the GPU fast track](2026-11-01-gpu-fast-track.md),
 which ports the current kernels as one shader; when the node graph lands, it calls the same WGSL functions.
 
-## Decisions to lock
+## Decisions
+
+Locked 2026-11-23 (gate G2), each as recommended.
 
 1. **What "parity" means for an algorithm both libraries have.** FastNoise2's Simplex is not FastNoiseLite's OpenSimplex2,
-   and hashes differ. Proposed: keep both, by name. FastNoiseLite's and FastNoiseSIMD's stay as they are (old seeds keep
+   and hashes differ. *Locked:* keep both, by name. FastNoiseLite's and FastNoiseSIMD's stay as they are (old seeds keep
    working), and FastNoise2's arrive as their own nodes, matched to FastNoise2.
-2. **The GPU tolerance.** Proposed: a per-node bound, defaulting to 1e-5 relative to the node's output range, derived from
-   measurement in stage 6, never loosened to make a test pass.
+2. **The GPU tolerance.** *Locked as built (2026-11-23):* a tolerance file per rendering (`vectors/tolerance/`), its
+   rules measured per case on every adapter recorded and never loosened to make a test pass. The proposed default,
+   1e-5 relative to the node's output range, was never what got measured; the GPU port's measured rules replace it
+   ([its spec](../superpowers/specs/2026-11-14-gpu-port.md)).
 3. **One shader source.** *Decided 2026-11-01:* WGSL is the source and naga, wgpu's translator, emits HLSL, GLSL, Metal and
    SPIR-V from it ([the GPU fast track](2026-11-01-gpu-fast-track.md)). Slang was the earlier proposal.
-4. **The graph's serialised form.** Proposed: HogNoise's own JSON, with an importer for FastNoise2's encoded trees as a
+4. **The graph's serialised form.** *Locked:* HogNoise's own JSON, with an importer for FastNoise2's encoded trees as a
    later, separate row.
 
 ## Not in this roadmap
