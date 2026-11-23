@@ -2,7 +2,7 @@
 
 **Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** Started 2026-11-22 on the owner's "your best recommendations": [the spec](../../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md) Accepted 2026-11-22 with its five decisions as recommended. Narrowed 2026-11-23 to the spec's first pull request, (a): [its plan](../../superpowers/plans/2026-11-23-emitted-shaders-ci-proof.md) Proposed 2026-11-23, nine tasks; nothing built
+**State:** Started 2026-11-22 on the owner's "your best recommendations": [the spec](../../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md) Accepted 2026-11-22 with its five decisions as recommended. Narrowed 2026-11-23 to the spec's first pull request, (a): [its plan](../../superpowers/plans/2026-11-23-emitted-shaders-ci-proof.md) Accepted 2026-11-23 with its five decisions as recommended, nine tasks; the build started 2026-11-23
 **Cost:** 1 to 1.5 d (the shared harness and `spirv-naga` 0.5 d, GLSL 0.5 to 1 d; the spec's split of its 3 to 5 d)
 **Verdict:** Good: the cheapest step from "compiles" to "proven", and what every host trial waits on
 **Raised:** [the session journal, 2026-11-18](../../journal/2026-11/2026-11-18-HogJonny-AMZN-0147.md)

@@ -291,6 +291,20 @@ the check exited 1 locally. Mechanised for the GPU legs by that assertion; the
 [CI proof's spec](../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md) applies it to each host harness, which
 checks the loaded file's hash against the manifest.
 
+### P-23 · A plan's code trial-run all at once, when its tasks run one at a time
+
+**Trigger:** you trial-run a plan's code before proposing it (P-12, P-16), and the plan writes that code across several
+tasks.
+**Do:** run the trial in the plan's order: write only the files a task has written so far, run that task's own
+commands, then add the next task's files. A command a task runs is tested against the tree that task sees, not the
+finished one.
+**Because:** the CI proof's plan ([PR #48](https://github.com/HogJonny-AMZN/HogNoise/pull/48)) was trial-run with
+every module written at once, and 36 tests passed. Its Task 4 ran `-k spirv`, which also selects a `glsl`
+parametrisation whose fixture imports `glsl.py`, a file Task 5 writes; at Task 4 that command errors. Copilot's review
+caught it, and it was reproduced by removing `glsl.py` from the trial copy (7 passed, 1 error) before `3a95f49` fixed
+the selection. Not mechanised: the trial is a script that extracts a plan's code, and it could take a task number;
+worth doing when a plan's trial is next run.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

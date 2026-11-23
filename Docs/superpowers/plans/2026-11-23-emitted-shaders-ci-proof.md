@@ -1,6 +1,6 @@
 # The CI proof, first pull request: the host harness, SPIR-V through naga, and GLSL
 
-**Status:** Proposed 2026-11-23, written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md), Accepted
+**Status:** Accepted 2026-11-23 by the owner with its five decisions as recommended ("I accept your recommendations"). Written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md), Accepted
 2026-11-22 with its five decisions as recommended. The build ticks each step as it lands.
 **Board:** [`2026-11-18-emitted-shaders-run-against-the-vectors`](../../plan/board/2026-11-18-emitted-shaders-run-against-the-vectors.md)
 
@@ -1202,7 +1202,7 @@ git commit -s -F <message file>   # "CI proof (a), task 7: the claims move from 
 
 ## Decisions
 
-Proposed, each with its recommendation; the owner decides.
+Taken by the owner 2026-11-23, each as recommended ("I accept your recommendations").
 
 | # | Decision | Recommended | Alternative | Why |
 | --- | --- | --- | --- | --- |
