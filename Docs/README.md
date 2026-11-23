@@ -7,6 +7,7 @@
 | [design/2026-11-01-north-star-roadmap.md](design/2026-11-01-north-star-roadmap.md) | the north star and the roadmap to it (Proposed) |
 | [design/2026-11-02-conformance-harness.md](design/2026-11-02-conformance-harness.md) | the conformance harness and the portable vectors (Accepted 2026-11-11) |
 | [design/2026-11-20-gpu-fast-track-account.md](design/2026-11-20-gpu-fast-track-account.md) | the GPU fast track accounted for: each claim with its evidence, each gap with a proposed verdict and cost (Proposed) |
+| [design/2026-11-22-noise-in-materialx.md](design/2026-11-22-noise-in-materialx.md) | noise in MaterialX: what it defines, how far its generators and hosts agree, and where HogNoise fits, with options (Accepted: option C, MaterialX as a third original library first) |
 | [superpowers/specs/2026-11-11-conformance-harness.md](superpowers/specs/2026-11-11-conformance-harness.md) | the conformance harness spec: the folder, the manifest, the cases, the module, the acceptance checks (Accepted 2026-11-12; built) |
 | [superpowers/plans/2026-11-14-gpu-port.md](superpowers/plans/2026-11-14-gpu-port.md) | the GPU port plan: eighteen tasks, test first, from the CI adapter probe to the measured tolerance (Accepted 2026-11-14) |
 | [superpowers/plans/2026-11-12-conformance-harness.md](superpowers/plans/2026-11-12-conformance-harness.md) | the conformance harness plan: fifteen tasks, test first, from `NoiseParams.to_dict` to the pull request (Accepted 2026-11-12; built) |
