@@ -6,6 +6,7 @@
 **Cost:** 1 to 2 d (`hog-noise-measure-gpu run` adds fresh points per feature against numpy, the records grow, `derive` reads both; tests; a re-derivation on every adapter)
 **Verdict:** Needed before the bounds are quoted as holding anywhere in the range; it measures the real tail, which is the owner's decision, not a rule loosened to pass. Taken by the owner's "take them" (2026-11-23)
 **Raised:** [the far-coordinate probe](../../../Spikes/far_coordinates/README.md), 2026-11-21
+**Waits on:** [the warp rules](2026-11-21-warp-output-rules-coordinate-scaled.md); [the CI proof](2026-11-18-emitted-shaders-run-against-the-vectors.md), for its first pull request only (the row covers three; re-point this link when its plan gives that pull request a row)
 
 On 65,536 fresh points per probe inside the measured range, some probes fail their rule on every adapter:
 

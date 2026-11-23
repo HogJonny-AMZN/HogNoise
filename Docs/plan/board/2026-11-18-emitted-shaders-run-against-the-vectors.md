@@ -23,3 +23,8 @@ already has, fills the bindings from the manifest, and holds the output to the c
 
 A failure here is a finding about naga's translation or the manifest, before any engine sees the files, so it goes before
 [the engine trials](2026-11-18-engine-host-trials.md). The hardening decides whether it is part of the hardening itself.
+
+Two rows wait on one pull request of this row, not on all three. [The fresh-sample bounds](2026-11-21-gpu-bounds-from-a-large-fresh-sample.md)
+wait on the first, and [the buffer-limit refusal](2026-11-21-a-call-past-the-devices-buffer-limit.md) waits on the HLSL
+one. The `waits-on` check sees only whole rows, so when this row's plan names its pull requests, each of those two gets a
+row of its own and both `Waits on` lines are re-pointed to it, in the plan's pull request.
