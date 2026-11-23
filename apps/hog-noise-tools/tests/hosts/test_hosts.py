@@ -114,8 +114,9 @@ def test_a_dispatch_past_65535_workgroups_reaches_its_last_points(host, judged):
     assert rule["rule"] == "continuous" and np.all(diff <= allowed), diff.max()
 
 
-#: The back ends the bit-for-bit claim was measured on: the spec's on the RTX 5090, and CI's WARP and llvmpipe.
-BIT_EXACT_BACKENDS = ("Vulkan", "D3D12")
+#: The back ends the bit-for-bit claim was measured on: Vulkan and D3D12 by the spec on the RTX 5090 and by CI on
+#: llvmpipe and WARP; OpenGL by CI's glsl job, on llvmpipe (2026-11-23, an XPASS before it was added here).
+BIT_EXACT_BACKENDS = ("Vulkan", "D3D12", "OpenGL")
 
 
 def test_spirv_naga_is_the_wgpu_rung_bit_for_bit(host, request):
@@ -123,9 +124,10 @@ def test_spirv_naga_is_the_wgpu_rung_bit_for_bit(host, request):
     The spec's first fact, as a test: naga reads the shipped SPIR-V back into the IR it made the WGSL from, so on one
     device the two agree exactly, for every entry point. A seed off by one does not, so the comparison can fail.
 
-    Measured on Vulkan and D3D12 only. On Metal (CI's Apple Paravirtual device, 2026-11-23) ``sample_points_3d`` differs
-    by up to 3.58e-7 in 809 of 4,096 values, within the tolerance the acceptance test holds it to: Metal's compiler
-    builds the two translations differently. It is expected to fail there, not strictly, so an exact match would show.
+    Measured on Vulkan, D3D12 and OpenGL only. On Metal (CI's Apple Paravirtual device, 2026-11-23)
+    ``sample_points_3d`` differs by up to 3.58e-7 in 809 of 4,096 values, within the tolerance the acceptance test
+    holds it to: Metal's compiler builds the two translations differently. It is expected to fail there, not strictly,
+    so an exact match would show.
     """
     if host.name != "spirv-naga":
         pytest.skip("the bit-for-bit claim is spirv-naga's alone: another compiler differs by its rounding")
