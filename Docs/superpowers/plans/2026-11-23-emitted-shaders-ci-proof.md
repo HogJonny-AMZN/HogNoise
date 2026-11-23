@@ -749,8 +749,10 @@ def test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters():
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_hosts.py -n 0 -q -rs`
 Expected: `test_every_required_host_is_known` passes; every test using the `host` fixture **errors** in it with
 `ModuleNotFoundError: No module named 'hog_noise_tools.hosts.glsl'` (or `...spirv_naga'`), because `open_host` imports
-the module before the host can say what it lacks. That is the failing state Tasks 4 and 5 fix: a missing module is a
-bug in this app, never a skip.
+the module before the host can say what it lacks. `test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters`
+**fails** with the same error, from its own import of `glsl`. That is the failing state Tasks 4 and 5 fix: a missing
+module is a bug in this app, never a skip. (Built 2026-11-23: 1 passed, 1 failed, 14 errors, each error and the failure
+a `ModuleNotFoundError` for one of the two modules.)
 
 - [ ] **Step 3: commit.**
 
