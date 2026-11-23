@@ -1,0 +1,136 @@
+"""
+HogNoise tools: what every host harness shares, with no GPU: the dispatch shape, the file check, the target check and
+the sampler's own refusals.
+Package: apps/hog-noise-tools/tests/hosts/test_shared
+"""
+
+import numpy as np
+import pytest
+
+from hog_noise import NoiseParams, gpu, shaders
+from hog_noise_tools import hosts
+
+
+class FakeHost:
+    """A host that records each dispatch and returns ``n * width`` ascending floats."""
+
+    name = "fake"
+    target = "a fake adapter (none)"
+
+    def __init__(self):
+        self.calls = []
+
+    def run(self, entry, params, axes, n, width, grid):
+        self.calls.append((entry, params, [a.copy() for a in axes], n, width, grid))
+        return np.arange(n * width, dtype=np.float32)
+
+
+@pytest.mark.parametrize(
+    "n, groups", [(1, (1, 1, 1)), (64, (1, 1, 1)), (65, (2, 1, 1)), (65535 * 64 + 1, (65535, 2, 1))]
+)
+def test_the_dispatch_is_the_readmes(n, groups):
+    """The README's *Dispatch*: ceil(n / 64) along x, wrapping into y past 65,535."""
+    assert hosts.workgroups(n) == groups
+
+
+def test_the_binding_kinds_are_the_manifests_registers():
+    """b is a uniform, t read-only storage, u read-write storage: the README's table, read from the manifest."""
+    kind = {"b": "uniform", "t": "read", "u": "write"}
+    found = [kind[b["hlsl"][0]] for b in sorted(shaders.manifest()["bindings"], key=lambda b: b["binding"])]
+    assert found == list(hosts.BINDING_KINDS)
+
+
+def test_every_entry_point_has_a_width():
+    assert set(hosts.WIDTH) == set(shaders.ENTRY_POINTS) == set(gpu.ENTRY_POINTS)
+
+
+def test_a_file_that_is_not_the_manifests_is_refused():
+    with pytest.raises(ValueError, match=r"noise\.spv hashes to .*, the manifest says"):
+        hosts.check_hash("noise.spv", b"not the shipped bytes")
+
+
+def test_every_shipped_file_hashes_to_its_manifest_entry():
+    """The positive side of the refusal above: each file a host loads passes, so the refusal is not always on."""
+    for language in ("spirv", "glsl"):
+        for entry in shaders.ENTRY_POINTS if language == "glsl" else (None,):
+            assert hosts.verified(language, entry)
+
+
+def test_a_host_on_another_target_is_refused():
+    with pytest.raises(hosts.HostTargetError, match="not on 'llvmpipe'"):
+        hosts.check_target("glsl", "NVIDIA GeForce RTX 5090 (OpenGL 4.6)", "llvmpipe")
+
+
+def test_a_host_on_its_target_passes_ignoring_case():
+    hosts.check_target("glsl", "llvmpipe (LLVM 19.1.1, 256 bits) (OpenGL 4.5)", "LLVMpipe")
+
+
+def test_with_no_target_named_the_host_is_not_checked():
+    hosts.check_target("glsl", "anything", None)
+    hosts.check_target("glsl", "anything", "")
+
+
+def test_an_unknown_host_is_refused_naming_the_known_ones():
+    with pytest.raises(ValueError, match="glsl, spirv-naga"):
+        hosts.open_host("metal")
+
+
+def test_the_sampler_packs_the_uniforms_and_runs_each_entry_point():
+    host = FakeHost()
+    params = NoiseParams(frequency=0.02, seed=7)
+    s = hosts.HostSampler(params, host)
+    xs = np.linspace(-1, 1, 5, dtype=np.float32)
+    s.sample_points(xs, xs, xs, np.empty(5, np.float32))
+    s.sample_points_2d(xs, xs, np.empty(5, np.float32))
+    assert s.warp_points(xs, xs, xs).shape == (5, 3)
+    assert s.warp_points_2d(xs, xs).shape == (5, 2)
+    assert s.sample_grid((0, 0, 0), (2, 3, 1)).shape == (2, 3, 1)
+    entries = [c[0] for c in host.calls]
+    assert entries == ["sample_points_3d", "sample_points_2d", "warp_points_3d", "warp_points_2d", "sample_grid"]
+    assert all(c[1] == gpu.pack_params(params) for c in host.calls)
+    assert host.calls[-1][5] == gpu.pack_grid((0, 0, 0), (2, 3, 1), (1.0, 1.0, 1.0))
+    assert [len(c[2]) for c in host.calls] == [3, 2, 3, 2, 0]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda s, a, b: s.sample_points(a, b, a, np.empty(len(a), np.float32)),
+        lambda s, a, b: s.sample_points_2d(a, b, np.empty(len(a), np.float32)),
+        lambda s, a, b: s.sample_points(a, a, a, np.empty(len(b), np.float32)),
+        lambda s, a, b: s.warp_points(a, b, a),
+        lambda s, a, b: s.warp_points_2d(a, b),
+    ],
+    ids=["sample_points", "sample_points_2d", "out", "warp_points", "warp_points_2d"],
+)
+def test_a_short_axis_is_refused_before_any_dispatch(call):
+    """A shader's robust access would clamp a short axis to its last value and answer, silently."""
+    host = FakeHost()
+    xs = np.linspace(-10, 10, 100, dtype=np.float32)
+    with pytest.raises(ValueError, match="100"):
+        call(hosts.HostSampler(NoiseParams(), host), xs, xs[:99])
+    assert host.calls == []
+
+
+def test_more_than_32_octaves_is_not_implemented_before_any_dispatch():
+    with pytest.raises(NotImplementedError, match="octaves=33"):
+        hosts.HostSampler(NoiseParams(octaves=33), FakeHost())
+
+
+def test_no_points_dispatch_nothing():
+    host = FakeHost()
+    empty = np.empty(0, np.float32)
+    assert len(hosts.HostSampler(NoiseParams(), host).sample_points(empty, empty, empty, empty)) == 0
+    assert host.calls == []
+
+
+def test_renderings_build_one_sampler_per_parameter_record():
+    host = FakeHost()
+    sample, warp, grid = hosts.renderings(host)
+    xs = np.zeros(3, np.float32)
+    p = NoiseParams()
+    sample(p, xs, xs, None)
+    sample(p, xs, xs, xs)
+    warp(p, xs, xs, None)
+    grid(p, (0, 0, 0), (1, 1, 1), (1.0, 1.0, 1.0))
+    assert [c[0] for c in host.calls] == ["sample_points_2d", "sample_points_3d", "warp_points_2d", "sample_grid"]
