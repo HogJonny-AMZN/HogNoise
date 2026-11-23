@@ -10,7 +10,7 @@ dev = [
     "hog-noise[fast,reference,sheets]",
     "pytest>=8",
     "pytest-xdist>=3.8",
-    "ruff>=0.17.5",
+    "ruff>=0.17.6",
 ]
 # The wgpu rung's extra, for a machine with an adapter: uv run --group gpu pytest.
 gpu = ["hog-noise[gpu]"]
