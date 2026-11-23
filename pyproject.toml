@@ -14,6 +14,8 @@ dev = [
 ]
 # The wgpu rung's extra, for a machine with an adapter: uv run --group gpu pytest.
 gpu = ["hog-noise[gpu]"]
+# The host harnesses' own libraries (hog_noise_tools.hosts): moderngl for the GLSL host. Never the library's.
+hosts = ["moderngl>=5.13,<6"]
 
 [tool.uv.sources]
 hog-noise = { workspace = true }
