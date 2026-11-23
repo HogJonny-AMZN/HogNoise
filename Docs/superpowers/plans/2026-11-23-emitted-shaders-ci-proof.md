@@ -139,7 +139,8 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e "packages/python/hog-noise[dev]" "moderngl>=5.13,<6"
+          # the gpu extra too: the one job with moderngl and wgpu together, so the GL-after-wgpu test runs somewhere
+          python -m pip install -e "packages/python/hog-noise[dev,gpu]" "moderngl>=5.13,<6"
           python -m pip install --no-deps -e apps/hog-noise-tools
       - name: Context
         # the spec's first open risk: a surfaceless OpenGL 4.3 context on the runner, and which renderer it is
@@ -727,6 +728,8 @@ def test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters():
     try:
         import wgpu
     except ImportError as e:
+        if "glsl" in REQUIRED:  # the glsl job installs wgpu for this test alone: losing it must not go green
+            pytest.fail(f"{hosts.REQUIRE_ENV} names glsl, and this test needs wgpu beside it: {e}")
         pytest.skip(f"needs wgpu: {e}")
     try:
         ctx = glsl.context()
@@ -887,17 +890,18 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: run the host's tests on this machine.**
 
-Run: `uv run --group gpu pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k "spirv"`
-Expected: every `spirv-naga` test passes, `test_spirv_naga_is_the_wgpu_rung_bit_for_bit` included; `-k spirv`
-deselects the `glsl` parametrisations, whose module does not exist yet. Note the adapter `test_every_hog_case_passes_within_the_wgpu_tolerance` prints, for the pull
-request's *Verified*.
+Run: `uv run --group gpu pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k "spirv and not glsl"`
+Expected: every `spirv-naga` test passes, `test_spirv_naga_is_the_wgpu_rung_bit_for_bit` included. `and not glsl`
+is needed: `-k spirv` alone also selects `test_spirv_naga_is_the_wgpu_rung_bit_for_bit[glsl]`, whose fixture imports
+`glsl.py` before Task 5 has written it, and errors. Note the adapter
+`test_every_hog_case_passes_within_the_wgpu_tolerance` prints, for the pull request's *Verified*.
 
 - [ ] **Step 3: prove the stride test is an instrument.** In a scratch copy, make `workgroups` return
   `(MAX_GROUPS, 1, 1)` past 65,535 groups (no y row). `test_a_dispatch_past_65535_workgroups_reaches_its_last_points`
   must fail on `spirv-naga`; restore it. Record the result.
 
 - [ ] **Step 4: run it on a second back end.** `WGPU_BACKEND_TYPE=D3D12 HOG_NOISE_HOST_TARGET=D3D12 uv run --group gpu
-  pytest apps/hog-noise-tools/tests/hosts -n 0 -q -k spirv`, then the same with `Vulkan`. Both pass; record each target
+  pytest apps/hog-noise-tools/tests/hosts -n 0 -q -k "spirv and not glsl"`, then the same with `Vulkan`. Both pass; record each target
   line.
 
 - [ ] **Step 5: commit.**
@@ -1109,7 +1113,10 @@ gh pr checks <n> --watch
 
 Expected: every leg green. In the logs, the `glsl` job's *Test* prints `glsl: llvmpipe ...`, and each GPU leg prints
 `spirv-naga: ... (D3D12)`, `(Vulkan)` or `(Metal)`. A host failing a rule on a software adapter is a finding for the
-owner, as in Task 5.
+owner, as in Task 5. The `glsl` job is the only one with moderngl and wgpu together. Read its test list for
+`test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters` passing, not skipped. `spirv-naga` is not required
+there: with no Vulkan driver installed it skips or, should wgpu find llvmpipe through OpenGL, runs held to the same
+target. Either result is recorded.
 
 - [ ] **Step 4: prove each leg requires its host.** On a scratch commit pushed to the draft, set the `glsl` job's
   `HOG_NOISE_HOST_TARGET` to `not-llvmpipe`; that job must fail on `HostTargetError`. Revert it with a new commit, never
