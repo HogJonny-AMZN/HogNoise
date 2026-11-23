@@ -56,6 +56,9 @@ jobs:
           HOG_NOISE_REQUIRE_GPU: ${{ matrix.gpu && '1' || '0' }}
           # empty on the legs without wgpu, where nothing reads it
           WGPU_BACKEND_TYPE: ${{ matrix.backend }}
+          # spirv-naga runs where the wgpu rung runs: required on the GPU legs, on the leg's pinned back end
+          HOG_NOISE_REQUIRE_HOST: ${{ matrix.gpu && 'spirv-naga' || '' }}
+          HOG_NOISE_HOST_TARGET: ${{ matrix.backend }}
         run: pytest ${{ matrix.paths }}
       - name: Measure the wgpu rung
         # measured even when a test failed: a failing adapter's record is the evidence for its rule
