@@ -136,8 +136,13 @@ def test_spirv_naga_is_the_wgpu_rung_bit_for_bit(host):
             (ours.warp_points_2d(xs, ys), theirs.warp_points_2d(xs, ys)),
             (ours.sample_grid((-8, -8, 0), (16, 16, 1)), theirs.sample_grid((-8, -8, 0), (16, 16, 1))),
         ]
-        for a, b in pairs:
-            assert np.array_equal(a, b)
+        entries = ("sample_points_3d", "sample_points_2d", "warp_points_3d", "warp_points_2d", "sample_grid")
+        differ = []
+        for entry, (a, b) in zip(entries, pairs, strict=True):
+            if not np.array_equal(a, b):
+                diff = np.abs(a.astype(np.float64) - b.astype(np.float64))
+                differ.append(f"{entry}: {int((diff > 0).sum())} of {diff.size} differ, largest {diff.max():.3g}")
+        assert not differ, f"{host.target}, octaves={params.octaves}: " + "; ".join(differ)
         assert not np.array_equal(off.sample_points(xs, ys, zs, out()), pairs[0][1])
 
 
