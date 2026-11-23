@@ -96,3 +96,20 @@ What the GPU tests do not show, found while building the rung
 - **An adapter's compiler can be wrong.** WARP computed the single domain warp wrongly, and differently from run to run,
   when the shader had the CPU's separate single-warp branch; the shader runs it as the progressive loop with a count of
   one, which is the same arithmetic. A shader change that looks equivalent is not proven until it passes on every adapter, WARP's CI leg among them.
+
+## The host harnesses
+
+The emitted shaders run in `hog_noise_tools.hosts` (`apps/hog-noise-tools/README.md`, *Hosts*), judged by
+`vectors/tolerance/wgpu.json` like the rung, never by a file of their own.
+
+- **`HOG_NOISE_REQUIRE_HOST`** names the hosts whose absence fails instead of skipping, comma-separated. The three GPU
+  legs of `tests.yml` set it to `spirv-naga`; `hosts.yml`'s `glsl` job, on Ubuntu with Mesa's llvmpipe through EGL, sets
+  it to `glsl`. A name that is no host fails the run, so a misspelling cannot require nothing.
+- **`HOG_NOISE_HOST_TARGET`** is part of the target line a host must run on: each GPU leg sets its pinned back end, the
+  `glsl` job `llvmpipe`. A host on anything else fails before its first dispatch (the project ledger's P-22).
+- **The `glsl` job installs the `gpu` extra too.** It is the one job with moderngl and wgpu together, so
+  `test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters` runs there, and fails rather than skips if wgpu goes
+  missing. It reports every test by name (`-rA`).
+- **Bit for bit.** `spirv-naga` must equal the rung exactly on Vulkan, D3D12 and OpenGL (it runs on OpenGL in the `glsl` job,
+  where wgpu finds llvmpipe). Elsewhere that test is an expected
+  failure, not strict: on Metal `sample_points_3d` differs by up to 3.58e-7, within the tolerance.

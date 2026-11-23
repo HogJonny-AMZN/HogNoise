@@ -69,7 +69,7 @@ glsl = shaders.source("glsl", "sample_points_3d")
 table = shaders.tables()  # what binding 1 holds
 ```
 
-What is proven on every push: each file is what the pinned naga writes from the current WGSL, and each compiles or validates in its own language's tools (FXC and DXC, glslang, spirv-val). What is not: no host has run them against the vectors yet. Metal is not shipped. The bindings, the dispatch and how to fill the uniforms are in [the shaders' README](packages/python/hog-noise/src/hog_noise/shaders/README.md).
+What is proven on every push: each file is what the pinned naga writes from the current WGSL, and each compiles or validates in its own language's tools (FXC and DXC, glslang, spirv-val). The SPIR-V and the GLSL also run, in hosts written from the shaders' README alone, and pass every hog case within the wgpu rung's tolerance: the SPIR-V through wgpu on WARP, llvmpipe and Metal, the GLSL in OpenGL on llvmpipe. The HLSL compiles and has not run yet. Metal is not shipped. The bindings, the dispatch and how to fill the uniforms are in [the shaders' README](packages/python/hog-noise/src/hog_noise/shaders/README.md).
 
 ## What's in it
 

@@ -67,6 +67,8 @@ wrote, so a naga rename shows in the manifest's diff before it reaches a host.
 names differ per entry point: the variable is the one member of a block naga names, such as
 `layout(std140) uniform Params_block_0Compute { Params _group_0_binding_0_cs; };`, and an entry point that does not read
 a binding has no block for it. `manifest.json` records every block under `bindings[n].glsl.blocks`, by entry point.
+A GL host in a process that also uses `wgpu` makes its own context current before each build and call: wgpu's
+OpenGL back end can leave its own context current, and the next program then fails to build.
 
 **An entry point that does not read a binding.** HLSL and SPIR-V declare all seven in every entry point. The wgpu rung
 binds a one-float buffer for an unused coordinate and 48 zero bytes for an unused `Grid`; a host can do the same.
@@ -86,6 +88,18 @@ from `tables.f32`.
 ## What is proven, and what is not
 
 Proven on every push: each file is what the pinned naga writes from the current `noise.wgsl`, and each compiles or
-validates in its own language's tools. Not yet proven: that a host running these files reproduces the
-[reference vectors](https://github.com/HogJonny-AMZN/HogNoise/tree/main/vectors). The wgpu rung, which runs the WGSL,
-is held to them.
+validates in its own language's tools. Two of them also run, each in a host written from this page alone
+(`hog_noise_tools.hosts` in `apps/hog-noise-tools`), and pass every hog case of the
+[reference vectors](https://github.com/HogJonny-AMZN/HogNoise/tree/main/vectors) within the wgpu rung's tolerance,
+`vectors/tolerance/wgpu.json`, unmodified:
+
+| File | Host | Adapters, on every push |
+| --- | --- | --- |
+| `noise.spv` | wgpu's SPIR-V front end: naga reads the file back, so no driver consumes it | WARP (D3D12), llvmpipe (Vulkan, and OpenGL beside the GLSL), Apple's paravirtual GPU (Metal) |
+| `noise.<entry_point>.comp` | moderngl, OpenGL 4.3 | Mesa llvmpipe through EGL |
+
+On D3D12, Vulkan and OpenGL, `noise.spv` through naga gives the wgpu rung's output bit for bit. On Metal it does not:
+`sample_points_3d` differs by up to 3.58e-7 (2026-11-23), within the tolerance.
+
+Not yet run: `noise.hlsl` (D3D11 and D3D12 on WARP), and `noise.spv` read by a Vulkan driver (lavapipe), each its own
+pull request.
