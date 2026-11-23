@@ -6,7 +6,7 @@
 **Cost:** unsized: one trial per host, each its own size; sized when one is pulled forward
 **Verdict:** Good as trials: each shows the shaders used where people work, none is a product; Unity declined by the owner
 **Raised:** [the session journal, 2026-11-18](../../journal/2026-11/2026-11-18-HogJonny-AMZN-0147.md)
-**Waits on:** [the CI proof](2026-11-18-emitted-shaders-run-against-the-vectors.md)
+**Waits on:** [the HLSL on WARP](2026-11-23-the-emitted-hlsl-runs-on-warp.md); [the SPIR-V on lavapipe](2026-11-23-the-emitted-spirv-runs-on-lavapipe.md), the last of the CI proof's three pull requests
 
 Each trial loads one [emitted shader](../../../packages/python/hog-noise/src/hog_noise/shaders/README.md) in a real host,
 binds it from the manifest, and compares a grid with the vectors. The owner's choice, 2026-11-18: these five, as trials,
