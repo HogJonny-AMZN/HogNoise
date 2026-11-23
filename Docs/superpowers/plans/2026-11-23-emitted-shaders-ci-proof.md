@@ -103,7 +103,7 @@ before building on it.
 - Create: `.github/workflows/hosts.yml`
 - Modify: `pyproject.toml` (the `hosts` group), `uv.lock`
 
-- [ ] **Step 1: add the `hosts` group.** In `pyproject.toml`, under `[dependency-groups]`, after `gpu`:
+- [x] **Step 1: add the `hosts` group.** In `pyproject.toml`, under `[dependency-groups]`, after `gpu`:
 
 ```toml
 # The host harnesses' own libraries (hog_noise_tools.hosts): moderngl for the GLSL host. Never the library's.
@@ -113,7 +113,7 @@ hosts = ["moderngl>=5.13,<6"]
 Run: `uv lock && uv sync --all-groups`
 Expected: `uv.lock` gains `moderngl` and `glcontext`; the sync succeeds.
 
-- [ ] **Step 2: write the probe workflow.** Create `.github/workflows/hosts.yml`:
+- [x] **Step 2: write the probe workflow.** Create `.github/workflows/hosts.yml`:
 
 ```yaml
 name: hosts
@@ -147,7 +147,7 @@ jobs:
         run: python -c "import moderngl; c = moderngl.create_standalone_context(require=430, backend='egl'); print(c.info['GL_RENDERER'], '|', c.info['GL_VERSION'])"
 ```
 
-- [ ] **Step 3: commit, push, open the draft.**
+- [x] **Step 3: commit, push, open the draft.**
 
 ```bash
 git add pyproject.toml uv.lock .github/workflows/hosts.yml
@@ -159,7 +159,7 @@ gh pr checks <n> --watch
 
 Expected: the *Context* step prints a renderer containing `llvmpipe` and a version of 4.3 or later.
 
-- [ ] **Step 4: if it fails, take the fallback and record which.** If `backend='egl'` finds no display, change the
+- [x] **Step 4: if it fails, take the fallback and record which.** If `backend='egl'` finds no display, change the
   *Context* and later *Test* steps to run under `xvfb-run -a` with moderngl's default (X11) back end, add `xvfb` to the
   apt line, and set `HOG_NOISE_GL_BACKEND` to empty in the job (Task 5 reads it). Record in the pull request's
   *Decisions* which one ran and the renderer it printed. If neither gives llvmpipe 4.3, stop: that is a finding for the
@@ -171,7 +171,7 @@ Expected: the *Context* step prints a renderer containing `llvmpipe` and a versi
 - Create: `apps/hog-noise-tools/tests/hosts/test_shared.py`
 - Create: `apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py`
 
-- [ ] **Step 1: write the failing tests.** Create `apps/hog-noise-tools/tests/hosts/test_shared.py`:
+- [x] **Step 1: write the failing tests.** Create `apps/hog-noise-tools/tests/hosts/test_shared.py`:
 
 ```python
 """
@@ -312,12 +312,12 @@ def test_renderings_build_one_sampler_per_parameter_record():
     assert [c[0] for c in host.calls] == ["sample_points_2d", "sample_points_3d", "warp_points_2d", "sample_grid"]
 ```
 
-- [ ] **Step 2: run them and see them fail.**
+- [x] **Step 2: run them and see them fail.**
 
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_shared.py -n 0 -q`
 Expected: collection fails with `ImportError: cannot import name 'hosts' from 'hog_noise_tools'`.
 
-- [ ] **Step 3: write the shared module.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py`:
+- [x] **Step 3: write the shared module.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py`:
 
 ```python
 """
@@ -548,17 +548,17 @@ if __name__ == "__main__":
             print(f"{host_name}: {e}")
 ```
 
-- [ ] **Step 4: run them and see them pass.**
+- [x] **Step 4: run them and see them pass.**
 
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_shared.py -n 0 -q`
 Expected: all pass. None needs a host module: `open_host` refuses an unknown name before it imports one.
 
-- [ ] **Step 5: prove the hash refusal is an instrument.** In a scratch copy of the check, make `check_hash` compare
+- [x] **Step 5: prove the hash refusal is an instrument.** In a scratch copy of the check, make `check_hash` compare
   `found[:0]` with `record["sha256"][:0]` (always equal); `test_a_file_that_is_not_the_manifests_is_refused` must fail.
   Restore it. Do the same for `check_target`'s `not in`, made `in`: `test_a_host_on_another_target_is_refused` must fail.
   Write each mutation as a script file (P-14), run it, and record both results for the pull request's *Verified*.
 
-- [ ] **Step 6: commit.**
+- [x] **Step 6: commit.**
 
 ```bash
 git add apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py apps/hog-noise-tools/tests/hosts/test_shared.py
@@ -570,7 +570,7 @@ git commit -s -F <message file>   # "CI proof (a), task 2: the host harness's sh
 **Files:**
 - Create: `apps/hog-noise-tools/tests/hosts/test_hosts.py`
 
-- [ ] **Step 1: write them.** Create `apps/hog-noise-tools/tests/hosts/test_hosts.py`:
+- [x] **Step 1: write them.** Create `apps/hog-noise-tools/tests/hosts/test_hosts.py`:
 
 ```python
 """
@@ -744,7 +744,7 @@ def test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters():
     assert np.isfinite(values).all() and values.std() > 0
 ```
 
-- [ ] **Step 2: run them with no host present.**
+- [x] **Step 2: run them with no host present.**
 
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_hosts.py -n 0 -q -rs`
 Expected: `test_every_required_host_is_known` passes; every test using the `host` fixture **errors** in it with
@@ -754,7 +754,7 @@ the module before the host can say what it lacks. `test_a_gl_host_builds_after_w
 module is a bug in this app, never a skip. (Built 2026-11-23: 1 passed, 1 failed, 14 errors, each error and the failure
 a `ModuleNotFoundError` for one of the two modules.)
 
-- [ ] **Step 3: commit.**
+- [x] **Step 3: commit.**
 
 ```bash
 git add apps/hog-noise-tools/tests/hosts/test_hosts.py
@@ -766,7 +766,7 @@ git commit -s -F <message file>   # "CI proof (a), task 3: every host against th
 **Files:**
 - Create: `apps/hog-noise-tools/src/hog_noise_tools/hosts/spirv_naga.py`
 
-- [ ] **Step 1: write the host.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/spirv_naga.py`:
+- [x] **Step 1: write the host.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/spirv_naga.py`:
 
 ```python
 """
@@ -890,7 +890,7 @@ if __name__ == "__main__":
     print(host.target, np.round(s.sample_points(xs, xs, np.zeros(5, np.float32), np.empty(5, np.float32)), 5))
 ```
 
-- [ ] **Step 2: run the host's tests on this machine.**
+- [x] **Step 2: run the host's tests on this machine.**
 
 Run: `uv run --group gpu pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k "spirv and not glsl"`
 Expected: every `spirv-naga` test passes, `test_spirv_naga_is_the_wgpu_rung_bit_for_bit` included. `and not glsl`
@@ -898,15 +898,15 @@ is needed: `-k spirv` alone also selects `test_spirv_naga_is_the_wgpu_rung_bit_f
 `glsl.py` before Task 5 has written it, and errors. Note the adapter
 `test_every_hog_case_passes_within_the_wgpu_tolerance` prints, for the pull request's *Verified*.
 
-- [ ] **Step 3: prove the stride test is an instrument.** In a scratch copy, make `workgroups` return
+- [x] **Step 3: prove the stride test is an instrument.** In a scratch copy, make `workgroups` return
   `(MAX_GROUPS, 1, 1)` past 65,535 groups (no y row). `test_a_dispatch_past_65535_workgroups_reaches_its_last_points`
   must fail on `spirv-naga`; restore it. Record the result.
 
-- [ ] **Step 4: run it on a second back end.** `WGPU_BACKEND_TYPE=D3D12 HOG_NOISE_HOST_TARGET=D3D12 uv run --group gpu
+- [x] **Step 4: run it on a second back end.** `WGPU_BACKEND_TYPE=D3D12 HOG_NOISE_HOST_TARGET=D3D12 uv run --group gpu
   pytest apps/hog-noise-tools/tests/hosts -n 0 -q -k "spirv and not glsl"`, then the same with `Vulkan`. Both pass; record each target
   line.
 
-- [ ] **Step 5: commit.**
+- [x] **Step 5: commit.**
 
 ```bash
 git add apps/hog-noise-tools/src/hog_noise_tools/hosts/spirv_naga.py
@@ -918,7 +918,7 @@ git commit -s -F <message file>   # "CI proof (a), task 4: the spirv-naga host"
 **Files:**
 - Create: `apps/hog-noise-tools/src/hog_noise_tools/hosts/glsl.py`
 
-- [ ] **Step 1: write the host.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/glsl.py`:
+- [x] **Step 1: write the host.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/glsl.py`:
 
 ```python
 """
@@ -1052,17 +1052,17 @@ if __name__ == "__main__":
     print(host.target, np.round(s.sample_points(xs, xs, np.zeros(5, np.float32), np.empty(5, np.float32)), 5))
 ```
 
-- [ ] **Step 2: run the host's tests on this machine.**
+- [x] **Step 2: run the host's tests on this machine.**
 
 Run: `uv run --group hosts pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k glsl`
 Expected: every `glsl` test passes on the 5090's OpenGL (the spec measured 7.75e-7 and 1.73e-6 on two entry points;
 the tolerance file judges all five). If a rule fails, stop: it is a finding for the owner, reported with the report's
 table, and the rule is not touched.
 
-- [ ] **Step 3: run both hosts in one process.** `uv run --group gpu --group hosts pytest apps/hog-noise-tools/tests/hosts
+- [x] **Step 3: run both hosts in one process.** `uv run --group gpu --group hosts pytest apps/hog-noise-tools/tests/hosts
   -n 0 -q`. Expected: everything passes, `test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters` included.
 
-- [ ] **Step 4: prove the two instruments.** In scratch copies, one at a time, each restored after:
+- [x] **Step 4: prove the two instruments.** In scratch copies, one at a time, each restored after:
   - bind binding 2 (x) to binding 3's slot in `run`: `test_every_hog_case_passes_within_the_wgpu_tolerance[glsl]` must
     fail;
   - replace both `with ctx:` in `glsl.py` with `if True:`:
@@ -1072,7 +1072,7 @@ table, and the rule is not touched.
 
   Record each result for *Verified*.
 
-- [ ] **Step 5: commit.**
+- [x] **Step 5: commit.**
 
 ```bash
 git add apps/hog-noise-tools/src/hog_noise_tools/hosts/glsl.py
@@ -1084,7 +1084,7 @@ git commit -s -F <message file>   # "CI proof (a), task 5: the glsl host"
 **Files:**
 - Modify: `.github/workflows/hosts.yml`, `.github/workflows/tests.yml`
 
-- [ ] **Step 1: the glsl job runs its tests.** Append to the `glsl` job in `hosts.yml`, after *Context* (keep Task 1's
+- [x] **Step 1: the glsl job runs its tests.** Append to the `glsl` job in `hosts.yml`, after *Context* (keep Task 1's
   fallback if it was taken):
 
 ```yaml
@@ -1096,7 +1096,7 @@ git commit -s -F <message file>   # "CI proof (a), task 5: the glsl host"
         run: pytest apps/hog-noise-tools/tests/hosts
 ```
 
-- [ ] **Step 2: spirv-naga on the three GPU legs.** In `tests.yml`'s *Test* step `env`, add:
+- [x] **Step 2: spirv-naga on the three GPU legs.** In `tests.yml`'s *Test* step `env`, add:
 
 ```yaml
           # spirv-naga runs where the wgpu rung runs: required on the GPU legs, on the leg's pinned back end
@@ -1104,7 +1104,7 @@ git commit -s -F <message file>   # "CI proof (a), task 5: the glsl host"
           HOG_NOISE_HOST_TARGET: ${{ matrix.backend }}
 ```
 
-- [ ] **Step 3: commit, push, read CI.**
+- [x] **Step 3: commit, push, read CI.**
 
 ```bash
 git add .github/workflows/hosts.yml .github/workflows/tests.yml
@@ -1120,7 +1120,7 @@ owner, as in Task 5. The `glsl` job is the only one with moderngl and wgpu toget
 there: with no Vulkan driver installed it skips or, should wgpu find llvmpipe through OpenGL, runs held to the same
 target. Either result is recorded.
 
-- [ ] **Step 4: prove each leg requires its host.** On a scratch commit pushed to the draft, set the `glsl` job's
+- [x] **Step 4: prove each leg requires its host.** On a scratch commit pushed to the draft, set the `glsl` job's
   `HOG_NOISE_HOST_TARGET` to `not-llvmpipe`; that job must fail on `HostTargetError`. Revert it with a new commit, never
   a force-push. Record the run's link.
 
@@ -1130,7 +1130,7 @@ target. Either result is recorded.
 - Modify: `packages/python/hog-noise/src/hog_noise/shaders/README.md`, `README.md`, `apps/hog-noise-tools/README.md`,
   `Docs/standards/testing-project.md`, `Docs/glossary.md`
 
-- [ ] **Step 1: the shaders README.** Replace *What is proven, and what is not* with:
+- [x] **Step 1: the shaders README.** Replace *What is proven, and what is not* with:
 
 ```markdown
 ## What is proven, and what is not
@@ -1152,23 +1152,23 @@ pull request.
 And add to *GLSL binds by name*: "A GL host in a process that also uses `wgpu` makes its own context current before each
 call: wgpu's OpenGL back end can leave its context current, and the next program then fails to build."
 
-- [ ] **Step 2: the top README.** In *The same shader in another host*, replace the sentence saying no host has run the
+- [x] **Step 2: the top README.** In *The same shader in another host*, replace the sentence saying no host has run the
   files with: "`noise.spv` and the GLSL files run on every push, in hosts written from the shaders README alone, and
   pass every hog case within the wgpu rung's tolerance: the SPIR-V through wgpu on WARP, llvmpipe and Metal, the GLSL in
   OpenGL on llvmpipe. The HLSL compiles and has not run yet." (Read the section first and keep its other sentences.)
 
-- [ ] **Step 3: the app README** gains a *Hosts* section: what `hog_noise_tools.hosts` is, the two hosts, how to run
+- [x] **Step 3: the app README** gains a *Hosts* section: what `hog_noise_tools.hosts` is, the two hosts, how to run
   them (`uv run --group gpu --group hosts pytest apps/hog-noise-tools/tests/hosts`), and the three variables
   (`HOG_NOISE_REQUIRE_HOST`, `HOG_NOISE_HOST_TARGET`, `HOG_NOISE_GL_BACKEND`).
 
-- [ ] **Step 4: testing-project.md.** Beside `HOG_NOISE_REQUIRE_GPU=1`, add `HOG_NOISE_REQUIRE_HOST` (a comma-separated
+- [x] **Step 4: testing-project.md.** Beside `HOG_NOISE_REQUIRE_GPU=1`, add `HOG_NOISE_REQUIRE_HOST` (a comma-separated
   list of hosts whose absence fails) and `HOG_NOISE_HOST_TARGET` (part of the adapter or renderer a host must run on), and
   name `hosts.yml`'s `glsl` job beside the three GPU legs.
 
-- [ ] **Step 5: the glossary.** In *Host harness*, replace the sentence `Proposed in [the CI proof's spec](superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md).`
+- [x] **Step 5: the glossary.** In *Host harness*, replace the sentence `Proposed in [the CI proof's spec](superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md).`
   with `Built in hog_noise_tools.hosts (spirv-naga, glsl); [the CI proof's spec](superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md) lists the rest.`
 
-- [ ] **Step 6: run the docs check and commit.**
+- [x] **Step 6: run the docs check and commit.**
 
 Run: `uv run python tools/check_docs.py`
 Expected: `no drift`.
@@ -1180,16 +1180,16 @@ git commit -s -F <message file>   # "CI proof (a), task 7: the claims move from 
 
 ### Task 8: the board, the handoff, the journal
 
-- [ ] **Step 1: the row.** `2026-11-18-emitted-shaders-run-against-the-vectors.md`: `State` becomes `Landed in PR #<n>`
+- [x] **Step 1: the row.** `2026-11-18-emitted-shaders-run-against-the-vectors.md`: `State` becomes `Landed in PR #<n>`
   with the hosts and adapters, the plan's link and the date. The `waits-on` check fails once this row is done, so in the
   same commit [the fresh-sample bounds](../../plan/board/2026-11-21-gpu-bounds-from-a-large-fresh-sample.md) decides
   again: remove its link to this row (that wait has landed) and keep its link to the warp rules. [The HLSL row](../../plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md)
   waits on this one too: remove its `Waits on` line and leave it on *Next*, ready to be pulled. The Vulkan row waits on
   the HLSL row, not on this one, and is not touched.
-- [ ] **Step 2: the plan's checkboxes**, each ticked with its verification (P-10: every number from a command).
-- [ ] **Step 3: the handoff** (*In flight*: the CI proof's first pull request landed; the HLSL plan next) and a new
+- [x] **Step 2: the plan's checkboxes**, each ticked with its verification (P-10: every number from a command).
+- [x] **Step 3: the handoff** (*In flight*: the CI proof's first pull request landed; the HLSL plan next) and a new
   journal file for the day.
-- [ ] **Step 4:** run the gate, `make check`, unpiped, and read its verdict. Then commit and push.
+- [x] **Step 4:** run the gate, `make check`, unpiped, and read its verdict. Then commit and push.
 
 ### Task 9: review, then out of draft
 
@@ -1201,6 +1201,35 @@ git commit -s -F <message file>   # "CI proof (a), task 7: the claims move from 
   skill). The owner merges.
 
 ---
+
+## Built
+
+Built 2026-11-23 in [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49), task by task in the plan's order (P-23). Each number is from the command or run named.
+
+| Task | What ran | Result |
+| --- | --- | --- |
+| 1 | CI run `45287564746`, the `glsl` job's *Context* step | `llvmpipe (LLVM 21.1.8, 256 bits) \| 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3` through EGL; the `xvfb-run` fallback was not needed |
+| 2 | `pytest apps/hog-noise-tools/tests/hosts/test_shared.py -n 0` | fails at collection before the module, then 21 passed; the hash mutant and the target mutant each fail their test |
+| 3 | `pytest .../test_hosts.py -n 0` with no host module | 1 passed, 1 failed, 14 errors, each a `ModuleNotFoundError`; the step's text now names the one failure |
+| 4 | `-k "spirv and not glsl"` on the RTX 5090 | 7 passed on Vulkan and 7 on D3D12 (`WGPU_BACKEND_TYPE`, `HOG_NOISE_HOST_TARGET`); the stride mutant fails |
+| 5 | `-k glsl`, then both hosts, on the RTX 5090 (OpenGL 4.3.0 NVIDIA 610.88) | 6 passed, then 36 passed and 1 skipped; x and y swapped at their bindings fails the acceptance test; without `with ctx:` the GL-after-wgpu test fails with `cannot create program` |
+| 6 | CI on `e44aae5` | 15 of 15; the target mutant (`not-llvmpipe`, `7d0ccf1`) failed the `glsl` job on `HostTargetError` in run `45291532412`, reverted in `8f3b088` |
+| 7 | `tools/check_docs.py` | no drift |
+| 8 | `make check`, unpiped, at the board and documents commit | 9 of 9: 3,138 passed, 71 skipped |
+
+**Where the build departed from the plan, and why:**
+
+- **Bit for bit, on Metal.** The first CI run failed `test_spirv_naga_is_the_wgpu_rung_bit_for_bit` on the Metal leg:
+  `sample_points_3d` differed in 809 of 4,096 values, by up to 3.58e-7, every other entry point equal, and every hog
+  case within the tolerance. The spec measured the claim on Vulkan and D3D12. The test now names each differing entry
+  point and its largest difference, and holds the claim on the back ends it was measured on (`BIT_EXACT_BACKENDS`); on
+  any other it is a non-strict expected failure, so an exact match shows as XPASS.
+- **Bit for bit, on OpenGL.** With wgpu installed beside moderngl, the `glsl` job's wgpu found llvmpipe through its
+  OpenGL back end, so `spirv-naga` ran there too: every hog case passed and the test XPASSed. OpenGL joined the
+  measured set.
+- **The GPU legs do not print the target line.** They run under `-n auto` without `-rA`, so a passing test's output is
+  not shown. The target is asserted there by `HOG_NOISE_HOST_TARGET` all the same; the `glsl` job reports every test by
+  name (`-rA`).
 
 ## Decisions
 
