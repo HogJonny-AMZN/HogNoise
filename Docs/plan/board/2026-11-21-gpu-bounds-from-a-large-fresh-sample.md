@@ -2,11 +2,10 @@
 
 **Section:** next
 **Owner:** @HogJonny-AMZN
-**State:** Queued 2026-11-23: after the warp rules, before PyPI (the CI proof's first pull request landed in [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49))
+**State:** Queued 2026-11-23, next in the agreed order since the warp rules landed in [PR #53](https://github.com/HogJonny-AMZN/HogNoise/pull/53) (2026-11-24); before the HLSL build and PyPI (the CI proof's first pull request landed in [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49))
 **Cost:** 1 to 2 d (`hog-noise-measure-gpu run` adds fresh points per feature against numpy, the records grow, `derive` reads both; tests; a re-derivation on every adapter)
 **Verdict:** Needed before the bounds are quoted as holding anywhere in the range; it measures the real tail, which is the owner's decision, not a rule loosened to pass. Taken by the owner's "take them" (2026-11-23)
 **Raised:** [the far-coordinate probe](../../../Spikes/far_coordinates/README.md), 2026-11-21
-**Waits on:** [the warp rules](2026-11-21-warp-output-rules-coordinate-scaled.md)
 
 On 65,536 fresh points per probe inside the measured range, some probes fail their rule on every adapter:
 

@@ -6,7 +6,7 @@
 **Cost:** 1.5 d (the spec's estimate: a C++ harness, FXC `cs_5_0` on D3D11 and DXC `cs_6_0` on D3D12, both on WARP)
 **Verdict:** Needed before PyPI: the release's condition names HLSL, and today it only compiles. Taken with the spec, Accepted 2026-11-22
 **Raised:** [the CI proof's spec](../../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md), decision 5, split into rows 2026-11-23 by [its plan](../../superpowers/plans/2026-11-23-emitted-shaders-ci-proof.md) (decision P2)
-**Waits on:** [the warp rules](2026-11-21-warp-output-rules-coordinate-scaled.md); [the fresh-sample bounds](2026-11-21-gpu-bounds-from-a-large-fresh-sample.md), the agreed order the owner kept 2026-11-23
+**Waits on:** [the fresh-sample bounds](2026-11-21-gpu-bounds-from-a-large-fresh-sample.md), the agreed order the owner kept 2026-11-23
 
 `noise.hlsl` run by a host written from [the shaders README](../../../packages/python/hog-noise/src/hog_noise/shaders/README.md)
 alone: a persistent C++ process in `apps/hog-noise-tools/hosts/`, one dispatch per request on its standard input and
