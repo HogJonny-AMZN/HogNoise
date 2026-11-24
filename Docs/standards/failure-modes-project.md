@@ -305,6 +305,42 @@ caught it, and it was reproduced by removing `glsl.py` from the trial copy (7 pa
 the selection. Not mechanised: the trial is a script that extracts a plan's code, and it could take a task number;
 worth doing when a plan's trial is next run.
 
+### P-24 · The repository's state, said from memory
+
+**Trigger:** you are about to tell the owner what is next, what a row or document says, or how an earlier pull request
+did something, and you have not read it in this session.
+**Do:** read it first: the handoff's order and the board rows for what is next, the file on `origin/main` for what a
+document says. Quote what you read, or link it.
+**Because:** after [PR #50](https://github.com/HogJonny-AMZN/HogNoise/pull/50) merged, the agent told the owner the HLSL
+pull request was next. The handoff's agreed order put the warp rules and the fresh-sample bounds first, and both were
+queued. The owner's "word" answered the wrong framing, and [the HLSL plan](../superpowers/plans/2026-11-23-the-emitted-hlsl-on-warp.md)
+was written out of order ([PR #51](https://github.com/HogJonny-AMZN/HogNoise/pull/51) says so). The same plan said (a)'s
+board row "stayed in next" when it landed. Main had it in `now`, and Copilot's review caught it. Not mechanised: it is
+a habit, and the handoff's *Last updated* is where the order is read.
+
+### P-25 · A plan's trial that stops before its documents' tasks
+
+**Trigger:** you trial-run a plan (P-23), and its later tasks edit the board, the handoff or other governed documents.
+**Do:** run those tasks too, as far as a scratch copy allows: make the board and document edits they describe, and run
+`check_docs` on them. A step `check_docs` refuses is a plan bug, found before the owner reads it.
+**Because:** [the HLSL plan](../superpowers/plans/2026-11-23-the-emitted-hlsl-on-warp.md)'s trial ran Tasks 1 to 6 and
+stopped. Task 7 kept the landed row in `next` (`board-state` refuses that) and left three rows waiting on a done row
+(`waits-on` refuses that). Copilot's review on [PR #51](https://github.com/HogJonny-AMZN/HogNoise/pull/51) found both,
+from `check_docs.py`. `94f1e3c` fixed the plan's steps. Not mechanised: the trial's applier applies only code blocks; a
+documents task describes its edits in prose.
+
+### P-26 · A constant declared for a guard and never applied
+
+**Trigger:** code you write or review declares a limit, a timeout or a retry count as a module constant.
+**Do:** find the line that applies it, and a test that fails when that line is removed. A guard nothing applies is the
+absence of the guard, with a comment claiming it.
+**Because:** [the HLSL plan](../superpowers/plans/2026-11-23-the-emitted-hlsl-on-warp.md)'s `hlsl.py` declared `TIMEOUT
+= 600`, "the harness may take over one reply", and no line used it. A harness that stopped replying would have hung
+`conformance.check` and the gate with no message. ruff does not flag an unused module constant. Copilot's review on
+[PR #51](https://github.com/HogJonny-AMZN/HogNoise/pull/51) found it. `94f1e3c` applies it through a watchdog, and a test
+uses a stand-in that never replies; with the watchdog removed, that test failed. Not mechanised: an unused-constant
+check would also flag the public constants other modules read.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
