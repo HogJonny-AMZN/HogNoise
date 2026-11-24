@@ -2,7 +2,7 @@
 
 **Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** Built 2026-11-24, in review: option A, the existing `coordinate_scaled` bound (the owner's "go"); the far probe's 18 warp outputs pass past 32,768 units on three adapters
+**State:** Built 2026-11-24, in review in [PR #53](https://github.com/HogJonny-AMZN/HogNoise/pull/53): option A, the existing `coordinate_scaled` bound (the owner's "go"); the far probe's 18 warp outputs pass past 32,768 units on three adapters
 **Cost:** 0.5 d (one branch in `measure_gpu.derive`, its test, a re-derivation from the committed records, `vectors/README.md`'s *Tolerance files*)
 **Verdict:** Good; an absolute bound on a coordinate cannot hold past a few thousand units for any float32 shader. Taken by the owner's "take them" (2026-11-23)
 **Raised:** [the far-coordinate probe](../../../Spikes/far_coordinates/README.md), 2026-11-21
