@@ -77,7 +77,7 @@ assumed:
   - **Tasks 1 to 3** gave their expectations: no drift; the import error and the two-host message; then the four
     harness tests skipping `not built`, 18 `test_hosts` cases skipping with them, and both compilers' refusals passing.
   - **Task 4:** the harness built at `/W4 /WX`, and the first run passed: with both hosts required and the target
-    `Microsoft Basic Render Driver`, 22 passed and 2 skipped (bit for bit, by design). Every hog case on D3D11 and on
+    `Microsoft Basic Render Driver`, 24 passed and 2 skipped (bit for bit, by design). Every hog case on D3D11 and on
     D3D12, within `wgpu.json` unmodified, with both controls failing, the grid matching its points and the dispatch
     past 65,535 workgroups reaching its last points. **The spec's open risk is settled:** D3D11 created every pipeline
     from FXC's `cs_5_0`, and D3D12 from DXC's signed `cs_6_0`. FXC takes about 14 s for each entry point, about 45 s for
@@ -93,6 +93,12 @@ assumed:
   - **A dead instrument, caught.** The first try at the harness mutants ran the build through a shell script the
     mutation tool's subprocess could not find; exit 127 read as "killed". Rerun through a Python helper, with the
     unmutated build passing first, each mutant failed on its hog case.
+  - **Copilot's review of the plan, [PR #51](https://github.com/HogJonny-AMZN/HogNoise/pull/51), changed its code,
+    and the trial was run again** from the corrected text, Tasks 1 to 6 in a clean worktree, with the results above.
+    `TIMEOUT` had been declared and never applied: a watchdog now ends a harness that does not reply within it. Its
+    test uses a stand-in that never answers and fails in seconds; with the watchdog removed, it failed (at 70 s, on the
+    wrong message). A harness answering "no device" (status 2) is now a test of its own, a stand-in again; made an error,
+    the test failed. Two tests that open a host skip, not fail, when the compiler or the WARP device is missing.
   - **Not run in the trial:** CI (the `windows-latest` image's Visual Studio, WARP there, the `hlsl` job), Task 5's
     target control in CI, and Tasks 7 and 8.
 
@@ -170,8 +176,10 @@ git commit -s -F msg.txt   # "CI proof (b), task 1: the shaders README says how 
 ### Task 2: the tests first
 
 The HLSL hosts' own paths, before the module exists. Each case is a skip (no Windows, no harness built, a harness older
-than its source, no compiler) or an error (a compiler or the device refusing what it was given), and an error is never
-a skip. The acceptance tests are (a)'s `test_hosts.py`, unchanged: they run on any host in `hosts.HOSTS`.
+than its source, no compiler, no WARP device) or an error (a compiler or the device refusing what it was given, or a
+harness that stops replying), and an error is never a skip. Two of the paths need no harness: a stand-in Python script
+answers as a harness with no device does, and another never answers, so the timeout is held by a test that fails in
+seconds, not one that hangs. The acceptance tests are (a)'s `test_hosts.py`, unchanged: they run on any host in `hosts.HOSTS`.
 
 **Files:**
 - Create: `apps/hog-noise-tools/tests/hosts/test_hlsl.py`
@@ -187,6 +195,8 @@ Package: apps/hog-noise-tools/tests/hosts/test_hlsl
 """
 
 import os
+import sys
+import time
 
 import pytest
 
@@ -247,10 +257,19 @@ def built():
 
 @pytest.mark.parametrize("api", sorted(hlsl.COMPILERS))
 def test_programs_the_device_refuses_are_an_error_not_a_skip(built, api):
-    """Bytes that are no compiled shader reach the device and are refused there: RuntimeError, naming the call."""
+    """
+    Bytes that are no compiled shader reach the device and are refused there: a RuntimeError naming the call. With no
+    WARP device here the host is unavailable, a skip; HostUnavailable is a RuntimeError too, so it is told apart first.
+    """
     garbage = [b"not a compiled shader"] * len(shaders.ENTRY_POINTS)
-    with pytest.raises(RuntimeError, match="refused the programs: Create"):
+    try:
         hlsl.Hlsl(api, garbage, verified_tables())
+    except HostUnavailable as e:
+        pytest.skip(f"hlsl: {e}")
+    except RuntimeError as e:
+        assert "refused the programs: Create" in str(e), e
+    else:
+        pytest.fail("the harness accepted bytes that are no compiled shader")
 
 
 def test_an_unknown_api_is_refused_by_the_harness(built):
@@ -259,10 +278,46 @@ def test_an_unknown_api_is_refused_by_the_harness(built):
 
 
 def test_the_harness_ends_when_its_input_closes(built):
-    host = hlsl.open_d3d12()
+    """Opening needs DXC and a WARP device as well as the harness: without either, a skip naming which."""
+    try:
+        host = hlsl.open_d3d12()
+    except HostUnavailable as e:
+        pytest.skip(f"hlsl: {e}")
     process = host.process
     host.close()
     assert process.returncode == 0
+
+
+def test_a_harness_that_finds_no_device_is_unavailable_not_an_error(tmp_path):
+    """
+    No harness needed: a stand-in that answers the init frame as the harness does with no WARP device, status 2.
+    That is a skip (HostUnavailable), what the two tests above tell apart from a refusal; any other status is an error.
+    """
+    stand_in = tmp_path / "no_device.py"
+    stand_in.write_text(
+        "import struct, sys\n"
+        "message = b'no WARP adapter'\n"
+        "sys.stdout.buffer.write(struct.pack('<II', 2, len(message)) + message)\n"
+        "sys.stdout.buffer.flush()\n"
+        "sys.stdin.buffer.read()\n"
+    )
+    with pytest.raises(HostUnavailable, match="no WARP adapter"):
+        hlsl.Hlsl("d3d11", [b""] * len(shaders.ENTRY_POINTS), b"", command=[sys.executable, str(stand_in)])
+
+
+def test_a_harness_that_never_replies_fails_within_the_timeout(monkeypatch, tmp_path):
+    """
+    No harness needed: a stand-in that neither reads nor replies for 30 s. Without the watchdog the call waits until the
+    stand-in exits and then fails another way, so the message and the time both fail it: a hang in conformance.check
+    would stall the gate with no message.
+    """
+    silent = tmp_path / "silent.py"
+    silent.write_text("import time\ntime.sleep(30)\n")
+    monkeypatch.setattr(hlsl, "TIMEOUT", 2)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="did not reply within 2 s, and was ended"):
+        hlsl.Hlsl("d3d11", [b""] * len(shaders.ENTRY_POINTS), b"", command=[sys.executable, str(silent)])
+    assert time.monotonic() - started < 20
 ```
 
 - [ ] **Step 2: four known hosts.** In `apps/hog-noise-tools/tests/hosts/test_shared.py`, replace:
@@ -321,6 +376,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -402,35 +458,69 @@ def _blob(data: bytes) -> bytes:
 class Hlsl:
     """One harness process, on one API."""
 
-    def __init__(self, api: str, programs: Sequence[bytes], tables: bytes) -> None:
+    def __init__(
+        self, api: str, programs: Sequence[bytes], tables: bytes, command: Sequence[str] | None = None
+    ) -> None:
+        """
+        :param command: What to run in place of the harness: the tests' stand-in for one that never replies.
+        :raises HostUnavailable: The harness found no device here.
+        :raises RuntimeError: It refused the programs, stopped, or did not reply within `TIMEOUT`.
+        """
         self.api, self.name = api, f"hlsl-{api}"
+        self._expired = False
         self.process = subprocess.Popen(
-            [str(harness()), "--api", api], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            list(command or [str(harness()), "--api", api]),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         named = b"".join(_blob(e.encode()) + _blob(p) for e, p in zip(shaders.ENTRY_POINTS, programs, strict=True))
         status, body = self._exchange(b"HNH1" + _blob(tables) + struct.pack("<I", len(programs)) + named)
-        if status == _UNAVAILABLE:
-            raise HostUnavailable(f"{self.name}: {body.decode()}")
         if status != _OK:
+            self.process.kill()  # it exits after a failed start anyway; never leave one behind
+            self.process.wait()
+            if status == _UNAVAILABLE:
+                raise HostUnavailable(f"{self.name}: {body.decode()}")
             raise RuntimeError(f"{self.name}: the harness refused the programs: {body.decode()}")
         self.target = body.decode()
         _LOGGER.info(f"{self.name}: {len(programs)} programs on {self.target}")
 
+    def _stopped(self, why: str) -> RuntimeError:
+        """The error for a harness that is gone, saying whether the watchdog ended it."""
+        if self._expired:
+            self.process.wait()
+            return RuntimeError(f"{self.name}: the harness did not reply within {TIMEOUT} s, and was ended")
+        exit_code = self.process.poll()
+        err = self.process.stderr.read().decode(errors="replace").strip() if exit_code is not None else ""
+        return RuntimeError(f"{self.name}: the harness {why} (exit {exit_code}) {err}".strip())
+
     def _read(self, n: int) -> bytes:
         data = self.process.stdout.read(n)
         if len(data) != n:
-            err = self.process.stderr.read().decode(errors="replace").strip() if self.process.poll() is not None else ""
-            raise RuntimeError(f"{self.name}: the harness stopped (exit {self.process.poll()}) {err}".strip())
+            raise self._stopped("stopped")
         return data
 
+    def _expire(self) -> None:
+        self._expired = True
+        self.process.kill()
+
     def _exchange(self, frame: bytes) -> tuple[int, bytes]:
+        """
+        One frame out, one reply back, within `TIMEOUT`: past it a watchdog ends the harness, so a harness that stops
+        replying fails the call instead of hanging ``conformance.check`` and the gate.
+        """
+        watchdog = threading.Timer(TIMEOUT, self._expire)
+        watchdog.start()
         try:
-            self.process.stdin.write(frame)
-            self.process.stdin.flush()
-        except OSError as e:
-            raise RuntimeError(f"{self.name}: the harness is gone (exit {self.process.poll()}): {e}") from e
-        status, length = struct.unpack("<II", self._read(8))
-        return status, self._read(length)
+            try:
+                self.process.stdin.write(frame)
+                self.process.stdin.flush()
+            except OSError as e:
+                raise self._stopped("is gone") from e
+            status, length = struct.unpack("<II", self._read(8))
+            return status, self._read(length)
+        finally:
+            watchdog.cancel()
 
     def run(
         self,
@@ -528,7 +618,7 @@ an error, not a skip.
 
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k hlsl`
 Expected: every `[hlsl-d3d11]` and `[hlsl-d3d12]` case of `test_hosts.py` skips, naming `build.bat` (18 skipped); `-k
-hlsl` also selects `test_hlsl.py`'s six tests that need no harness, which pass.
+hlsl` also selects `test_hlsl.py`'s eight tests that need no harness, which pass.
 
 - [ ] **Step 4: commit.**
 
@@ -1079,7 +1169,7 @@ so a warning fails it. (`vcvars64.bat` may print `'vswhere.exe' is not recognize
 Run: `HOG_NOISE_REQUIRE_HOST=hlsl-d3d11,hlsl-d3d12 HOG_NOISE_HOST_TARGET="Microsoft Basic Render Driver" uv run pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k hlsl`
 (`-k hlsl`: the target applies to every host, and on a machine with wgpu and moderngl `spirv-naga` and `glsl` open on
 its own GPU and fail it. CI's `hlsl` job installs neither, so there they skip.)
-Expected: 22 passed, 2 skipped. Every `hlsl` case passes: every hog case within `wgpu.json`, the seed-plus-one control, the rule at 0.9 of
+Expected: 24 passed, 2 skipped. Every `hlsl` case passes: every hog case within `wgpu.json`, the seed-plus-one control, the rule at 0.9 of
 its worst, the wrong-target refusal, the power-of-two grid against its points, and the dispatch past 65,535 workgroups,
 on each host. The bit-for-bit test skips for both (it is `spirv-naga`'s claim alone). `test_hlsl.py` passes in full.
 **A hog case that fails is a finding: stop and report it.**
@@ -1158,12 +1248,23 @@ and append to `.github/workflows/hosts.yml`, after the `glsl` job:
         run: pytest apps/hog-noise-tools/tests/hosts -rA -n 0
 ```
 
-- [ ] **Step 2: open the draft.** Push the branch and open a **draft** pull request against `main`, its body from
+- [ ] **Step 2: commit the job.**
+
+Run: `uv run python -I` on a script that parses `.github/workflows/hosts.yml` with PyYAML (`uv run --with pyyaml`) and
+prints each job's name and steps. Expected: `glsl` and `hlsl`, the `hlsl` job's steps ending `Build the harness`,
+`Test`.
+
+```bash
+git add .github/workflows/hosts.yml
+git commit -s -F msg.txt   # "CI proof (b), task 5: the hlsl job builds the harness and requires both hosts on WARP"
+```
+
+- [ ] **Step 3: open the draft.** Push the branch and open a **draft** pull request against `main`, its body from
   `.github/pull_request_template.md`. Read CI with `gh pr checks <n> --watch`.
   Expected: every leg green. The `hlsl` job's log shows `Microsoft Basic Render Driver (D3D11)` and `(D3D12)` and every
   `[hlsl-d3d11]` and `[hlsl-d3d12]` test PASSED by name; `tests.yml`'s Windows legs show the HLSL hosts skipped, `not built`.
 
-- [ ] **Step 3: the target check, made to fail in CI once (P-22).** A scratch commit sets the job's
+- [ ] **Step 4: the target check, made to fail in CI once (P-22).** A scratch commit sets the job's
   `HOG_NOISE_HOST_TARGET` to `not-warp`; push it, and the `hlsl` job **fails** on `HostTargetError` for both hosts.
   Then a new commit reverting it, never a force-push; read the job green again.
 
@@ -1298,12 +1399,16 @@ git commit -s -F msg.txt   # "CI proof (b), task 6: the claims move from compile
 ### Task 7: the board, the handoff, the journal
 
 - [ ] **Step 1: the row lands.** `Docs/plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md`: its state becomes
-  Landed, with the date and a link to this pull request, what ran on what, and the numbers from Task 4 and CI. `**Section:**` stays until the
-  owner's merge, as (a)'s did.
-- [ ] **Step 2: what waited on it.** The rows whose `Waits on` names this one ([the buffer-limit
+  Landed, with the date and a link to this pull request, what ran on what, and the numbers from Task 4 and CI; and its
+  `**Section:**` becomes `now`, as (a)'s row did. `check_docs` refuses a landed row in any other section but a gate
+  (`board-state`).
+- [ ] **Step 2: what waited on it.** Three rows name this one in their `**Waits on:**` line: [the buffer-limit
   refusal](../../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md), [the engine
-  trials](../../plan/board/2026-11-18-engine-host-trials.md), [lavapipe](../../plan/board/2026-11-23-the-emitted-spirv-runs-on-lavapipe.md)):
-  each says its wait is met when this merges. The lavapipe row also says what this plan decided for it (decision B6).
+  trials](../../plan/board/2026-11-18-engine-host-trials.md) and [lavapipe](../../plan/board/2026-11-23-the-emitted-spirv-runs-on-lavapipe.md).
+  `check_docs` refuses a wait on a done row (`waits-on`), so in each, remove this row's link from the `Waits on` line,
+  keep every other link there (the engine trials still wait on lavapipe), drop a line left empty, and say in the row's
+  prose that the HLSL landed with this pull request. The lavapipe row also says what this plan decided for it
+  (decision B6).
 - [ ] **Step 3: the handoff and the journal.** `Docs/handoffs/CURRENT.md`, *Last updated*: this pull request, and that
   the PyPI condition's HLSL is met, the release still the owner's go. A journal file for the session.
 - [ ] **Step 4: tick this plan's steps** and fill *Built* below with each task's command and result.
@@ -1349,7 +1454,7 @@ Proposed; each is the owner's to take.
 - **Tests:** every hog case, the seed-plus-one control and the rule at 0.9 of its worst, per host: (a)'s `test_hosts.py`,
   parametrised over `HOSTS`. Skips naming why; `HOG_NOISE_REQUIRE_HOST` makes them failures.
 - **Each host asserts its target:** `check_target` through `open_host`; the wrong-target control in `test_hosts.py`; and
-  once in CI, Task 5 step 3.
+  once in CI, Task 5 step 4.
 - **CI:** the `hlsl` job in `hosts.yml`: Task 5. **The README's claims:** Task 6.
 - **Acceptance:** Task 4 step 4 and CI, `wgpu.json` unmodified. **Open risk, FXC's HLSL on D3D11:** settled by the
   trial: every pipeline was created.
