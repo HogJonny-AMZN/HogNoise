@@ -1,6 +1,7 @@
 # The CI proof, second pull request: the emitted HLSL on WARP, through D3D11 and D3D12
 
-**Status:** Proposed 2026-11-23, for the owner's acceptance. Written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md),
+**Status:** Accepted 2026-11-23 by the owner with its six decisions as recommended ("ok accepted"), to be built after
+the warp rules and the fresh-sample bounds, the agreed order. Written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md),
 Accepted 2026-11-22, after its first pull request ([PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49), merged
 as `adf4f30`) fixed the host contract this one follows. The build ticks each step as it lands.
 **Board:** [`2026-11-23-the-emitted-hlsl-runs-on-warp`](../../plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md)
