@@ -341,6 +341,20 @@ absence of the guard, with a comment claiming it.
 uses a stand-in that never replies; with the watchdog removed, that test failed. Not mechanised: an unused-constant
 check would also flag the public constants other modules read.
 
+### P-27 · A fact a change makes untrue, searched for in one phrasing and one folder
+
+**Trigger:** a change makes something the documents state untrue (a rule's kind, a default, a limit, a name), and you
+search for the text to update.
+**Do:** search for the concept, not one phrasing of it: its several wordings, each on its own, across every documents
+folder (`Docs/` whole, including `superpowers/specs/`, `design/` and the glossary, and each README). Update what states
+the present; leave plans and landed rows, which record what was true when they were written, and amend a spec or a
+design with a dated note rather than rewriting it.
+**Because:** [PR #53](https://github.com/HogJonny-AMZN/HogNoise/pull/53) made the warp outputs' rules coordinate-scaled.
+Its search left out `Docs/superpowers/specs/` and matched "absolute" only next to "warp" on one line, so the glossary's
+*Tolerance file* row and the GPU port spec still said the warp rules were absolute. Copilot's review found both; the
+wider search in `768e00d` also found the GPU fast-track account's line 52. Not mechanised: which sentences state a fact
+is a reading, not a pattern.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
