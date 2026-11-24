@@ -1195,10 +1195,12 @@ git commit -s -F <message file>   # "CI proof (a), task 7: the claims move from 
 
 - [x] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
 - [x] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
-- [ ] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
+- [x] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
   *Verified* (each mutation's result, each target line, the CI run), *Not covered* (HLSL, Vulkan).
-- [ ] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
-  skill). The owner merges.
+- [x] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
+  skill). The owner merges. Done: Copilot's four findings fixed in `9cce979` (wgpu pinned to OpenGL in the `glsl` job,
+  the GL target read with its context current, a buffer-update barrier before the read, the tables' error paths),
+  CI 15 of 15, merged as `adf4f30`.
 
 ---
 

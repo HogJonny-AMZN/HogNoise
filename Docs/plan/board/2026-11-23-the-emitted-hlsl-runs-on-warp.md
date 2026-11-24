@@ -2,7 +2,7 @@
 
 **Section:** next
 **Owner:** @HogJonny-AMZN
-**State:** Queued 2026-11-23: the CI proof's second pull request, (b); its plan is written when (a), [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49), merges
+**State:** Queued 2026-11-23: the CI proof's second pull request, (b). (a), [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49), merged 2026-11-23 (`adf4f30`), so its plan can be written
 **Cost:** 1.5 d (the spec's estimate: a C++ harness, FXC `cs_5_0` on D3D11 and DXC `cs_6_0` on D3D12, both on WARP)
 **Verdict:** Needed before PyPI: the release's condition names HLSL, and today it only compiles. Taken with the spec, Accepted 2026-11-22
 **Raised:** [the CI proof's spec](../../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md), decision 5, split into rows 2026-11-23 by [its plan](../../superpowers/plans/2026-11-23-emitted-shaders-ci-proof.md) (decision P2)
