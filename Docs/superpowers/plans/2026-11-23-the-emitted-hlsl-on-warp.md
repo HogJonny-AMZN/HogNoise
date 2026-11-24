@@ -1435,7 +1435,7 @@ Filled by the build: each task's command, its result, and where the build depart
 
 ## Decisions
 
-Proposed; each is the owner's to take.
+Accepted 2026-11-23 by the owner, with B1 to B6 as recommended ("ok accepted").
 
 | # | Decision | Recommended | Alternative | Why |
 | --- | --- | --- | --- | --- |
