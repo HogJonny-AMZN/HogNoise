@@ -1193,8 +1193,8 @@ git commit -s -F <message file>   # "CI proof (a), task 7: the claims move from 
 
 ### Task 9: review, then out of draft
 
-- [ ] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
-- [ ] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
+- [x] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
+- [x] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
 - [ ] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
   *Verified* (each mutation's result, each target line, the CI run), *Not covered* (HLSL, Vulkan).
 - [ ] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
@@ -1261,4 +1261,6 @@ Taken by the owner 2026-11-23, each as recommended ("I accept your recommendatio
 
 ## Terms introduced
 
-None. *Host harness* is in the glossary already; Task 7 updates its row.
+- **Host target**: what a host harness runs on, the one line naming its adapter or renderer and back end. Missed when the plan was written (it said *None*); the deliberate review on [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49) caught it, and the glossary has its row.
+
+*Host harness* is in the glossary already; Task 7 updates its row.

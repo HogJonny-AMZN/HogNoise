@@ -11,6 +11,7 @@ restated; ``test_shared`` holds them to the manifest. Each host module has ``ope
 
 from __future__ import annotations
 
+import functools
 import importlib
 import logging as _logging
 import math
@@ -93,10 +94,24 @@ def check_hash(name: str, data: bytes) -> None:
 
 
 def verified(language: str, entry_point: str | None = None) -> str | bytes:
-    """The shipped shader, read through ``hog_noise.shaders`` once its bytes hash to its manifest entry."""
+    """
+    The shipped shader, read once: the bytes hashed against its manifest entry are the bytes returned. Text with CRLF
+    made LF, as ``shaders.source`` gives it; bytes for SPIR-V.
+
+    :raises ValueError: The file is not the manifest's (`check_hash`).
+    :raises OSError: The file is missing or unreadable, never turned into a skip.
+    """
     name = shaders.file_name(language, entry_point)
-    check_hash(name, shaders.path(language, entry_point).read_bytes())
-    return shaders.source(language, entry_point)
+    data = shaders.path(language, entry_point).read_bytes()
+    check_hash(name, data)
+    return data if language == "spirv" else data.decode("utf-8").replace("\r\n", "\n")
+
+
+def verified_tables() -> bytes:
+    """The 8,192 bytes binding 1 holds, read once and hashed against the manifest's ``tables.f32`` entry."""
+    data = shaders.tables()
+    check_hash(shaders.TABLES_FILE, data)
+    return data
 
 
 def check_target(host: str, found: str, expected: str | None) -> None:
@@ -113,7 +128,10 @@ def check_target(host: str, found: str, expected: str | None) -> None:
     _LOGGER.info(f"{host}: runs on {found}, the target {expected!r}")
 
 
-_OPEN: dict[str, Host] = {}
+@functools.cache
+def _open(name: str) -> Host:
+    """The host ``name``, opened once per process: a device or context is costly, and one per process is enough."""
+    return importlib.import_module(HOSTS[name]).open_host()
 
 
 def open_host(name: str, target: str | None = None) -> Host:
@@ -127,9 +145,7 @@ def open_host(name: str, target: str | None = None) -> Host:
     """
     if name not in HOSTS:
         raise ValueError(f"unknown host {name!r}; known: {', '.join(sorted(HOSTS))}")
-    if name not in _OPEN:
-        _OPEN[name] = importlib.import_module(HOSTS[name]).open_host()
-    host = _OPEN[name]
+    host = _open(name)
     check_target(name, host.target, os.environ.get(TARGET_ENV) if target is None else target)
     return host
 

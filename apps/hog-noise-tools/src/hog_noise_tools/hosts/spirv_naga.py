@@ -18,7 +18,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from hog_noise import shaders
-from hog_noise_tools.hosts import BINDING_KINDS, HostUnavailable, verified, workgroups
+from hog_noise_tools.hosts import BINDING_KINDS, HostUnavailable, verified, verified_tables, workgroups
 
 _MODULE_NAME = "hog_noise_tools.hosts.spirv_naga"
 __version__ = "0.1.0"
@@ -69,7 +69,7 @@ class SpirvNaga:
             entry: dev.create_compute_pipeline(layout=pipeline_layout, compute={"module": module, "entry_point": entry})
             for entry in shaders.ENTRY_POINTS
         }
-        self.tables = self._buffer(shaders.tables(), wgpu.BufferUsage.STORAGE)
+        self.tables = self._buffer(verified_tables(), wgpu.BufferUsage.STORAGE)
         self.unused = self._buffer(bytes(4), wgpu.BufferUsage.STORAGE)  # the README: a one-float buffer
         self.no_grid = self._buffer(bytes(48), wgpu.BufferUsage.UNIFORM)  # the README: 48 zero bytes
         _LOGGER.info(f"spirv-naga: {len(self.pipelines)} pipelines from noise.spv on {self.target}")

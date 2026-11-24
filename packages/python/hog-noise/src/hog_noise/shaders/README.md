@@ -44,6 +44,8 @@ on Apple hardware `wgpu` already runs the WGSL (the stage 3 spec's decision 1).
 `ceil(groups / 65535)` along y: the shader's point index is `gid.x + gid.y * 65535 * 64`, and an invocation past the
 output's end returns at once.
 
+**Octaves.** The wgpu rung refuses more than 32 octaves (`octaves` and `perturb_octaves`, `gpu.MAX_OCTAVES`): a shader loop that long can stall the device until the driver resets it. A host should refuse them too.
+
 **Output** (binding 5): one float per point from the `sample_` entry points; three per point (x, y, z) from
 `warp_points_3d` and two (x, y) from `warp_points_2d`, the warped coordinates. `sample_grid` writes its cells x-major:
 point `i` is cell `(i / (ny * nz), (i / nz) % ny, i % nz)`.

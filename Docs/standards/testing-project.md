@@ -104,7 +104,7 @@ The emitted shaders run in `hog_noise_tools.hosts` (`apps/hog-noise-tools/README
 
 - **`HOG_NOISE_REQUIRE_HOST`** names the hosts whose absence fails instead of skipping, comma-separated. The three GPU
   legs of `tests.yml` set it to `spirv-naga`; `hosts.yml`'s `glsl` job, on Ubuntu with Mesa's llvmpipe through EGL, sets
-  it to `glsl`. A name that is no host fails the run, so a misspelling cannot require nothing.
+  it to `glsl,spirv-naga` (its wgpu finds llvmpipe through OpenGL). A name that is no host fails the run, so a misspelling cannot require nothing.
 - **`HOG_NOISE_HOST_TARGET`** is part of the target line a host must run on: each GPU leg sets its pinned back end, the
   `glsl` job `llvmpipe`. A host on anything else fails before its first dispatch (the project ledger's P-22).
 - **The `glsl` job installs the `gpu` extra too.** It is the one job with moderngl and wgpu together, so

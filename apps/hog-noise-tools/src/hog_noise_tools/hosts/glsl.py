@@ -22,7 +22,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from hog_noise import shaders
-from hog_noise_tools.hosts import BINDING_KINDS, HostUnavailable, verified, workgroups
+from hog_noise_tools.hosts import BINDING_KINDS, HostUnavailable, verified, verified_tables, workgroups
 
 _MODULE_NAME = "hog_noise_tools.hosts.glsl"
 __version__ = "0.1.0"
@@ -50,6 +50,7 @@ def context() -> Any:
     except ImportError as e:
         raise HostUnavailable("moderngl is not installed: uv sync --group hosts") from e
     backend = _backend()
+    _LOGGER.info(f"glsl: asking moderngl for an OpenGL 4.3 context, {backend or 'default'} back end ({BACKEND_ENV})")
     try:
         return moderngl.create_standalone_context(require=430, **({"backend": backend} if backend else {}))
     except Exception as e:  # moderngl's Error, or glcontext's own when no driver or display exists
@@ -82,10 +83,16 @@ class Glsl:
                 for b in bindings:
                     block = b["glsl"]["blocks"].get(entry)
                     if block is not None:
-                        program[block].binding = b["binding"]
+                        try:
+                            program[block].binding = b["binding"]
+                        except KeyError as e:
+                            raise ValueError(
+                                f"{entry}: the manifest's block {block!r} for binding {b['binding']} is not in "
+                                f"{shaders.file_name('glsl', entry)}: run make shaders"
+                            ) from e
                         self.reads[entry].append(b["binding"])
                 self.programs[entry] = program
-            self.tables = ctx.buffer(shaders.tables())
+            self.tables = ctx.buffer(verified_tables())
         _LOGGER.info(f"glsl: {len(self.programs)} programs on {self.target}")
 
     def run(

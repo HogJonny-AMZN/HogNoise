@@ -134,3 +134,73 @@ def test_renderings_build_one_sampler_per_parameter_record():
     warp(p, xs, xs, None)
     grid(p, (0, 0, 0), (1, 1, 1), (1.0, 1.0, 1.0))
     assert [c[0] for c in host.calls] == ["sample_points_2d", "sample_points_3d", "warp_points_2d", "sample_grid"]
+
+
+def test_the_bytes_hashed_are_the_bytes_returned(monkeypatch):
+    """No second read: with ``shaders.source`` made to return something else, ``verified`` still gives the file."""
+    monkeypatch.setattr(shaders, "source", lambda *a, **k: b"a second read, never hashed")
+    assert hosts.verified("spirv") == shaders.path("spirv").read_bytes()
+    text = hosts.verified("glsl", "sample_grid")
+    assert isinstance(text, str) and "\r\n" not in text and text.startswith("#version 430")
+
+
+def test_an_altered_file_on_disk_is_refused(monkeypatch, tmp_path):
+    altered = tmp_path / "noise.spv"
+    altered.write_bytes(shaders.path("spirv").read_bytes()[:-4] + b"\0\0\0\0")
+    monkeypatch.setattr(shaders, "path", lambda *a, **k: altered)
+    with pytest.raises(ValueError, match=r"noise\.spv hashes to"):
+        hosts.verified("spirv")
+
+
+def test_tables_that_are_not_the_manifests_are_refused(monkeypatch):
+    monkeypatch.setattr(shaders, "tables", lambda: bytes(shaders.TABLES_BYTES))
+    with pytest.raises(ValueError, match=r"tables\.f32 hashes to"):
+        hosts.verified_tables()
+
+
+def test_the_shipped_tables_pass():
+    """The positive side of the refusal above."""
+    assert hosts.verified_tables() == shaders.tables()
+
+
+def test_a_missing_shader_is_an_error_not_a_skip(monkeypatch, tmp_path):
+    monkeypatch.setattr(shaders, "path", lambda *a, **k: tmp_path / "noise.spv")
+    with pytest.raises(FileNotFoundError):
+        hosts.verified("spirv")
+
+
+def test_an_unreadable_shader_is_an_error_not_a_skip(monkeypatch, tmp_path):
+    """A directory where the file should be: IsADirectoryError on Linux, PermissionError on Windows; never a refusal."""
+    (tmp_path / "noise.spv").mkdir()
+    monkeypatch.setattr(shaders, "path", lambda *a, **k: tmp_path / "noise.spv")
+    with pytest.raises(OSError) as raised:
+        hosts.verified("spirv")
+    assert not isinstance(raised.value, FileNotFoundError)
+
+
+class FakeContext:
+    """Enough of a moderngl context for `glsl.Glsl` to build against, with programs that know no block."""
+
+    info = {"GL_RENDERER": "a fake renderer", "GL_VERSION": "4.3"}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def compute_shader(self, source):
+        return {}
+
+    def buffer(self, data=None, reserve=0):
+        return data
+
+
+def test_a_manifest_block_the_program_lacks_names_itself():
+    """A naga rename the manifest has not caught up with is named, not a bare KeyError."""
+    from hog_noise_tools.hosts import glsl
+
+    with pytest.raises(
+        ValueError, match=r"sample_points_3d: the manifest's block 'Params_block_0Compute'.*make shaders"
+    ):
+        glsl.Glsl(FakeContext())
