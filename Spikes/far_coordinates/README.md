@@ -95,3 +95,37 @@ item 3. The full rows are in `results_*.json`, one file per adapter.
     tail is seen before it is shipped. The vectors stay as the check.
 
   Both are on the Icebox, with proposed verdicts.
+
+## After the warp rules (2026-11-24)
+
+The first change above was built: the warp outputs' rules are coordinate-scaled
+([the row](../../Docs/plan/board/2026-11-21-warp-output-rules-coordinate-scaled.md)). The probe ran again with them, on
+the same three adapters, seed and points, into [after-warp-rules/](after-warp-rules/); `compare.py` prints both runs
+side by side:
+
+```bash
+uv run python -I Spikes/far_coordinates/probe.py Spikes/far_coordinates/after-warp-rules
+uv run python -I Spikes/far_coordinates/compare.py Spikes/far_coordinates Spikes/far_coordinates/after-warp-rules
+```
+
+The 18 warp outputs, passing per band, with the worst drift as a multiple of the bound and, after, the points past it
+(of 18 x 65,536 per band):
+
+| Adapter | [0, 4,096) | [4,096, 32,768) | [32,768, 262,144) | [262,144, 1,048,576) |
+| --- | --- | --- | --- | --- |
+| RTX 5090, Vulkan, before | 16, 8.54x | 0, 15.6x | 0, 46.9x | 0, 250x |
+| RTX 5090, Vulkan, after | 16, 4.22x, 3 past | 16, 1.26x, 2 past | **18**, 0.602x | **18**, 0.62x |
+| RTX 5090, D3D12, before | 16, 8.54x | 1, 15.6x | 0, 31.2x | 0, 219x |
+| RTX 5090, D3D12, after | 17, 4.22x, 1 past | 16, 1.26x, 2 past | **18**, 0.684x | **18**, 0.613x |
+| WARP (D3D12), before | 16, 6.1x | 0, 15.6x | 0, 50.8x | 0, 250x |
+| WARP (D3D12), after | 16, 4.05x, 2 past | 17, 1.22x, 1 past | **18**, 0.644x | **18**, 0.726x |
+
+Far out, every warp output now passes, below its bound by a margin that does not shrink with distance: the bound
+follows the drift. Inside 32,768 units, 1 to 3 points per band still fall past the bound of one or two warp outputs.
+That is the rare tail of *What it says* item 3, which the noise probes show too, and the second change (bounds from a
+large fresh sample) is for it.
+
+The noise probes are as before, with one exception unrelated to the warps: 3D `fns/cellular_manhattan_noiselookup`
+in [32,768, 262,144) now passes on all three adapters, with the same values. This probe first ran before the macOS
+runner's Metal record joined the tolerance file (`5340a3f`), which moved the NoiseLookup features' fraction within
+the tight bound from 1.0 to 0.999.

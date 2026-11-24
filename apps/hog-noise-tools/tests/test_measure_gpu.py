@@ -116,13 +116,14 @@ def test_a_discrete_rule_never_asks_for_a_correlation_above_0_999():
     assert m.derive(records)[0]["min_correlation"] == m.MAX_CORRELATION == 0.999
 
 
-def test_a_feature_with_noise_and_warp_gets_a_rule_for_each_and_the_warp_rule_is_absolute():
+def test_a_feature_with_noise_and_warp_gets_a_rule_for_each_and_the_warp_rule_is_coordinate_scaled():
+    """The warp rule follows max_normalised, not max_abs: an absolute bound fails past 4,096 units (the far probe)."""
     records = [
         record(
             "a",
             {
                 "hog/fnl/w/scatter_3d": stats("fnl/w"),
-                "hog/fnl/w/scatter_3d/warp": stats("fnl/w", output="warp", max_abs=3e-4),
+                "hog/fnl/w/scatter_3d/warp": stats("fnl/w", output="warp", max_abs=0.3, max_normalised=3e-4),
             },
         )
     ]
@@ -137,9 +138,14 @@ def test_a_feature_with_noise_and_warp_gets_a_rule_for_each_and_the_warp_rule_is
             "feature": "fnl/w",
             "output": "warp",
             "kind": "continuous",
-            "bound": {"scale": 1e-3, "coordinate_scaled": False},
+            "bound": {"scale": 1e-3, "coordinate_scaled": True},
         },
     ]
+
+
+def test_a_warp_past_the_largest_bound_is_a_finding():
+    with pytest.raises(m.Finding, match="fnl/w warp"):
+        m.derive([record("a", {"hog/fnl/w/scatter_3d/warp": stats("fnl/w", output="warp", max_normalised=0.4)})])
 
 
 def test_a_continuous_feature_that_jumps_is_a_finding_not_a_number():
