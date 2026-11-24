@@ -11,7 +11,10 @@ GPU's values by the feature's own rule from vectors/tolerance/wgpu.json, exactly
     uv run python -I Spikes/far_coordinates/probe.py                         # the default adapter
     WGPU_BACKEND_TYPE=D3D12 uv run python -I Spikes/far_coordinates/probe.py
 
-Writes results_<adapter slug>.json beside this file and prints the summary table.
+Writes results_<adapter slug>.json beside this file, or into the folder given as its one argument, and prints the
+summary table. The re-run with the coordinate-scaled warp rules (2026-11-24) is in after-warp-rules/:
+
+    uv run python -I Spikes/far_coordinates/probe.py Spikes/far_coordinates/after-warp-rules
 """
 
 import dataclasses
@@ -132,7 +135,9 @@ def main() -> int:
     )
 
     label = f"{info['device']} ({info['backend_type']})"
-    out = HERE / f"results_{slug(label)}.json"
+    folder = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE
+    folder.mkdir(parents=True, exist_ok=True)
+    out = folder / f"results_{slug(label)}.json"
     out.write_text(
         json.dumps({"adapter": label, "n": N, "seed": SEED, "bands": BANDS, "controls": controls, "rows": rows}, indent=1)
         + "\n",

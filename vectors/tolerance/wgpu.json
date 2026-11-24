@@ -528,8 +528,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.001,
-        "coordinate_scaled": false
+        "scale": 5e-05,
+        "coordinate_scaled": true
       }
     },
     {
@@ -546,8 +546,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.002,
-        "coordinate_scaled": false
+        "scale": 5e-05,
+        "coordinate_scaled": true
       }
     },
     {
@@ -564,8 +564,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.0005,
-        "coordinate_scaled": false
+        "scale": 5e-05,
+        "coordinate_scaled": true
       }
     },
     {
@@ -582,8 +582,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.002,
-        "coordinate_scaled": false
+        "scale": 0.0001,
+        "coordinate_scaled": true
       }
     },
     {
@@ -600,8 +600,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.005,
-        "coordinate_scaled": false
+        "scale": 0.0002,
+        "coordinate_scaled": true
       }
     },
     {
@@ -618,8 +618,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.001,
-        "coordinate_scaled": false
+        "scale": 5e-05,
+        "coordinate_scaled": true
       }
     },
     {
@@ -636,8 +636,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.002,
-        "coordinate_scaled": false
+        "scale": 5e-05,
+        "coordinate_scaled": true
       }
     },
     {
@@ -654,8 +654,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.002,
-        "coordinate_scaled": false
+        "scale": 0.0002,
+        "coordinate_scaled": true
       }
     },
     {
@@ -672,8 +672,8 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.001,
-        "coordinate_scaled": false
+        "scale": 5e-05,
+        "coordinate_scaled": true
       }
     },
     {

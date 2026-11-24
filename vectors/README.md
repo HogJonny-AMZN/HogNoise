@@ -113,7 +113,7 @@ set only; the original cases keep their own rules for every rendering.
     {"feature": "fnl/warp_opensimplex2_none", "output": "noise", "kind": "continuous",
      "bound": {"scale": 5e-06, "coordinate_scaled": true}},
     {"feature": "fnl/warp_opensimplex2_none", "output": "warp", "kind": "continuous",
-     "bound": {"scale": 0.001, "coordinate_scaled": false}},
+     "bound": {"scale": 5e-05, "coordinate_scaled": true}},
     {"feature": "fns/cellular_natural_cellvalue", "kind": "discrete", "bound": {"scale": 2.0, "coordinate_scaled": false},
      "within": {"scale": 1e-07, "coordinate_scaled": true, "fraction": 1.0}, "min_correlation": 0.999}
   ]
@@ -125,8 +125,12 @@ set only; the original cases keep their own rules for every rendering.
   rules covering one case, or a rule naming no hog feature, is an error when the file is read; a case no rule covers
   **fails** with "no tolerance rule", so a feature added later cannot pass by default.
 - **`continuous`** is a bound and nothing else, for a feature whose output moves smoothly with its input. The noise
-  outputs' bounds are coordinate-scaled. The warp outputs' are absolute (`"coordinate_scaled": false`): the reference
-  warps the raw coordinates in float64 before the frequency multiply, so their error follows the raw coordinate.
+  and warp outputs' bounds are all coordinate-scaled. A warp's output is a coordinate: the reference warps the raw
+  coordinates in float64 before the frequency multiply, so a float32 rendering's error is a few float32 steps of the raw
+  coordinate and grows with it. The coordinate-scaled bound grows with `raw * frequency`, which is the raw coordinate
+  times a constant at one frequency, so a warp rule's number holds at the frequencies `range` names and no others. Until
+  2026-11-24 the warp bounds were absolute, which held on the vectors' points and failed past 4,096 units
+  ([the far-coordinate probe](../Spikes/far_coordinates/README.md)).
 - **`discrete`** is for a feature where float32 can flip a choice and jump the output: cellular CellValue and
   NoiseLookup, white noise, and the `genasgrid` grids, whose points sit on the lattice where classic Simplex and
   OpenSimplex2 break a tie between two corners. Its `bound` is the width of the output's range (it fails only a value far

@@ -161,10 +161,13 @@ def derive(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if len(outputs[feature]) > 1:
             rule["output"] = output
         if output == "warp":
-            scale = step_up(2.0 * max(s["max_abs"] for s in stats))
+            # A warp's output is a coordinate, and its drift is a few float32 steps of the coordinate warped, so it
+            # grows with the raw coordinate (Spikes/far_coordinates). Coordinate-scaled, the bound grows with it too;
+            # it is scaled by raw * frequency, not raw, so it holds at the frequencies the tolerance file's range names.
+            scale = step_up(2.0 * max(s["max_normalised"] for s in stats))
             if scale > LARGEST:
-                raise Finding(f"{feature} warp: absolute {scale} past {LARGEST}")
-            rule.update(kind="continuous", bound={"scale": scale, "coordinate_scaled": False})
+                raise Finding(f"{feature} warp: {scale} past {LARGEST}")
+            rule.update(kind="continuous", bound={"scale": scale, "coordinate_scaled": True})
         elif any(k in feature for k in DISCRETE):
             within = step_up(2.0 * max(s["p99_normalised"] for s in stats))
             if within > LARGEST:

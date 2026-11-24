@@ -49,7 +49,9 @@ past a device's buffer limit (gaps 6 and 7).
 four adapters and applies one of three rules. Each result is rounded up to the next 1, 2 or 5 step, never below 1e-7.
 
 - **The 101 coordinate-scaled continuous rules:** twice the worst drift per unit.
-- **The warp outputs:** twice the worst absolute drift, not coordinate-scaled.
+- **The warp outputs:** twice the worst absolute drift, not coordinate-scaled. *Amended 2026-11-24
+  ([PR #53](https://github.com/HogJonny-AMZN/HogNoise/pull/53)):* now twice the worst coordinate-scaled drift, as for
+  the noise, after gap 1's probe found the absolute rules failing past 32,768 units.
 - **The 15 discrete rules:** the within-bound is twice the worst p99 per unit. The outer bound is the reference's
   range, not doubled. The fraction is 1 minus twice the share outside it, and the correlation is capped at 0.999.
 
