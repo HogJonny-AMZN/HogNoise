@@ -71,12 +71,14 @@ class Glsl:
 
     def __init__(self, ctx: Any) -> None:
         self.ctx = ctx
-        self.target = f"{ctx.info['GL_RENDERER']} (OpenGL {ctx.info['GL_VERSION']})"
         bindings = shaders.manifest()["bindings"]
         #: per entry point, the bindings it reads: those with a block for it
         self.reads: dict[str, list[int]] = {}
         self.programs: dict[str, Any] = {}
         with ctx:
+            # read with this context current: moderngl reads ctx.info once, from whichever context is current, and
+            # caches it; after wgpu's OpenGL back end it could be wgpu's
+            self.target = f"{ctx.info['GL_RENDERER']} (OpenGL {ctx.info['GL_VERSION']})"
             for entry in shaders.ENTRY_POINTS:
                 program = ctx.compute_shader(verified("glsl", entry))
                 self.reads[entry] = []
@@ -118,6 +120,9 @@ class Glsl:
                 else:
                     buffers[binding].bind_to_storage_buffer(binding)
             self.programs[entry].run(*workgroups(n))
+            # storage writes are incoherent: OpenGL makes them visible to a buffer read only after this barrier
+            # (glMemoryBarrier); finish alone waits for the dispatch but promises nothing about visibility
+            ctx.memory_barrier(ctx.BUFFER_UPDATE_BARRIER_BIT)
             ctx.finish()
             values = np.frombuffer(made[5].read(), dtype=np.float32).copy()
             for buffer in made.values():

@@ -70,7 +70,10 @@ names differ per entry point: the variable is the one member of a block naga nam
 `layout(std140) uniform Params_block_0Compute { Params _group_0_binding_0_cs; };`, and an entry point that does not read
 a binding has no block for it. `manifest.json` records every block under `bindings[n].glsl.blocks`, by entry point.
 A GL host in a process that also uses `wgpu` makes its own context current before each build and call: wgpu's
-OpenGL back end can leave its own context current, and the next program then fails to build.
+OpenGL back end can leave its own context current, and the next program then fails to build. It reads anything it
+reports about the context (the renderer, the version) with the context current too. Between the dispatch and reading
+binding 5 back, it calls `glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT)`: storage-buffer writes are incoherent, and
+`glFinish` waits for them without making them visible to the read.
 
 **An entry point that does not read a binding.** HLSL and SPIR-V declare all seven in every entry point. The wgpu rung
 binds a one-float buffer for an unused coordinate and 48 zero bytes for an unused `Grid`; a host can do the same.

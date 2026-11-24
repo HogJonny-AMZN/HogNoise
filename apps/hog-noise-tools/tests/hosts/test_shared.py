@@ -163,6 +163,21 @@ def test_the_shipped_tables_pass():
     assert hosts.verified_tables() == shaders.tables()
 
 
+def test_missing_tables_are_an_error_not_a_skip(monkeypatch, tmp_path):
+    monkeypatch.setattr(shaders.importlib.resources, "files", lambda package: tmp_path)
+    with pytest.raises(FileNotFoundError):
+        hosts.verified_tables()
+
+
+def test_unreadable_tables_are_an_error_not_a_skip(monkeypatch, tmp_path):
+    """A directory where tables.f32 should be: IsADirectoryError on Linux, PermissionError on Windows."""
+    (tmp_path / "shaders" / shaders.TABLES_FILE).mkdir(parents=True)
+    monkeypatch.setattr(shaders.importlib.resources, "files", lambda package: tmp_path)
+    with pytest.raises(OSError) as raised:
+        hosts.verified_tables()
+    assert not isinstance(raised.value, FileNotFoundError)
+
+
 def test_a_missing_shader_is_an_error_not_a_skip(monkeypatch, tmp_path):
     monkeypatch.setattr(shaders, "path", lambda *a, **k: tmp_path / "noise.spv")
     with pytest.raises(FileNotFoundError):
@@ -204,3 +219,81 @@ def test_a_manifest_block_the_program_lacks_names_itself():
         ValueError, match=r"sample_points_3d: the manifest's block 'Params_block_0Compute'.*make shaders"
     ):
         glsl.Glsl(FakeContext())
+
+
+class RecordingContext:
+    """
+    A moderngl context that records what is called, and whether it was current: ``info`` refuses to be read while
+    another context may be current, and its programs know every block.
+    """
+
+    BUFFER_UPDATE_BARRIER_BIT = 0x200
+
+    def __init__(self):
+        self.current, self.log = False, []
+
+    def __enter__(self):
+        self.current = True
+        return self
+
+    def __exit__(self, *exc):
+        self.current = False
+        return False
+
+    @property
+    def info(self):
+        assert self.current, "ctx.info read with the context not current"
+        return {"GL_RENDERER": "a recorded renderer", "GL_VERSION": "4.3"}
+
+    def compute_shader(self, source):
+        log = self.log
+
+        class Program(dict):
+            def __missing__(self, block):
+                return type("Block", (), {"binding": None})()
+
+            def run(self, *groups):
+                log.append("run")
+
+        return Program()
+
+    def buffer(self, data=None, reserve=0):
+        log, size = self.log, len(data) if data is not None else reserve
+
+        class Buffer:
+            def bind_to_uniform_block(self, binding): ...
+
+            def bind_to_storage_buffer(self, binding): ...
+
+            def read(self):
+                log.append("read")
+                return bytes(size)
+
+            def release(self): ...
+
+        return Buffer()
+
+    def memory_barrier(self, barriers, by_region=False):
+        self.log.append(("barrier", barriers))
+
+    def finish(self):
+        self.log.append("finish")
+
+
+def test_the_gl_target_is_read_with_its_context_current():
+    """moderngl caches ctx.info from whichever context is current: after wgpu's OpenGL back end, maybe wgpu's."""
+    from hog_noise_tools.hosts import glsl
+
+    assert glsl.Glsl(RecordingContext()).target == "a recorded renderer (OpenGL 4.3)"
+
+
+def test_the_gl_output_is_read_after_a_buffer_update_barrier():
+    """Storage writes are incoherent: glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT) before the read, not finish."""
+    from hog_noise_tools.hosts import glsl
+
+    ctx = RecordingContext()
+    xs = np.zeros(4, np.float32)
+    hosts.HostSampler(NoiseParams(), glsl.Glsl(ctx)).sample_points_2d(xs, xs, np.empty(4, np.float32))
+    run, read = ctx.log.index("run"), ctx.log.index("read")
+    barriers = [i for i, e in enumerate(ctx.log) if isinstance(e, tuple) and e[1] & ctx.BUFFER_UPDATE_BARRIER_BIT]
+    assert any(run < i < read for i in barriers), ctx.log
