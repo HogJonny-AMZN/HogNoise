@@ -207,6 +207,12 @@ def test_a_rule_at_0_9_of_its_worst_fails(judged):
     rules[(feature, None)] = dict(rules[(feature, None)], bound={"scale": 0.9 * worst, "coordinate_scaled": True})
     tight = conformance.Tolerance(tolerance.rendering, tolerance.range, rules)
     assert not conformance.check(sample, vectors, tolerance=tight, select=f"hog/{feature}/*").ok
+    # the same worst as a continuous rule's within, under its own outer bound: the tight tier bites too
+    within = {"scale": 0.9 * worst, "coordinate_scaled": True, "fraction": 1.0}
+    rules[(feature, None)] = dict(tolerance.rules[(feature, None)], within=within)
+    two_tier = conformance.Tolerance(tolerance.rendering, tolerance.range, rules)
+    report = conformance.check(sample, vectors, tolerance=two_tier, select=f"hog/{feature}/*")
+    assert not report.ok and all("past the bound" not in r.detail for r in report.results), report.table()
 
 
 def test_more_than_32_octaves_reports_unsupported_and_the_run_continues(judged):
