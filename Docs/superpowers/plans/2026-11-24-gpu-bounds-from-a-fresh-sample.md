@@ -1,4 +1,4 @@
-# GPU bounds from a large fresh sample: a tight bound for all but 1 point in 10,000, a ceiling for every point
+# GPU bounds from a large fresh sample: a tight bound for a measured fraction of points, a ceiling for every point
 
 **Status:** Proposed 2026-11-24. The owner chose two tiers and 65,536 fresh points a case ("I agree with your
 recommendations"); the first trial showed two tiers with an outer bound from a sample's worst cannot hold, and the owner
@@ -387,7 +387,7 @@ FRESH = 65536
 FRESH_SEED = 20261124
 #: The most a continuous rule's tight bound may ask for once fresh points are measured: all but 1 point in 10,000.
 #: GPU float32 has rare spikes, a few a million at 3 to 13 times the tight bound, and one sample's worst does not bound
-#: the next sample's (the fresh-sample bounds' trial). On a case's 4,096 vectors points it still asks for every one.
+#: the next sample's (the fresh-sample bounds' trial). It lets none of a scatter case's 4,096 points past, 1 of 16,384.
 MAX_FRACTION = 0.9999
 ```
 
@@ -813,7 +813,7 @@ and both messages are kept, since the existing tests match them.
 - [ ] **Step 4: run them; they pass.** Same command. Expected: `67 passed`, the committed-file tests among them: the
 `5340a3f` records have no fresh points, so they derive as before.
 
-- [ ] **Step 5: commit.** Message "measure-gpu derive: a tight bound from the vectors for all but 1 point in 10,000,
+- [ ] **Step 5: commit.** Message "measure-gpu derive: a tight bound from the vectors for a measured fraction of points,
 a fixed ceiling for every point".
 
 ### Task 4: the tables show the fresh worst
@@ -984,8 +984,15 @@ for k, r in sorted(after.items()):
     if r["kind"] == "discrete" and r != before[k]:
         diffs = {f: (before[k][f], r[f]) for f in ("bound", "within", "min_correlation") if before[k][f] != r[f]}
         print(f"  discrete {k[0]}: {diffs}")
-worst = max(s["fresh"]["max_normalised"] for rec in records for s in rec["cases"].values())
-print(f"worst fresh point, any case, any adapter: {worst:.3g} a unit (ceiling {m.LARGEST})")
+kinds = {k: r["kind"] for k, r in after.items()}
+worst = {"continuous": 0.0, "discrete": 0.0}
+for rec in records:
+    for s in rec["cases"].values():
+        kind = kinds.get((s["feature"], s["output"])) or kinds[(s["feature"], None)]
+        worst[kind] = max(worst[kind], s["fresh"]["max_normalised"])
+# the ceiling is a continuous rule's bound; a discrete rule's bound is its reference range, so its worst is not compared
+print(f"worst continuous fresh point: {worst['continuous']:.3g} a unit, ceiling {m.LARGEST}")
+print(f"worst discrete fresh point: {worst['discrete']:.3g} a unit (a flip, judged by its rule's range bound)")
 ```
 
 Expected, from the second trial's four local records: 110 continuous rules, about 103 at 0.9999 and the Perlin
@@ -1034,11 +1041,14 @@ Accepted plans under `Docs/superpowers/plans/` and the journal are records of th
 
 - [ ] **`vectors/README.md`:** the tolerance example's `"format": 1` (the second one; the first is the manifest's)
 becomes 2, and its continuous rule gains a `within` under the ceiling; the **`continuous`** bullet says the bound is
-the ceiling and the `within` the vectors' tight bound for all but the stated fraction, at most 0.9999; **How a number
+the ceiling and the `within` the vectors' tight bound, met by at least the stated fraction of points (each rule's
+own, at most 0.9999); **How a number
 is set** says how `run` draws fresh points and how `derive` uses them, why the bound is a fixed ceiling and not a
 sample's worst (the first trial), and names the new record folder, its seven adapters and what moved from `5340a3f`.
-- [ ] **`README.md`**, *What it claims*: on fresh points anywhere in the range, every point within the ceiling and all
-but at most 1 in 10,000 (the file says each rule's) within the tight bound, with the probe's re-run as the evidence.
+- [ ] **`README.md`**, *What it claims*: on fresh points anywhere in the range, every point within the ceiling, and at
+least each rule's stated fraction within its tight bound: 0.9999 for most continuous rules and lower where it was
+measured lower (the second trial: seven Perlin rules at 0.9993 to 0.9996, so up to 7 points in 10,000 past). Quote the
+range of fractions from the derived file, never a single limit; the probe's re-run is the evidence.
 - [ ] **`Docs/glossary.md`:** the **Tolerance file** row (a continuous rule is a tight bound for a fraction under the
 ceiling); the **Measurement record** row (it holds fresh-point numbers too); the **Fresh points**, **Tight bound** and
 **Ceiling** rows the plan's pull request added lose "Proposed", "not yet built" and "under the plan".
@@ -1086,10 +1096,10 @@ Filled as the build lands: each task's commit, its test counts, and anything tha
 | D3 | Where fresh points are drawn | The probe's way: the largest coordinate's magnitude uniform in [0, reach), the others smaller, seeded per case by `crc32(id)`; reach is the scatter sets' largest coordinate | Uniform over each case's point set (the first trial): 1 point in 1,700 within 100 units of the origin, where the bound is tightest, and it missed the Perlin tail there |
 | D4 | A grid case's fresh points | Four grids of its shape beside its own along x, on the same lattice, through the grid entry point | Scattered points, which never sit on the lattice ties that make `genasgrid` discrete |
 | D5 | The ceiling | `LARGEST`, 1e-2 a coordinate unit: the number past which `derive` already calls drift a finding; a fresh point past it is a finding | A ceiling from a sample's worst, which moves with every measurement; none, which lets any value through on 1 point in 10,000 |
-| D6 | The fraction | Four places, capped at 0.9999 for every continuous rule, so the claim leaves room for a spike no sample saw; on a case's 4,096 vectors points it still asks for every one | Three places: 0.999 lets 4 of 4,096 vectors points past where today none may; no cap: a sample that saw no spike asks for every point, which the next sample fails |
+| D6 | The fraction | Four places, capped at 0.9999 for every continuous rule, so the claim leaves room for a spike no sample saw. On a scatter case's 4,096 vectors points 0.9999 still asks for every one; on a `grid_y0` case's 16,384 it lets 1 past the old tight bound, and the Perlin rules' 0.9993 lets 2 of 4,096 and 11 of 16,384 (D9) | Three places: 0.999 lets 4 of 4,096 vectors points past where today none may; no cap: a sample that saw no spike asks for every point, which the next sample fails; a second, all-points check on the committed vectors beside the fraction (a second number in every rule, for a gate the fraction already holds to within 11 points) |
 | D7 | A discrete rule | Its tight bound stays the vectors' 99th percentile; its fraction, correlation and range take the worse of both samples | Re-deriving the tight bound from the fresh 99th percentile too, which changes what the bound is, not only how often it is missed |
 | D8 | Old records and the format | Format 2; the reader refuses 1. A record without fresh points derives as before; a folder mixing the two is a finding | Reading both formats (no format 1 file exists outside this repository; LargeWorlds reads no tolerance file); filling fresh points in old records (they were measured at another commit) |
-| D9 | What C2 gives up | A regression that only adds rare spikes, under the ceiling and on fewer than 1 point in 10,000, passes | Catching it, which no sampled bound can promise (the first trial) |
+| D9 | What C2 gives up | A regression that only adds rare spikes, under the ceiling and on fewer points than a rule's fraction allows, passes. That includes the committed vectors: today every vectors point must meet the tight bound; after this, a `grid_y0` case may have 1 point past it (11 for the Perlin rules) and a Perlin scatter case 2 | Catching it on fresh points, which no sampled bound can promise (the first trial); keeping the vectors gate exact with a separate all-points check (D6) |
 
 ## Self-review against the row
 
@@ -1098,9 +1108,11 @@ Filled as the build lands: each task's commit, its test counts, and anything tha
 - **"tests":** each of Tasks 1 to 5 starts with its failing tests; Task 3's cap and Task 5's check were each mutated
   and failed.
 - **"a re-derivation on every adapter":** Tasks 6 and 7, all seven, CI's three through its artifacts.
-- **"The vectors stay as the check":** the tight bound is still the vectors', and a fraction of 0.9999 lets none of a
-  case's 4,096 points past it (D6). Seven Perlin rules measure below it, at 0.9993 to 0.9996, which lets 1 or 2 of
-  4,096 past: the measured tail, named in the pull request.
+- **"The vectors stay as the check":** the tight bound is still the vectors', but the gate is not exactly as strict
+  as today's. A fraction of 0.9999 lets none of a scatter case's 4,096 points past it, and 1 of a `grid_y0` case's
+  16,384. The seven Perlin rules measure 0.9993 to 0.9996, which lets up to 2 of 4,096 and 11 of 16,384 past. That is
+  the measured tail, named in the pull request and in D6 and D9; a separate all-points check on the vectors would keep
+  the gate exact, and is the owner's call.
 - **"it measures the real tail, not a rule loosened to pass":** the fraction is measured; the ceiling is a fixed
   number already in the code; the far probe, with its own points, is the acceptance check (Task 7, Step 4).
 
