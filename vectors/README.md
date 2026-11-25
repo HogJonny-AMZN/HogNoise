@@ -124,14 +124,15 @@ set only; the original cases keep their own rules for every rendering.
   rules covering one case, or a rule naming no hog feature, is an error when the file is read; a case no rule covers
   **fails** with "no tolerance rule", so a feature added later cannot pass by default.
 - **`continuous`** is for a feature whose output moves smoothly with its input. Its `bound` is the ceiling, 1e-2 a
-  coordinate unit, which every point must meet; past it, a difference is a fault, not drift. Its `within` is the tight bound, from the
-  vectors' points, which at least `fraction` of the points must meet: each rule's own, measured on fresh points, never
-  above 0.9999. A GPU's float32 has rare spikes, a few in a million at 3 to 13 times the tight bound, and one sample's
-  worst does not bound the next's, so the tight bound is a rate and the ceiling is fixed ([the fresh-sample bounds'
-  plan](../Docs/superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md), *The trials*). On a scatter case's 4,096
-  points 0.9999 still asks for every one; on a `grid_y0` case's 16,384 it lets 1 past, and the Perlin rules' 0.9993 lets
-  up to 2 of 4,096 and 11 of 16,384. A record without fresh points (before `3e05b2c`) derives the bound alone, as format
-  1 had it. The noise and warp outputs' bounds are all coordinate-scaled. A warp's output is a coordinate: the reference warps the raw
+  coordinate unit, which every point must meet; past it, a difference is a fault, not drift. Its `within` is the tight
+  bound, from the vectors' points, which at least `fraction` of the points must meet: each rule's own, measured on fresh
+  points, never above 0.9999. A GPU's float32 has rare spikes, a few in a million at 3 to 13 times the tight bound, and
+  one sample's worst does not bound the next's, so the tight bound is a rate and the ceiling is fixed ([the fresh-sample
+  bounds' plan](../Docs/superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md), *The trials*). On a scatter
+  case's 4,096 points 0.9999 still asks for every one; on a `grid_y0` case's 16,384 it lets 1 past, and the Perlin
+  rules' 0.9993 lets up to 2 of 4,096 and 11 of 16,384. A record without fresh points (before `3e05b2c`) derives the
+  bound alone, as format 1 had it. The noise and warp outputs' bounds are all coordinate-scaled. A warp's output is a
+  coordinate: the reference warps the raw
   coordinates in float64 before the frequency multiply, so a float32 rendering's error is a few float32 steps of the raw
   coordinate and grows with it. The coordinate-scaled bound grows with `raw * frequency`, which is the raw coordinate
   times a constant at one frequency, so a warp rule's number holds at the frequencies `range` names and no others. Until

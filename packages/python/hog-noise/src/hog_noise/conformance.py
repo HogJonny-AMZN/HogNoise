@@ -632,9 +632,14 @@ def _points(
         tight = Bound(float(w["scale"]), bool(w.get("coordinate_scaled", False))).per_point(
             case.params.frequency, ps.axes
         )
-        fraction = float(np.mean(diff <= tight))
+        past_tight = int(np.count_nonzero(~(diff <= tight)))
+        fraction = 1.0 - past_tight / diff.size
         if not fraction >= float(w["fraction"]):
-            failures.append(f"{fraction:.4f} within {w['scale']}, below {w['fraction']}")
+            # counted, not only rounded: at four places a failing fraction can print as the one it fails
+            failures.append(
+                f"{past_tight} of {diff.size} points past the tight bound {w['scale']} ({fraction:.6f} within), "
+                f"below a fraction of {w['fraction']}"
+            )
     return CaseResult(
         case.id,
         "points",

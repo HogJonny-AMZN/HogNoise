@@ -427,6 +427,69 @@ def test_a_well_formed_record_reads(tmp_path):
     assert m.read_records(tmp_path) == [good]
 
 
+CASE = "hog/fnl/f/scatter_3d"
+
+
+def a_record(adapter="d", header=None, **over):
+    """A record of one case with fresh points, as `run` writes it; ``over`` replaces top-level keys."""
+    rec = {
+        "adapter": {"device": adapter, "backend_type": "b"},
+        "host": "h",
+        "commit": "abc1234",
+        "fresh": header or {"points": m.FRESH, "seed": m.FRESH_SEED},
+        "cases": {CASE: stats("fnl/f", fresh=fresh())},
+    }
+    rec.update(over)
+    return rec
+
+
+def test_a_well_formed_record_with_fresh_points_reads(tmp_path):
+    """The control for the malformed cases below."""
+    (tmp_path / "good.json").write_text(json.dumps(a_record()), encoding="utf-8")
+    assert m.read_records(tmp_path) == [a_record()]
+
+
+@pytest.mark.parametrize(
+    "mutate, says",
+    [
+        (lambda s: s.update(fresh="oops"), "fresh: not an object"),
+        (lambda s: s.update(fresh=None), "fresh: not an object"),
+        (lambda s: s["fresh"].pop("outside"), "fresh: outside"),
+        (lambda s: s["fresh"]["outside"].pop("5e-06"), "fresh: outside"),
+        (lambda s: s["fresh"].update(max_normalised="x"), "fresh: max_normalised"),
+        (lambda s: s.update(fresh={}), "fresh: max_abs"),
+        (lambda s: s.pop("max_abs"), "max_abs"),
+        (lambda s: s.update(correlation=True), "correlation"),
+        (lambda s: s.update(output="both"), "feature 'fnl/f' and output 'both'"),
+    ],
+)
+def test_a_malformed_case_is_a_finding_naming_the_file_and_the_case(tmp_path, mutate, says):
+    """
+    The review on #58: a record written by hand or by an older tool once reached `derive` and died on a raw KeyError
+    or TypeError naming neither file nor case.
+    """
+    rec = a_record()
+    mutate(rec["cases"][CASE])
+    (tmp_path / "bad.json").write_text(json.dumps(rec), encoding="utf-8")
+    with pytest.raises(m.Finding, match=rf"bad\.json: case {CASE}: {says}"):
+        m.read_records(tmp_path)
+
+
+def test_a_case_with_fresh_points_needs_the_records_fresh_header(tmp_path):
+    rec = a_record()
+    del rec["fresh"]
+    (tmp_path / "bad.json").write_text(json.dumps(rec), encoding="utf-8")
+    with pytest.raises(m.Finding, match=r"bad\.json: .*'fresh' header"):
+        m.read_records(tmp_path)
+
+
+def test_records_measured_with_different_fresh_points_are_a_finding(tmp_path):
+    """A fraction to four places needs 10,000 points or more, and one rule from two samplings is no rule."""
+    records = [a_record("a"), a_record("b", header={"points": 4096, "seed": m.FRESH_SEED})]
+    with pytest.raises(m.Finding, match="different fresh points"):
+        m.check_cases(records, {CASE}, tmp_path)
+
+
 @pytest.mark.parametrize("value", ["C:/Temp/x", "../../x", "0d419", "g0d419e9", "0d419e9 x", "a" * 41])
 def test_a_pinned_commit_that_is_not_hex_is_refused(monkeypatch, value):
     """The commit becomes a folder name: ``C:/Temp/x`` once gave ``C:/Temp``."""

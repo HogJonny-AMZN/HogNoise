@@ -26,10 +26,12 @@ import re
 import subprocess
 import sys
 import zlib
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from hog_noise import compare, conformance
 from hog_noise.conformance import Bound
@@ -134,6 +136,7 @@ def measure(
 
 
 def _hog(vectors: conformance.Vectors) -> list[conformance.Case]:
+    """The hog set's cases, the only ones the GPU is measured on."""
     return [case for case in vectors.cases if case.set == "hog"]
 
 
@@ -141,9 +144,9 @@ def _render(
     case: conformance.Case,
     ps: conformance.PointSet,
     rendering: tuple[conformance.Sample, conformance.Sample, conformance.Grid],
-    origin: Any = None,
-    axes: tuple[np.ndarray, ...] | None = None,
-) -> np.ndarray:
+    origin: Mapping[str, Any] | None = None,
+    axes: tuple[NDArray[np.float32], ...] | None = None,
+) -> NDArray:
     """
     ``case`` rendered by ``rendering`` (sample, warp, grid): through its grid entry point at ``origin`` when it is a
     grid case, else at ``axes`` (its point set's own when None), as the harness checks it.
@@ -163,7 +166,7 @@ def _render(
 
 
 def _numbers(
-    case_id: str, ours: np.ndarray, ref: np.ndarray, frequency: float, axes: tuple[np.ndarray, ...]
+    case_id: str, ours: NDArray, ref: NDArray[np.float32], frequency: float, axes: tuple[NDArray[np.float32], ...]
 ) -> dict[str, Any]:
     """
     The numbers a rule is derived from, for one rendering's values against the reference's at the points ``axes``.
@@ -201,7 +204,7 @@ def fresh_reach(vectors: conformance.Vectors) -> float:
     return max(float(np.max(np.abs(a))) for name in sets for a in vectors.point_sets[name].axes)
 
 
-def fresh_points(dims: int, reach: float, rng: np.random.Generator) -> tuple[np.ndarray, ...]:
+def fresh_points(dims: int, reach: float, rng: np.random.Generator) -> tuple[NDArray[np.float32], ...]:
     """
     `FRESH` points as the far-coordinate probe draws them: the largest coordinate's magnitude uniform in [0, ``reach``),
     signs mixed, on a random axis, the others smaller. Uniform over the area would put about 1 point in 1,700 within
@@ -213,7 +216,7 @@ def fresh_points(dims: int, reach: float, rng: np.random.Generator) -> tuple[np.
     return tuple(np.where(which == d, big, axes[d]).astype(np.float32) for d in range(dims))
 
 
-def fresh_grids(origin) -> list[tuple[int, ...]]:
+def fresh_grids(origin: Mapping[str, Any]) -> list[tuple[int, ...]]:
     """
     The starts of grids of a grid case's shape and scales, beside its own along x, `FRESH` points in all: the same
     lattice, so a tie the case's grid sits on is sat on again at new places.
@@ -325,9 +328,10 @@ def derive(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             # grows with the raw coordinate (Spikes/far_coordinates). Coordinate-scaled, the bound grows with it too;
             # it is scaled by raw * frequency, not raw, so it holds at the frequencies the tolerance file's range names.
             scale = step_up(2.0 * max(s["max_normalised"] for s in stats))
+            if scale > LARGEST and output == "warp":
+                raise Finding(f"{feature} warp: {scale} past {LARGEST}")
             if scale > LARGEST:
-                jump = "" if output == "warp" else "; a jump the DISCRETE list does not name"
-                raise Finding(f"{feature}{' warp' if output == 'warp' else ''}: {scale} past {LARGEST}{jump}")
+                raise Finding(f"{feature}: {scale} past {LARGEST}; a jump the DISCRETE list does not name")
             rule.update(kind="continuous", bound={"scale": scale, "coordinate_scaled": True})
             if fresh:
                 worst = max(f["max_normalised"] for f in fresh)
@@ -355,7 +359,9 @@ def read_records(folder: Path) -> list[dict[str, Any]]:
     Every GPU adapter's measurement record in ``folder``, by file name; an empty list when it holds none.
 
     :raises Finding: A file that cannot be read, is not JSON, or is not a record: an object with an ``adapter`` object
-        naming its ``device`` and ``backend_type``, a ``host`` and a ``commit`` string, and a ``cases`` object.
+        naming its ``device`` and ``backend_type``, a ``host`` and a ``commit`` string, and a ``cases`` object whose
+        every case is `measure`'s shape (its fresh points `measure_fresh`'s, under a ``fresh`` header); the message
+        names the file and the case.
     """
     records = []
     for path in sorted(folder.glob("*.json")):
@@ -377,8 +383,55 @@ def read_records(folder: Path) -> list[dict[str, Any]]:
                 f"{path}: not a measurement record (an object with an 'adapter' object naming its device and "
                 f"backend_type, a 'host' and a 'commit' string, and a 'cases' object)"
             )
+        for case_id, s in record["cases"].items():
+            why = _malformed_case(s)
+            if why:
+                raise Finding(f"{path}: case {case_id}: {why}")
+        has_fresh = any("fresh" in s for s in record["cases"].values())
+        header = record.get("fresh")
+        if has_fresh and not (isinstance(header, dict) and all(_is_count(header.get(k)) for k in ("points", "seed"))):
+            raise Finding(f"{path}: its cases have fresh points, but it has no 'fresh' header with points and seed")
         records.append(record)
     return records
+
+
+#: The numbers of a case's measurement, and of its fresh points' (`_numbers`).
+_NUMBERS = ("max_abs", "max_normalised", "p99_normalised", "correlation", "ref_range")
+
+
+def _is_number(v: object) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool)
+
+
+def _is_count(v: object) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _malformed_numbers(s: object) -> str | None:
+    """Why ``s`` is not `_numbers`' shape, or None: every number a number, ``outside`` one for every candidate."""
+    if not isinstance(s, dict):
+        return "not an object"
+    for key in _NUMBERS:
+        if not _is_number(s.get(key)):
+            return f"{key} is {s.get(key)!r}, not a number"
+    outside = s.get("outside")
+    if not isinstance(outside, dict) or not all(_is_number(outside.get(k)) for k in CANDIDATE_KEYS):
+        return f"outside is not a number for every candidate bound ({CANDIDATE_KEYS[0]} to {CANDIDATE_KEYS[-1]})"
+    return None
+
+
+def _malformed_case(s: object) -> str | None:
+    """Why ``s`` is not a case as `measure` writes it (its fresh points as `measure_fresh` does), or None."""
+    why = _malformed_numbers(s)
+    if why:
+        return why
+    if not isinstance(s.get("feature"), str) or s.get("output") not in ("noise", "warp"):
+        return f"feature {s.get('feature')!r} and output {s.get('output')!r}, not a name and 'noise' or 'warp'"
+    if "fresh" in s:
+        why = _malformed_numbers(s["fresh"])
+        if why:
+            return f"fresh: {why}"
+    return None
 
 
 def check_cases(records: list[dict[str, Any]], hog_ids: set[str], folder: Path) -> None:
@@ -386,7 +439,8 @@ def check_cases(records: list[dict[str, Any]], hog_ids: set[str], folder: Path) 
     Every record holds the same cases, and they are exactly the hog set's: a rule over part of the set, or a stale
     record measured before a case was added, is not a number to derive.
 
-    :raises Finding: No records, records holding different cases, or cases that are not the hog set's.
+    :raises Finding: No records, records holding different cases or measured with different fresh points, or cases
+        that are not the hog set's.
     """
     if not records:
         raise Finding(f"{folder}: no measurement records (*.json) to derive from")
@@ -394,6 +448,11 @@ def check_cases(records: list[dict[str, Any]], hog_ids: set[str], folder: Path) 
     for rec in records[1:]:
         if set(rec["cases"]) != first:
             raise Finding(f"{folder}: the records hold not the same cases ({label(records[0])} vs {label(rec)})")
+        if rec.get("fresh") != records[0].get("fresh"):
+            raise Finding(
+                f"{folder}: the records were measured with different fresh points ({label(records[0])}: "
+                f"{records[0].get('fresh')}, {label(rec)}: {rec.get('fresh')}); measure every adapter again"
+            )
     missing, extra = sorted(hog_ids - first), sorted(first - hog_ids)
     if missing or extra:
         raise Finding(

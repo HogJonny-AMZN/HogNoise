@@ -741,7 +741,11 @@ def test_a_continuous_rule_with_within_holds_a_fraction_to_its_tight_bound(tmp_p
     held = judge(rule(0.75))
     assert held.ok and held.results[0].rule == "continuous", held.table()
     above = judge(rule(0.8))
-    assert not above.ok and "0.7500 within 0.001, below 0.8" in above.results[0].detail
+    assert (
+        not above.ok
+        and "1 of 4 points past the tight bound 0.001 (0.750000 within), below a fraction of 0.8"
+        in above.results[0].detail
+    )
     past = judge(rule(0.75, outer=4e-3))
     assert not past.ok and "1 of 4 points past the bound" in past.results[0].detail
 

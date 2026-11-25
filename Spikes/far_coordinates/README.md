@@ -143,8 +143,9 @@ not the measurement's:
 uv run python -I Spikes/far_coordinates/probe.py Spikes/far_coordinates/after-fresh-bounds
 ```
 
-Probes passing their feature's rule, per band, with the worst drift as a multiple of the bound (for a continuous rule,
-the ceiling):
+Probes passing their feature's rule, per band, with the worst drift as a multiple of the rule's `bound`. For a
+continuous rule that is now the ceiling, not the tight bound, so these multiples are small by construction. The tight
+tier is what bites, and it is part of "passing": each passing probe met its rule's fraction within the tight bound.
 
 | Adapter | [0, 4,096) (measured range) | [4,096, 32,768) | [32,768, 262,144) | [262,144, 1,048,576) |
 | --- | --- | --- | --- | --- |
