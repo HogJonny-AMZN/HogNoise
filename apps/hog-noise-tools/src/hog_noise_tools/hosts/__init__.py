@@ -5,7 +5,8 @@ Package: hog_noise_tools.hosts
 
 A host is written from ``hog_noise/shaders/README.md`` alone, never from ``hog_noise.gpu``'s ``_Gpu``, so a wrong
 sentence in the README fails the proof (the CI proof's spec, *What gets built*). The constants below are the README's,
-restated; ``test_shared`` holds them to the manifest. Each host module has ``open_host()``, which raises
+restated; ``test_shared`` holds them to the manifest. Each host is opened by its module's ``open_host()``, or by the
+function a ``HOSTS`` entry names after a colon (``module:function``, for two hosts in one module); it raises
 `HostUnavailable` naming what is missing, and a host object with ``name``, ``target`` and ``run``.
 """
 
@@ -27,7 +28,7 @@ from hog_noise.gpu import MAX_OCTAVES, pack_grid, pack_params
 
 _MODULE_NAME = "hog_noise_tools.hosts"
 __version__ = "0.1.0"
-__updated__ = "2026-11-23"
+__updated__ = "2026-11-25"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: A comma-separated list of hosts whose absence fails the tests instead of skipping them (CI's host legs).

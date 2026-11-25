@@ -6,13 +6,16 @@
 // before it sends the next. It reads no file: every byte it binds came through Python, which hashed the source and the
 // tables against the manifest. The frames are little-endian; a blob is a u32 length and that many bytes.
 //
-//   init     "HNH1", blob tables, u32 count, count x (blob name, blob bytecode)
-//   request  u32 entry, u32 n, u32 width, u32 groups_x, u32 groups_y, blob params, blob grid (empty: none),
-//            u32 axes, axes x blob (n float32)
+//   init     "HNH1", blob tables, u32 count (5), count x (blob name, blob bytecode)
+//   request  u32 entry, u32 n, u32 width, u32 groups_x, u32 groups_y, blob params (112 bytes), blob grid (empty: none;
+//            else 48 bytes), u32 axes (at most 3), axes x blob (n float32)
 //   reply    u32 status, blob: 0 the output (n * width float32) or the target line after init; 1 an error, its message;
 //            2 (init only) no device here, its message
 //
-// Standard input closing ends the process. Built by build.bat with MSVC; the .exe is gitignored.
+// A request the bindings cannot hold (an axis not n floats, an entry past the five) is refused with status 1 and the
+// harness reads on. A frame it cannot read (input ending inside one, a blob past 1 GiB, more than 3 axes) leaves the
+// stream unreadable: status 1, then it ends. Standard input closing between frames ends it with 0. Built by build.bat
+// with MSVC; the .exe is gitignored.
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -43,6 +46,18 @@ namespace {
 
 struct Eof {};
 
+// the README's five entry points: an init frame must carry exactly this many programs
+constexpr uint32_t kEntryPoints = 5;
+// the most one blob may hold: past it the length is taken as a broken stream, not an allocation to try
+constexpr uint32_t kMaxBlob = 1u << 30;
+// the README's uniforms: Params is 112 bytes, Grid 48
+constexpr size_t kParamsBytes = 112, kGridBytes = 48;
+
+// the frames themselves are broken: the stream cannot be read past this point, so the harness replies and ends
+struct FrameError : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 // a device or adapter missing: the host is unavailable here, which Python turns into a skip unless it is required
 struct Unavailable : std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -59,7 +74,7 @@ void check(HRESULT hr, const char* what) {
 void read_exact(void* into, size_t n, bool eof_ok = false) {
     size_t got = std::fread(into, 1, n, stdin);
     if (got == 0 && eof_ok) throw Eof{};
-    if (got != n) throw std::runtime_error("standard input ended inside a frame");
+    if (got != n) throw FrameError("standard input ended inside a frame");
 }
 
 uint32_t read_u32(bool eof_ok = false) {
@@ -69,7 +84,11 @@ uint32_t read_u32(bool eof_ok = false) {
 }
 
 Bytes read_blob() {
-    Bytes b(read_u32());
+    uint32_t len = read_u32();
+    if (len > kMaxBlob)
+        throw FrameError("a blob of " + std::to_string(len) + " bytes, past the " + std::to_string(kMaxBlob) +
+                         " a frame may hold");
+    Bytes b(len);
     if (!b.empty()) read_exact(b.data(), b.size());
     return b;
 }
@@ -112,11 +131,34 @@ struct Request {
     std::vector<Bytes> axes;
 };
 
+// A request the README's bindings cannot hold is refused before it reaches the device: an axis shorter than n
+// would read zeros past its end and return output that looks valid.
+void validate(const Request& r) {
+    using std::to_string;
+    if (r.entry >= kEntryPoints)
+        throw std::runtime_error("entry " + to_string(r.entry) + " is not one of the " + to_string(kEntryPoints));
+    if (r.n == 0) throw std::runtime_error("a request for 0 points");
+    if (r.width < 1 || r.width > 3) throw std::runtime_error("width " + to_string(r.width) + " is not 1, 2 or 3");
+    if (r.params.size() != kParamsBytes)
+        throw std::runtime_error("Params is " + to_string(r.params.size()) + " bytes, not " + to_string(kParamsBytes));
+    if (!r.grid.empty() && r.grid.size() != kGridBytes)
+        throw std::runtime_error("Grid is " + to_string(r.grid.size()) + " bytes, not " + to_string(kGridBytes));
+    if (r.axes.size() > 3) throw std::runtime_error(to_string(r.axes.size()) + " axes, not at most 3");
+    for (size_t i = 0; i < r.axes.size(); ++i)
+        if (r.axes[i].size() != size_t(r.n) * 4)
+            throw std::runtime_error("axis " + to_string(i) + " holds " + to_string(r.axes[i].size()) +
+                                     " bytes, not " + to_string(size_t(r.n) * 4) + " for " + to_string(r.n) +
+                                     " points");
+    if (size_t(r.n) * r.width * 4 > UINT32_MAX)
+        throw std::runtime_error("an output of " + to_string(size_t(r.n) * r.width * 4) + " bytes, past 4 GiB");
+}
+
 struct Backend {
     virtual ~Backend() = default;
     virtual void load(const Bytes& tables, const std::vector<Bytes>& programs) = 0;
     virtual std::vector<float> run(const Request& r) = 0;
     std::string target;
+    std::vector<std::string> names;  // the entry points, in the init frame's order: named in a refusal
 };
 
 size_t round_up(size_t n, size_t to) { return (n + to - 1) / to * to; }
@@ -172,9 +214,10 @@ struct D3D11 : Backend {
 
     void load(const Bytes& t, const std::vector<Bytes>& blobs) override {
         tables = raw_srv(t.data(), t.size());
-        for (const auto& blob : blobs) {
+        for (size_t i = 0; i < blobs.size(); ++i) {
             ComPtr<ID3D11ComputeShader> cs;
-            check(dev->CreateComputeShader(blob.data(), blob.size(), nullptr, &cs), "CreateComputeShader");
+            check(dev->CreateComputeShader(blobs[i].data(), blobs[i].size(), nullptr, &cs),
+                  ("CreateComputeShader (" + names.at(i) + ")").c_str());
             programs.push_back(cs);
         }
     }
@@ -257,6 +300,7 @@ struct D3D12 : Backend {
         check(list->Close(), "ID3D12GraphicsCommandList::Close");
         check(dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)), "CreateFence");
         event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        if (!event) throw std::runtime_error("CreateEventW failed: error " + std::to_string(GetLastError()));
         stride = dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         make_root_signature();
     }
@@ -321,12 +365,13 @@ struct D3D12 : Backend {
     void load(const Bytes& t, const std::vector<Bytes>& blobs) override {
         tables_bytes = static_cast<UINT>(t.size());
         tables = upload(t.data(), t.size(), t.size());
-        for (const auto& blob : blobs) {
+        for (size_t i = 0; i < blobs.size(); ++i) {
             D3D12_COMPUTE_PIPELINE_STATE_DESC d{};
             d.pRootSignature = root.Get();
-            d.CS = {blob.data(), blob.size()};
+            d.CS = {blobs[i].data(), blobs[i].size()};
             ComPtr<ID3D12PipelineState> pso;
-            check(dev->CreateComputePipelineState(&d, IID_PPV_ARGS(&pso)), "CreateComputePipelineState");
+            check(dev->CreateComputePipelineState(&d, IID_PPV_ARGS(&pso)),
+                  ("CreateComputePipelineState (" + names.at(i) + ")").c_str());
             programs.push_back(pso);
         }
     }
@@ -350,7 +395,10 @@ struct D3D12 : Backend {
         check(queue->Signal(fence.Get(), ++fence_value), "ID3D12CommandQueue::Signal");
         if (fence->GetCompletedValue() < fence_value) {
             check(fence->SetEventOnCompletion(fence_value, event), "SetEventOnCompletion");
-            WaitForSingleObject(event, INFINITE);
+            // a failed wait would read the output back before the GPU wrote it
+            if (WaitForSingleObject(event, INFINITE) != WAIT_OBJECT_0)
+                throw std::runtime_error("WaitForSingleObject on the fence failed: error " +
+                                         std::to_string(GetLastError()));
         }
         check(dev->GetDeviceRemovedReason(), "the D3D12 device (removed)");
     }
@@ -446,11 +494,18 @@ int main(int argc, char** argv) {
         if (std::memcmp(magic, "HNH1", 4) != 0) throw std::runtime_error("not an HNH1 init frame");
         Bytes tables = read_blob();
         std::vector<Bytes> blobs;
-        for (uint32_t i = 0, count = read_u32(); i < count; ++i) {
+        std::vector<std::string> names;
+        uint32_t count = read_u32();
+        if (count != kEntryPoints)
+            throw std::runtime_error("the init frame has " + std::to_string(count) + " programs, not " +
+                                     std::to_string(kEntryPoints));
+        for (uint32_t i = 0; i < count; ++i) {
             Bytes name = read_blob();
+            names.emplace_back(name.begin(), name.end());
             blobs.push_back(read_blob());
         }
         backend = open(api);
+        backend->names = names;
         backend->load(tables, blobs);
         reply_text(0, backend->target);
     } catch (const Unavailable& e) {
@@ -465,19 +520,23 @@ int main(int argc, char** argv) {
         Request r;
         try {
             r.entry = read_u32(true);
-        } catch (const Eof&) {
-            return 0;
-        } catch (const std::exception&) {
-            return 1;
-        }
-        try {
             r.n = read_u32();
             r.width = read_u32();
             r.gx = read_u32();
             r.gy = read_u32();
             r.params = read_blob();
             r.grid = read_blob();
-            for (uint32_t i = 0, count = read_u32(); i < count; ++i) r.axes.push_back(read_blob());
+            uint32_t count = read_u32();
+            if (count > 3) throw FrameError(std::to_string(count) + " axes, not at most 3");
+            for (uint32_t i = 0; i < count; ++i) r.axes.push_back(read_blob());
+        } catch (const Eof&) {
+            return 0;  // standard input closed between frames: the signal to end
+        } catch (const std::exception& e) {
+            reply_text(1, e.what());  // the stream cannot be read past a broken frame
+            return 1;
+        }
+        try {
+            validate(r);
             std::vector<float> values = backend->run(r);
             reply(0, values.data(), values.size() * 4);
         } catch (const std::exception& e) {

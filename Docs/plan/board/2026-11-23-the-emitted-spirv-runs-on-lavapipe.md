@@ -11,6 +11,6 @@
 [(b)](2026-11-23-the-emitted-hlsl-runs-on-warp.md), with a Vulkan back end. [The first pull request](2026-11-18-emitted-shaders-run-against-the-vectors.md)
 runs the same file through wgpu, where naga reads it back into its own IR; this row is the driver consuming the bytes.
 
-**What (b) decided for it** (its plan's B6): (c) shares the HLSL harness's frame format, `HNH1`, not its code, since
+**What (b) decided for it** (its plan's B6): (c) shares the HLSL harness's frame format, not its code, since
 that harness is D3D and Windows-only. Whether a Vulkan back end joins `hlsl_host.cpp` or is a harness of its own,
 built on Linux, is (c)'s plan's decision.

@@ -114,5 +114,5 @@ validates in its own language's tools. All three also run, each in a host writte
 On D3D12, Vulkan and OpenGL, `noise.spv` through naga gives the wgpu rung's output bit for bit. On Metal it does not:
 `sample_points_3d` differs by up to 3.58e-7 (2026-11-23), within the tolerance.
 
-Not yet run: `noise.spv` read by a Vulkan driver (lavapipe), its own pull request; and any of them on hardware outside
-CI, where only the RTX 5090 they were written on has run them.
+Not yet run: `noise.spv` read by a Vulkan driver (lavapipe), its own pull request. Nor is any of them proven on a
+hardware GPU: the HLSL harness opens WARP alone, and the hosts' claims rest on CI's software adapters.

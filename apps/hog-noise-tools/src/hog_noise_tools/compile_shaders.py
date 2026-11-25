@@ -23,13 +23,16 @@ from hog_noise import shaders
 
 _MODULE_NAME = "hog_noise_tools.compile_shaders"
 __version__ = "0.1.0"
-__updated__ = "2026-11-18"
+__updated__ = "2026-11-25"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 SDK_BIN = Path("C:/Program Files (x86)/Windows Kits/10/bin")
 #: Seconds one compile may take; each takes a few.
 TIMEOUT = 300
 NEEDS = {"hlsl": ("fxc", "dxc"), "glsl": ("glslangValidator",), "spirv": ("spirv-val",)}
+#: Each HLSL compiler's arguments before ``-E <entry point> -Fo <out> <source>``: the profiles this gate proves, which
+#: the HLSL hosts compile with too (``hog_noise_tools.hosts.hlsl``).
+HLSL_ARGS = {"fxc": ("-nologo", "-T", "cs_5_0"), "dxc": ("-T", "cs_6_0")}
 
 
 def find(name: str) -> str | None:
@@ -45,9 +48,11 @@ def commands(language: str, tool: dict[str, str], out: Path) -> list[list[str]]:
     """Every compiler call for ``language``."""
     if language == "hlsl":
         src = str(shaders.path("hlsl"))
-        fxc = [[tool["fxc"], "-nologo", "-T", "cs_5_0", "-E", ep, "-Fo", str(out), src] for ep in shaders.ENTRY_POINTS]
-        dxc = [[tool["dxc"], "-T", "cs_6_0", "-E", ep, "-Fo", str(out), src] for ep in shaders.ENTRY_POINTS]
-        return fxc + dxc
+        return [
+            [tool[name], *HLSL_ARGS[name], "-E", ep, "-Fo", str(out), src]
+            for name in ("fxc", "dxc")
+            for ep in shaders.ENTRY_POINTS
+        ]
     if language == "glsl":
         return [[tool["glslangValidator"], str(shaders.path("glsl", ep))] for ep in shaders.ENTRY_POINTS]
     return [[tool["spirv-val"], str(shaders.path("spirv"))]]

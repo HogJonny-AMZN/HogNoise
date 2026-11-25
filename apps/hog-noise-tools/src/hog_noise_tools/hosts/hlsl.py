@@ -38,9 +38,13 @@ HARNESS_DIR = APP_ROOT / "hosts" / "hlsl"
 SOURCE = HARNESS_DIR / "hlsl_host.cpp"
 EXE = HARNESS_DIR / "hlsl_host.exe"
 #: Per API, the SDK compiler and its arguments before ``-E <entry point> -Fo <out> <source>``: compile_shaders' own.
-COMPILERS = {"d3d11": ("fxc", ("-nologo", "-T", "cs_5_0")), "d3d12": ("dxc", ("-T", "cs_6_0"))}
+COMPILERS = {api: (name, compile_shaders.HLSL_ARGS[name]) for api, name in (("d3d11", "fxc"), ("d3d12", "dxc"))}
 #: Seconds the harness may take over one reply; a dispatch past 65,535 workgroups on WARP takes a few.
 TIMEOUT = 600
+#: Seconds a harness may take to end: after its input closes, or after it stops replying, before it is ended.
+END_TIMEOUT = 30
+#: The most of a stopped harness's standard error a message carries.
+STDERR_TAIL = 4000
 _OK, _ERROR, _UNAVAILABLE = 0, 1, 2
 
 
@@ -79,9 +83,15 @@ def compile_entry_points(api: str, source: str) -> list[bytes]:
         def one(entry: str) -> bytes:
             out = Path(tmp) / f"{entry}.cso"
             cmd = [tool, *args, "-E", entry, "-Fo", str(out), str(src)]
-            done = subprocess.run(cmd, capture_output=True, text=True, timeout=compile_shaders.TIMEOUT)
+            try:
+                done = subprocess.run(cmd, capture_output=True, text=True, timeout=compile_shaders.TIMEOUT)
+            except subprocess.TimeoutExpired as e:
+                raise RuntimeError(f"{name} did not finish {entry} within {compile_shaders.TIMEOUT} s") from e
+            said = (done.stdout + done.stderr).strip()
             if done.returncode != 0:
-                raise RuntimeError(f"{name} refused {entry}: {(done.stdout + done.stderr).strip()}")
+                raise RuntimeError(f"{name} refused {entry}: {said}")
+            if not out.is_file():
+                raise RuntimeError(f"{name} exited 0 on {entry} and wrote no {out.name}: {said}")
             return out.read_bytes()
 
         # one process per entry point, at once: FXC takes about 14 s for each (2026-11-23, the RTX 5090 machine)
@@ -102,37 +112,64 @@ class Hlsl:
         self, api: str, programs: Sequence[bytes], tables: bytes, command: Sequence[str] | None = None
     ) -> None:
         """
-        :param command: What to run in place of the harness: the tests' stand-in for one that never replies.
+        :param command: What to run in place of the harness: the tests' stand-ins.
+        :raises ValueError: ``programs`` is not one per entry point; checked before any process starts.
         :raises HostUnavailable: The harness found no device here.
         :raises RuntimeError: It refused the programs, stopped, or did not reply within `TIMEOUT`.
         """
         self.api, self.name = api, f"hlsl-{api}"
         self._expired = False
+        named = b"".join(_blob(e.encode()) + _blob(p) for e, p in zip(shaders.ENTRY_POINTS, programs, strict=True))
+        init = b"HNH1" + _blob(tables) + struct.pack("<I", len(programs)) + named
+        # standard error goes to a file, never a pipe nobody drains: a harness that writes more than a pipe holds
+        # would block there, and a crash's message is read back from it
+        self._stderr = tempfile.TemporaryFile()
         self.process = subprocess.Popen(
             list(command or [str(harness()), "--api", api]),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=self._stderr,
         )
-        named = b"".join(_blob(e.encode()) + _blob(p) for e, p in zip(shaders.ENTRY_POINTS, programs, strict=True))
-        status, body = self._exchange(b"HNH1" + _blob(tables) + struct.pack("<I", len(programs)) + named)
+        try:
+            status, body = self._exchange(init)
+        except BaseException:
+            self._end()
+            raise
+        text = body.decode(errors="replace")
         if status != _OK:
-            self.process.kill()  # it exits after a failed start anyway; never leave one behind
-            self.process.wait()
+            self._end()  # it exits after a failed start anyway; never leave one behind
             if status == _UNAVAILABLE:
-                raise HostUnavailable(f"{self.name}: {body.decode()}")
-            raise RuntimeError(f"{self.name}: the harness refused the programs: {body.decode()}")
-        self.target = body.decode()
+                raise HostUnavailable(f"{self.name}: {text}")
+            raise RuntimeError(f"{self.name}: the harness refused the programs: {text}")
+        self.target = text
         _LOGGER.info(f"{self.name}: {len(programs)} programs on {self.target}")
 
+    def _end(self) -> None:
+        """End the process if it still runs, reap it, and close its standard error file."""
+        if self.process.poll() is None:
+            self.process.kill()
+        self.process.wait()
+        self._stderr.close()
+
+    def _stderr_text(self) -> str:
+        self._stderr.seek(0)
+        return self._stderr.read().decode(errors="replace").strip()[-STDERR_TAIL:]
+
     def _stopped(self, why: str) -> RuntimeError:
-        """The error for a harness that is gone, saying whether the watchdog ended it."""
+        """
+        The error for a harness that is gone: whether the watchdog ended it, else its exit code and standard error,
+        read after it is reaped (its output ends a moment before its exit code exists).
+        """
         if self._expired:
             self.process.wait()
             return RuntimeError(f"{self.name}: the harness did not reply within {TIMEOUT} s, and was ended")
-        exit_code = self.process.poll()
-        err = self.process.stderr.read().decode(errors="replace").strip() if exit_code is not None else ""
-        return RuntimeError(f"{self.name}: the harness {why} (exit {exit_code}) {err}".strip())
+        try:
+            exit_code: int | str = self.process.wait(timeout=END_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            self.process.wait()
+            exit_code = f"none: still running after {END_TIMEOUT} s, and ended"
+        return RuntimeError(f"{self.name}: the harness {why} (exit {exit_code}) {self._stderr_text()}".strip())
 
     def _read(self, n: int) -> bytes:
         data = self.process.stdout.read(n)
@@ -158,9 +195,12 @@ class Hlsl:
             except OSError as e:
                 raise self._stopped("is gone") from e
             status, length = struct.unpack("<II", self._read(8))
-            return status, self._read(length)
+            reply = self._read(length)
         finally:
             watchdog.cancel()
+        if self._expired:  # the watchdog fired as the reply arrived: the harness is ended, so say so now
+            raise self._stopped("replied")
+        return status, reply
 
     def run(
         self,
@@ -178,18 +218,34 @@ class Hlsl:
         status, reply = self._exchange(head + body + b"".join(_blob(a.tobytes()) for a in axes))
         if status != _OK:
             raise RuntimeError(f"{self.name} {entry}: {reply.decode(errors='replace')}")
+        if len(reply) != n * width * 4:
+            raise RuntimeError(
+                f"{self.name} {entry}: the harness sent {len(reply)} bytes for {n} points x {width} floats"
+            )
         return np.frombuffer(reply, dtype=np.float32).copy()
 
     def close(self) -> None:
-        """End the harness: its standard input closing is its signal."""
-        if self.process.poll() is None:
-            self.process.stdin.close()
-            self.process.wait(timeout=30)
+        """
+        End the harness: its standard input closing is its signal.
+
+        :raises RuntimeError: It did not end within `END_TIMEOUT`; it is ended, not left running.
+        """
+        try:
+            if self.process.poll() is None:
+                self.process.stdin.close()
+                try:
+                    self.process.wait(timeout=END_TIMEOUT)
+                except subprocess.TimeoutExpired:
+                    raise RuntimeError(
+                        f"{self.name}: the harness did not end within {END_TIMEOUT} s of its input closing, "
+                        "and was ended"
+                    ) from None
+        finally:
+            self._end()
 
 
 def _open(api: str) -> Hlsl:
-    exe = harness()
-    _LOGGER.info(f"hlsl: harness {exe}")
+    _LOGGER.info(f"hlsl: harness {harness()}")  # first, so a missing harness skips before the compile's seconds
     return Hlsl(api, compile_entry_points(api, verified("hlsl")), verified_tables())
 
 

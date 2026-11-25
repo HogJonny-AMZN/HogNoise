@@ -1456,6 +1456,11 @@ extracted from this plan's two blocks by a script, so they are the trial's text.
 - **CI's runner has Visual Studio 2026,** folder `18`, which `build.bat` already probed first.
 - **The revert in Task 5 step 4 is a hand commit, not `git revert`**: the revert refused a working tree holding Task 6,
   and the Task 6 commit went on first, so `1772b6e` sits between the scratch commit and its revert. Nothing was force-pushed.
+- **Task 6's sentence about hardware was untrue** and is corrected: the HLSL harness opens WARP alone, so the HLSL never
+  ran on the RTX 5090. The deliberate review caught it (ledger P-29).
+- **The deliberate review's error-handling findings changed the code past this plan's text** (Task 8): the harness
+  refuses malformed frames and requests, the module reports a crashed harness's exit code and standard error, and each
+  path has a test; [PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)'s *Review* lists them.
 
 ## Decisions
 

@@ -5,14 +5,39 @@ Package: apps/hog-noise-tools/tests/hosts/test_hlsl
 """
 
 import os
+import struct
+import subprocess
 import sys
 import time
 
+import numpy as np
 import pytest
 
-from hog_noise import shaders
+from hog_noise import NoiseParams, shaders
+from hog_noise.gpu import pack_params
 from hog_noise_tools import compile_shaders
 from hog_noise_tools.hosts import HostUnavailable, hlsl, verified_tables
+
+#: The opening of a stand-in harness: it answers the init frame as a harness with a device does, then the test's lines.
+_ANSWERS_INIT = (
+    "import struct, sys, time\n"
+    "def reply(status, body):\n"
+    "    sys.stdout.buffer.write(struct.pack('<II', status, len(body)) + body)\n"
+    "    sys.stdout.buffer.flush()\n"
+    "reply(0, b'stand-in')\n"
+)
+
+
+def _stand_in(tmp_path, lines: str) -> hlsl.Hlsl:
+    """A host over a stand-in harness that answers init, then runs ``lines``."""
+    script = tmp_path / "stand_in.py"
+    script.write_text(_ANSWERS_INIT + lines)
+    return hlsl.Hlsl("d3d11", [b""] * len(shaders.ENTRY_POINTS), b"", command=[sys.executable, str(script)])
+
+
+def _dispatch(host: hlsl.Hlsl, n: int = 4) -> np.ndarray:
+    xs = np.zeros(n, np.float32)
+    return host.run("sample_points_2d", pack_params(NoiseParams()), [xs, xs], n, 1, None)
 
 
 def test_off_windows_the_hosts_are_unavailable(monkeypatch):
@@ -128,3 +153,130 @@ def test_a_harness_that_never_replies_fails_within_the_timeout(monkeypatch, tmp_
     with pytest.raises(RuntimeError, match="did not reply within 2 s, and was ended"):
         hlsl.Hlsl("d3d11", [b""] * len(shaders.ENTRY_POINTS), b"", command=[sys.executable, str(silent)])
     assert time.monotonic() - started < 20
+
+
+def test_a_harness_that_crashes_mid_dispatch_reports_its_exit_code_and_stderr(tmp_path):
+    """The evidence a crash leaves: its exit code and what it wrote to standard error, read after it is reaped."""
+    host = _stand_in(tmp_path, "sys.stdin.buffer.read(4)\nsys.stderr.write('access violation at 0x0')\nsys.exit(3)\n")
+    with pytest.raises(RuntimeError, match=r"\(exit 3\) access violation at 0x0"):
+        _dispatch(host)
+
+
+def test_a_truncated_reply_is_an_error_naming_how_the_harness_ended(tmp_path):
+    host = _stand_in(
+        tmp_path, "sys.stdin.buffer.read(4)\nsys.stdout.buffer.write(struct.pack('<II', 0, 16) + b'abcd')\n"
+    )
+    with pytest.raises(RuntimeError, match=r"the harness stopped \(exit 0\)"):
+        _dispatch(host)
+
+
+def test_a_reply_of_the_wrong_length_is_an_error_not_a_short_array(tmp_path):
+    host = _stand_in(tmp_path, "sys.stdin.buffer.read(4)\nreply(0, b'\\0' * 8)\nsys.stdin.buffer.read()\n")
+    with pytest.raises(RuntimeError, match="sent 8 bytes for 4 points x 1 floats"):
+        _dispatch(host)
+    host.close()
+
+
+def test_a_harness_writing_much_to_stderr_does_not_block(tmp_path, monkeypatch):
+    """Standard error goes to a file, not a pipe nobody drains: 1 MB of it, then a reply, arrives within seconds."""
+    monkeypatch.setattr(hlsl, "TIMEOUT", 20)
+    host = _stand_in(
+        tmp_path,
+        "sys.stdin.buffer.read(4)\nsys.stderr.write('x' * 1_000_000)\nsys.stderr.flush()\n"
+        "reply(0, b'\\0' * 16)\nsys.stdin.buffer.read()\n",
+    )
+    started = time.monotonic()
+    assert _dispatch(host).tolist() == [0.0] * 4
+    assert time.monotonic() - started < 15
+    host.close()
+
+
+def test_programs_not_one_per_entry_point_are_refused_before_any_process_starts(monkeypatch):
+    def no_process(*args, **kwargs):
+        raise AssertionError("a process was started")
+
+    monkeypatch.setattr(hlsl.subprocess, "Popen", no_process)
+    with pytest.raises(ValueError, match="zip"):
+        hlsl.Hlsl("d3d11", [b""] * 2, b"", command=["unused"])
+
+
+def test_a_harness_that_ignores_its_input_closing_is_ended(tmp_path, monkeypatch):
+    monkeypatch.setattr(hlsl, "END_TIMEOUT", 1)
+    host = _stand_in(tmp_path, "time.sleep(60)\n")
+    with pytest.raises(RuntimeError, match="did not end within 1 s of its input closing, and was ended"):
+        host.close()
+    assert host.process.returncode is not None
+
+
+def test_a_compiler_that_exits_0_and_writes_nothing_is_an_error(monkeypatch):
+    monkeypatch.setattr(compile_shaders, "find", lambda name: "fxc")
+    monkeypatch.setattr(hlsl.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""))
+    with pytest.raises(RuntimeError, match=r"fxc exited 0 on sample_points_3d and wrote no sample_points_3d\.cso"):
+        hlsl.compile_entry_points("d3d11", "anything")
+
+
+def test_a_compiler_past_its_timeout_is_an_error_naming_it(monkeypatch):
+    def too_slow(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(compile_shaders, "find", lambda name: "dxc")
+    monkeypatch.setattr(hlsl.subprocess, "run", too_slow)
+    with pytest.raises(RuntimeError, match=f"dxc did not finish sample_points_3d within {compile_shaders.TIMEOUT} s"):
+        hlsl.compile_entry_points("d3d12", "anything")
+
+
+# The harness's own refusals, frame by frame: these need it built, and the last two a WARP device.
+
+
+def _raw(frame: bytes, api: str = "d3d12") -> tuple[int, bytes, int]:
+    """Send ``frame`` to the built harness with its input then closed: its one reply and its exit code."""
+    done = subprocess.run([str(hlsl.EXE), "--api", api], input=frame, capture_output=True, timeout=60)
+    status, length = struct.unpack("<II", done.stdout[:8])
+    return status, done.stdout[8 : 8 + length], done.returncode
+
+
+def _blob(data: bytes) -> bytes:
+    return struct.pack("<I", len(data)) + data
+
+
+def test_the_harness_ends_on_a_frame_that_ends_early(built):
+    status, message, exit_code = _raw(b"HN")
+    assert (status, exit_code) == (1, 1)
+    assert message == b"standard input ended inside a frame"
+
+
+def test_the_harness_refuses_an_init_frame_without_five_programs(built):
+    status, message, _ = _raw(b"HNH1" + _blob(b"") + struct.pack("<I", 0))
+    assert status == 1
+    assert message == b"the init frame has 0 programs, not 5"
+
+
+def test_the_harness_refuses_a_blob_past_its_limit_before_allocating_it(built):
+    status, message, _ = _raw(b"HNH1" + struct.pack("<I", 0xFFFFFFF0))
+    assert status == 1
+    assert b"past the 1073741824 a frame may hold" in message
+
+
+@pytest.fixture(scope="module")
+def d3d12():
+    try:
+        host = hlsl.open_d3d12()
+    except HostUnavailable as e:
+        pytest.skip(f"hlsl: {e}")
+    yield host
+    host.close()
+
+
+def test_the_harness_refuses_an_axis_shorter_than_its_points(d3d12):
+    """Not zeros read past the axis's end and passed off as output: an axis holding 1 float for 4 points is refused."""
+    params = pack_params(NoiseParams())
+    with pytest.raises(RuntimeError, match="axis 0 holds 4 bytes, not 16 for 4 points"):
+        d3d12.run("sample_points_2d", params, [np.zeros(1, np.float32)] * 2, 4, 1, None)
+    assert _dispatch(d3d12).shape == (4,)  # a refused request leaves the harness reading on
+
+
+def test_the_harness_refuses_an_entry_past_the_five(d3d12):
+    request = struct.pack("<5I", 99, 4, 1, 1, 1) + _blob(pack_params(NoiseParams())) + _blob(b"") + struct.pack("<I", 0)
+    status, message = d3d12._exchange(request)
+    assert status == 1
+    assert message == b"entry 99 is not one of the 5"
