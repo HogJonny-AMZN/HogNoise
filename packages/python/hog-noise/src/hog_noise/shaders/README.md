@@ -65,6 +65,13 @@ wrote, so a naga rename shows in the manifest's diff before it reaches a host.
 | 5 | `OUT` | the output, `f32`, read-write | `u5` | `_group_0_binding_5_cs` | 0, 5 | every one |
 | 6 | `G` | `Grid` uniform (`gpu.pack_grid`) | `b6` | `_group_0_binding_6_cs` | 0, 6 | `sample_grid` |
 
+**HLSL binds by register,** in space 0, as the table says. The tables and coordinates are `ByteAddressBuffer`s and the
+output a `RWByteAddressBuffer`, so their views are raw (`R32_TYPELESS`). The output's size bounds the dispatch: each
+invocation compares its point index with `GetDimensions` on `OUT` and returns past the end, so `OUT`'s view covers
+exactly the output, `n` points times the entry point's floats per point. On D3D12 that means a descriptor table for
+`u5`, not a root descriptor, which is a bare address with no size. A D3D12 constant buffer view is a multiple of 256
+bytes, so `Params` (112 bytes) and `Grid` (48) are padded with zeros.
+
 **GLSL binds by name.** naga writes no `binding =` qualifier, so a GLSL host binds each block by its name, and the
 names differ per entry point: the variable is the one member of a block naga names, such as
 `layout(std140) uniform Params_block_0Compute { Params _group_0_binding_0_cs; };`, and an entry point that does not read
