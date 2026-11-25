@@ -407,23 +407,28 @@ class Report:
         return "\n".join(lines) + "\n"
 
 
-#: The tolerance file format this module reads (the GPU port's spec, *The tolerance*).
-TOLERANCE_FORMAT = 1
+#: The tolerance file format this module reads (the GPU port's spec, *The tolerance*). 2 lets a continuous rule hold a
+#: fraction of its points to a tight bound (``within``) under a ceiling, measured on a large fresh sample; 1 had no
+#: ``within`` there, and a reader of 1 refuses a 2 by its number rather than by a rule it cannot read.
+TOLERANCE_FORMAT = 2
 _RULE_KINDS = ("continuous", "discrete")
 
 
 def _points_rule(rule: Mapping[str, object]) -> dict[str, object]:
     """
-    A tolerance rule as the points rule `_points` judges: continuous is a bound alone; discrete adds within and a
-    correlation. ``rule`` records the kind, which `_points` reports.
+    A tolerance rule as the points rule `_points` judges: continuous is a bound, with a ``within`` when a fresh sample
+    found a tail past its tight bound; discrete adds within and a correlation. ``rule`` records the kind, which
+    `_points` reports.
     """
     kind = rule.get("kind")
     if kind not in _RULE_KINDS:
         raise ConformanceError(f"kind {kind!r}, not one of {_RULE_KINDS}")
     points: dict[str, object] = {"kind": "points", "bound": rule.get("bound"), "rule": kind}
-    extra = sorted({"within", "min_correlation"} & set(rule))
-    if kind == "continuous" and extra:
-        raise ConformanceError(f"a continuous rule has a bound and nothing else, not {extra}")
+    if kind == "continuous":
+        if "min_correlation" in rule:
+            raise ConformanceError("a continuous rule takes no min_correlation: a bound and, at most, a within")
+        if "within" in rule:
+            points["within"] = rule["within"]
     if kind == "discrete":
         missing = sorted({"within", "min_correlation"} - set(rule))
         if missing:

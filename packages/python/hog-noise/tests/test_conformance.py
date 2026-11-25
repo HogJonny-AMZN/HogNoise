@@ -691,7 +691,7 @@ def test_a_shape_rules_finite_must_be_true_or_false(tmp_path, value):
 def write_tolerance(root: Path, rules: list, /, **top) -> Path:
     """A tolerance file in ``root``; ``top`` replaces its top-level keys, ``rules`` among them."""
     data = {
-        "format": 1,
+        "format": conformance.TOLERANCE_FORMAT,
         "rendering": "test",
         "range": {"frequency": [0.01], "noise_coordinate_max": 20.0},
         "rules": rules,
@@ -715,6 +715,35 @@ def test_a_continuous_rule_judges_its_features_cases_and_names_itself(tmp_path):
     assert "| continuous |" in ok.table()
     bad = conformance.check(_values(np.array([2e-3, 0, 0, 0], np.float32)), v, tolerance=tol)
     assert not bad.ok
+
+
+def test_a_continuous_rule_with_within_holds_a_fraction_to_its_tight_bound(tmp_path):
+    """
+    Two tiers (the fresh-sample bounds): every point within the outer bound, and ``fraction`` of them within the tight
+    one. One point of four is past the tight bound: a fraction of 0.75 holds it, 0.8 fails, and an outer bound below
+    that point fails whatever the fraction.
+    """
+    root = make_vectors(tmp_path, [a_case("hog/t/f/p3", "h/f.f32")], {"h/f.f32": np.zeros(4, np.float32)})
+    v = conformance.load(root)
+    ours = _values(np.array([0.0, 5e-4, 0.0, 5e-3], np.float32))
+
+    def rule(fraction, outer=1e-2):
+        return {
+            "feature": "t/f",
+            "kind": "continuous",
+            "bound": {"scale": outer, "coordinate_scaled": False},
+            "within": {"scale": 1e-3, "coordinate_scaled": False, "fraction": fraction},
+        }
+
+    def judge(r):
+        return conformance.check(ours, v, tolerance=conformance.Tolerance.load(write_tolerance(root, [r]), v))
+
+    held = judge(rule(0.75))
+    assert held.ok and held.results[0].rule == "continuous", held.table()
+    above = judge(rule(0.8))
+    assert not above.ok and "0.7500 within 0.001, below 0.8" in above.results[0].detail
+    past = judge(rule(0.75, outer=4e-3))
+    assert not past.ok and "1 of 4 points past the bound" in past.results[0].detail
 
 
 def test_a_case_no_rule_covers_fails_with_no_tolerance_rule(tmp_path):
@@ -784,11 +813,11 @@ def test_separate_noise_and_warp_rules_load_and_each_judges_its_output(tmp_path)
         ([CONTINUOUS, CONTINUOUS], {}, "already has a rule"),
         ([dict(CONTINUOUS, output="both")], {}, "output 'both'"),
         ([dict(CONTINUOUS, kind="loose")], {}, "kind 'loose'"),
-        ([dict(CONTINUOUS, min_correlation=0.9)], {}, "a continuous rule has a bound and nothing else"),
+        ([dict(CONTINUOUS, min_correlation=0.9)], {}, "a continuous rule takes no min_correlation"),
         ([dict(CONTINUOUS, kind="discrete")], {}, "a discrete rule needs"),
         ([dict(CONTINUOUS, bound={"scale": -1.0})], {}, "bound.scale"),
         (["t/f"], {}, "not an object"),
-        ([CONTINUOUS], {"format": 2}, "tolerance format 2"),
+        ([CONTINUOUS], {"format": 1}, "tolerance format 1"),
         ([CONTINUOUS], {"rules": {}}, "a 'rules' list"),
     ],
 )
