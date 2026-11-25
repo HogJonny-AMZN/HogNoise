@@ -104,16 +104,15 @@ set only; the original cases keep their own rules for every rendering.
 
 ```json
 {
-  "format": 1,
+  "format": 2,
   "rendering": "wgpu",
   "range": {"frequency": [0.01], "noise_coordinate_max": 40.96},
-  "measured": {"record": "reports/gpu/5340a3f/", "adapters": ["NVIDIA GeForce RTX 5090 (Vulkan) on local", "..."]},
+  "measured": {"record": "reports/gpu/3e05b2c/", "adapters": ["NVIDIA GeForce RTX 5090 (Vulkan) on local", "..."]},
   "rules": [
-    {"feature": "fnl/simplex_fbm", "kind": "continuous", "bound": {"scale": 2e-05, "coordinate_scaled": true}},
-    {"feature": "fnl/warp_opensimplex2_none", "output": "noise", "kind": "continuous",
-     "bound": {"scale": 5e-06, "coordinate_scaled": true}},
-    {"feature": "fnl/warp_opensimplex2_none", "output": "warp", "kind": "continuous",
-     "bound": {"scale": 5e-05, "coordinate_scaled": true}},
+    {"feature": "fnl/simplex_fbm", "kind": "continuous", "bound": {"scale": 0.01, "coordinate_scaled": true},
+     "within": {"scale": 2e-05, "coordinate_scaled": true, "fraction": 0.9999}},
+    {"feature": "fnl/perlin_ridged", "kind": "continuous", "bound": {"scale": 0.01, "coordinate_scaled": true},
+     "within": {"scale": 1e-06, "coordinate_scaled": true, "fraction": 0.9993}},
     {"feature": "fns/cellular_natural_cellvalue", "kind": "discrete", "bound": {"scale": 2.0, "coordinate_scaled": false},
      "within": {"scale": 1e-07, "coordinate_scaled": true, "fraction": 1.0}, "min_correlation": 0.999}
   ]
@@ -124,8 +123,16 @@ set only; the original cases keep their own rules for every rendering.
   warp, every point set. A feature with both outputs may instead have one rule per `output`, `"noise"` or `"warp"`. Two
   rules covering one case, or a rule naming no hog feature, is an error when the file is read; a case no rule covers
   **fails** with "no tolerance rule", so a feature added later cannot pass by default.
-- **`continuous`** is a bound and nothing else, for a feature whose output moves smoothly with its input. The noise
-  and warp outputs' bounds are all coordinate-scaled. A warp's output is a coordinate: the reference warps the raw
+- **`continuous`** is for a feature whose output moves smoothly with its input. Its `bound` is the ceiling, 1e-2 a
+  coordinate unit, which every point must meet; past it, a difference is a fault, not drift. Its `within` is the tight
+  bound, from the vectors' points, which at least `fraction` of the points must meet: each rule's own, measured on fresh
+  points, never above 0.9999. A GPU's float32 has rare spikes, a few in a million at 3 to 13 times the tight bound, and
+  one sample's worst does not bound the next's, so the tight bound is a rate and the ceiling is fixed ([the fresh-sample
+  bounds' plan](../Docs/superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md), *The trials*). On a scatter
+  case's 4,096 points 0.9999 still asks for every one; on a `grid_y0` case's 16,384 it lets 1 past, and the Perlin
+  rules' 0.9993 lets up to 2 of 4,096 and 11 of 16,384. A record without fresh points (before `3e05b2c`) derives the
+  bound alone, as format 1 had it. The noise and warp outputs' bounds are all coordinate-scaled. A warp's output is a
+  coordinate: the reference warps the raw
   coordinates in float64 before the frequency multiply, so a float32 rendering's error is a few float32 steps of the raw
   coordinate and grows with it. The coordinate-scaled bound grows with `raw * frequency`, which is the raw coordinate
   times a constant at one frequency, so a warp rule's number holds at the frequencies `range` names and no others. Until
@@ -149,9 +156,26 @@ worst over every adapter, rounded up to a 1, 2 or 5 step (the 99th percentile, f
 rounded down to three places, the correlation to at most 0.999). A
 measurement the rules cannot hold, such as a discrete feature flipping more than 1% of its points, stops the
 derivation as a measurement finding for a person, and so does a folder of records that are not all exactly the hog
-set's cases; nothing is written then. `wgpu.json` was derived from seven records at commit `5340a3f`: an RTX 5090
-on Vulkan, Direct3D 12 and OpenGL, and Direct3D 12's WARP, on one machine; WARP, Mesa's llvmpipe (Vulkan) and the
-macOS runner's "Apple Paravirtual device" (Metal) on CI. The earlier derivations are kept beside it. From four records
+set's cases; nothing is written then.
+
+**Fresh points.** `run` also renders 65,536 fresh points a hog case, drawn over the measured range as the far-coordinate
+probe draws them (the largest coordinate's magnitude uniform, so the origin, where the bound is tightest, is sampled),
+or for a grid case four grids beside its own on the same lattice. numpy renders them as the reference, after `run`
+checks that numpy gives the hog set bit for bit. `derive` keeps every tight number from the vectors and takes from the
+fresh points how often it is missed: a continuous rule's `fraction` is one minus twice the worst fraction past its tight
+bound, rounded down to four places and never above 0.9999, under the ceiling; a discrete rule's fraction, correlation and
+range take the worse of the two samples. A fresh point past the ceiling, or more than 1% of fresh points past a tight
+bound, is a measurement finding. A folder mixing records with and without fresh points is one too.
+
+`wgpu.json` was derived from seven records at commit `3e05b2c`, each with fresh points: an RTX 5090 on Vulkan, Direct3D
+12 and OpenGL, and Direct3D 12's WARP, on one machine; WARP, Mesa's llvmpipe (Vulkan) and the macOS runner's "Apple
+Paravirtual device" (Metal) on CI. No tight number moved from `5340a3f`. 103 of the 110 continuous rules hold 0.9999 of
+points to it; seven Perlin rules hold 0.9993 to 0.9996. Six discrete fractions are lower: the three `noiselookup`
+features 0.999 to 0.993 or 0.994, `fnl/cellular_manhattan_cellvalue` 1.0 to 0.999, and the two
+`genasgrid_*_0.7_1.0_1.3` 0.994 to 0.992 and 0.995 to 0.991. The worst continuous fresh point is 2e-4 a unit, 50 times
+under the ceiling. The far probe, with its own seed and points, passes every probe inside 4,096 units on three adapters
+([the probe](../Spikes/far_coordinates/README.md), *After the fresh-sample bounds*). The earlier derivations are kept
+beside it. From four records
 at `0d419e9` to six at `efb910a`, the 5090's Direct3D 12 and OpenGL records moved two rules, `cubic_none` in both
 libraries, from 2e-7 to 5e-7 (both back ends drift 1.19e-7 there, which the doubling and the 1-2-5 step make 5e-7).
 From six to seven, Metal's record moved five fields, all in FastNoiseSIMD, and the owner chose to take it: the three

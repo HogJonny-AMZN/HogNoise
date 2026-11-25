@@ -1085,7 +1085,32 @@ each finding. `make check`, unpiped. Update the body (test counts, what moved). 
 
 ## Built
 
-Filled as the build lands: each task's commit, its test counts, and anything that differed from this plan.
+Built 2026-11-25 in [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58), from the trial's code, file for file.
+
+- **Task 1**, `e309425`: `test_conformance.py` 99 passed; `wgpu.json` re-derived from `5340a3f` changed its format line
+  alone; the suite 3,144 passed.
+- **Tasks 2 to 4**, `4e756c8`, **one commit, not three**: the three tasks share `measure_gpu.py` and
+  `test_measure_gpu.py`, and each was trial-run in its own order before the plan was proposed. `test_measure_gpu.py`
+  68 passed.
+- **Task 5**, `3e05b2c`: the two-tier mutation passes on the 5090's Vulkan.
+- **Task 6:** the four local adapters at `3e05b2c` in 28, 59, 30 and 116 s (Vulkan, D3D12, OpenGL, WARP). CI's three
+  came from run 45536974570's artifacts, all naming `3e05b2c`. CI's WARP leg took 6 min 27 s with the fresh points,
+  against 7 min 13 s at `b008c5f`'s run without them: no visible cost.
+- **Task 7:** 125 rules from seven adapters, no finding. **No tight number moved from `5340a3f`** (a script comparing
+  each rule's tight number with the committed file's). 103 of 110 continuous rules at 0.9999, seven Perlin rules at
+  0.9993 to 0.9996, as in the trial. Six discrete fractions lower; Metal, which the trial did not measure, takes the
+  three `noiselookup` features to 0.993 or 0.994 (the trial's four adapters: 0.995). The worst continuous fresh point
+  2e-4 a unit; the worst of all, 0.0134, a cell flip. The suite 3,163 passed; the GPU suite 26 of 26 on each local
+  adapter. The far probe: 246 of 246 inside the range on all three, the control held.
+- **Task 9:** the ledger's P-28 with Task 8. The handoff's lead, the row's State and the journal waited for
+  [PR #57](https://github.com/HogJonny-AMZN/HogNoise/pull/57), which edited all three; the branch was rebased on its
+  merge (`9f982ac`), so the commits after `3e05b2c` have new hashes. The records still name `3e05b2c`, the head they
+  were measured at: the rebase brought only #57's documents, CI leg and floor test, and the one later source change
+  (the review's, below) touches how records are read and how a failure is worded, not what `run` measures.
+- **Task 10:** the deliberate review returned *needs work* on one hard finding, a malformed `fresh` block or case
+  reaching `derive` as a raw `KeyError` or `TypeError`. Fixed with eleven tests (nine malformed shapes from the
+  reviewer's probes, a missing header, mismatched headers), with its other code findings; the table and each answer
+  are in the pull request.
 
 ## Decisions
 

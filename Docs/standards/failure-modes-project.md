@@ -355,6 +355,21 @@ Its search left out `Docs/superpowers/specs/` and matched "absolute" only next t
 wider search in `768e00d` also found the GPU fast-track account's line 52. Not mechanised: which sentences state a fact
 is a reading, not a pattern.
 
+### P-28 · A bound taken from one sample's worst, trusted without a second sample
+
+**Trigger:** you derive a bound, a tolerance or a limit from the worst value a sample showed, and are about to claim it
+holds beyond that sample.
+**Do:** before trusting it, draw a second, independent sample (another seed, drawn the way the claim covers, including
+where the bound is tightest) and check that the first sample's worst holds there. If the worst moves between samples, the
+tail is heavy: state a rate (a fraction within a bound) under a fixed ceiling, not a worst.
+**Because:** [the fresh-sample bounds' plan](../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md)'s first
+design took each continuous rule's outer bound from twice the worst of 65,536 fresh points. Its trial derived cleanly and
+every hog case passed, and the far probe's own 65,536 points then failed the bounds at up to 4.5 times. The uniform draw
+had almost never reached the origin, where the bound is tightest; and the GPU's rare spikes, whose worst over 65,536 points
+varied 56 times between samples, bound nothing. The trial caught it before anything was committed, and the owner took
+the rate-based form ([PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56)). Mechanised for the GPU rules: the far
+probe, with its own seed and points, is the acceptance check of every re-derivation (the plan's Task 7).
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

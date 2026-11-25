@@ -85,7 +85,10 @@ naming why ("wgpu is not installed: install hog-noise[gpu]", "no adapter: ...").
   edited by hand fails it. A rule a GPU adapter fails is a measurement finding to record, never a number to loosen in
   the same change ([vectors/README.md](../../vectors/README.md), *Tolerance files*). Re-measuring is
   `uv run --group gpu hog-noise-measure-gpu run` on each local adapter, CI's three records (WARP, llvmpipe and Metal) downloaded into the same
-  `vectors/reports/gpu/<commit>/`, then `uv run hog-noise-measure-gpu derive vectors/reports/gpu/<commit>`.
+  `vectors/reports/gpu/<commit>/`, then `uv run hog-noise-measure-gpu derive vectors/reports/gpu/<commit>`. A record holds
+  fresh points too (65,536 a case), so `run` takes 30 s to 2 min an adapter here (the 5090, WARP) and about as long on
+  CI's legs. Measure every adapter at one commit: `derive` stops on a folder mixing records with and without fresh
+  points, but it does not compare their commits.
 
 What the GPU tests do not show, found while building the rung
 ([the plan](../superpowers/plans/2026-11-14-gpu-port.md), Tasks 7, 10 and 12):

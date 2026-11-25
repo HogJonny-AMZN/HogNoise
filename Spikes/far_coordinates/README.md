@@ -129,3 +129,36 @@ The noise probes are as before, with one exception unrelated to the warps: 3D `f
 in [32,768, 262,144) now passes on all three adapters, with the same values. This probe first ran before the macOS
 runner's Metal record joined the tolerance file (`5340a3f`), which moved the NoiseLookup features' fraction within
 the tight bound from 1.0 to 0.999.
+
+## After the fresh-sample bounds (2026-11-25)
+
+The second change was built ([the plan](../../Docs/superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md)): a
+continuous rule's tight bound is held for the fraction of points measured on 65,536 fresh points a case (at most 0.9999),
+under a fixed ceiling of 1e-2 a coordinate unit, and the fresh points are drawn as this probe draws them. The rules were
+derived from seven records at `3e05b2c`. The probe ran again with them, same seed and points, into
+[after-fresh-bounds/](after-fresh-bounds/). It is the acceptance check of that derivation, with its own seed and points,
+not the measurement's:
+
+```bash
+uv run python -I Spikes/far_coordinates/probe.py Spikes/far_coordinates/after-fresh-bounds
+```
+
+Probes passing their feature's rule, per band, with the worst drift as a multiple of the rule's `bound`. For a
+continuous rule that is now the ceiling, not the tight bound, so these multiples are small by construction. The tight
+tier is what bites, and it is part of "passing": each passing probe met its rule's fraction within the tight bound.
+
+| Adapter | [0, 4,096) (measured range) | [4,096, 32,768) | [32,768, 262,144) | [262,144, 1,048,576) |
+| --- | --- | --- | --- | --- |
+| RTX 5090, Vulkan | **246 / 246**, 0.0405x | 245 / 246, 0.111x | 246 / 246, 0.00552x | 246 / 246, 0.00716x |
+| RTX 5090, D3D12 | **246 / 246**, 0.0211x | 245 / 246, 0.111x | 246 / 246, 0.00552x | 246 / 246, 0.00716x |
+| WARP (D3D12) | **246 / 246**, 0.0405x | 245 / 246, 0.111x | 246 / 246, 0.00646x | 246 / 246, 0.00866x |
+
+Inside the measured range every probe passes on all three, where before 10 to 20 noise probes and 2 warp outputs failed
+(*What it says*, item 3). The control held on each: 242 probes reproduce the hog set and pass on their own points.
+
+Outside the range, where the tolerance file claims nothing, one probe fails on all three: 3D
+`fns/cellular_natural_cellvalue` in [4,096, 32,768). Its discrete rule asks for every point within the tight bound
+(fraction 1.0), and the probe reports 1.0000 within, so at most 3 of its 65,536 points flipped.
+
+The first design, an outer bound from twice the fresh worst, failed this probe's own points inside the range at up to
+4.5 times. [Ledger P-28](../../Docs/standards/failure-modes-project.md) records why a sample's worst was not a bound.

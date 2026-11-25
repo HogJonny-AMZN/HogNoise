@@ -8,7 +8,7 @@ repository's own folders, so they run from a checkout, which `hog_noise_tools.re
 | --- | --- | --- |
 | `hog-noise-vectors` | `gen_noise_vectors` | Writes the reference vectors under `vectors/`: the hog set by default, `--set original` from the original libraries |
 | `hog-noise-gallery` | `noise_gallery` | Renders `Docs/noise/GALLERY.md` and its sheets; `--check` fails when the committed page is behind |
-| `hog-noise-measure-gpu` | `measure_gpu` | `run` measures the wgpu rung on this adapter; `derive` writes the tolerance file from every adapter's record |
+| `hog-noise-measure-gpu` | `measure_gpu` | `run` measures the wgpu rung on this adapter, on the vectors' points and 65,536 fresh points a case against numpy; `derive` writes the tolerance file from every adapter's record |
 
 Run them with `uv run <script>` from the root, or the launchers in `launchers/`. The GPU measurement needs the `gpu`
 group: `uv run --group gpu hog-noise-measure-gpu run`.

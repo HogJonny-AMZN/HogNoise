@@ -73,7 +73,9 @@ corrections to this page:
 - far out, the discrete features hold and only the warp outputs fail;
 - C2's bounds hold on the vectors' points. On fresh points in the range, pooled over every noise probe, 1 to 10 points
   in a million go past the outer bound, depending on the adapter. Separately, on D3D12, three NoiseLookup 2D probes
-  miss their tight bound on about 0.1% of points.
+  miss their tight bound on about 0.1% of points. *Amended 2026-11-25 ([the fresh-sample bounds' plan](../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md)):*
+  C2's claim is now a rate under a ceiling, measured on fresh points, and the probe passes every probe in the range
+  on those three adapters.
 
 Gap 3 was tried the same day ([PR #42](https://github.com/HogJonny-AMZN/HogNoise/pull/42)). GitHub's macOS runner
 gives wgpu an "Apple Paravirtual device" on Metal, a virtual GPU, not Apple hardware directly. On it, 365 of the 368
