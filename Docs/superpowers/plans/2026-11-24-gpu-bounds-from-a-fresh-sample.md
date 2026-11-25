@@ -1,9 +1,9 @@
 # GPU bounds from a large fresh sample: a tight bound for a measured fraction of points, a ceiling for every point
 
-**Status:** Proposed 2026-11-24. The owner chose two tiers and 65,536 fresh points a case ("I agree with your
+**Status:** Accepted 2026-11-25: merged by the owner ([PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56), `620750a`), then "fix up and then do both", taking D3 to D9 as recommended and the vectors gate's small loosening (D6, D9). Proposed 2026-11-24. The owner chose two tiers and 65,536 fresh points a case ("I agree with your
 recommendations"); the first trial showed two tiers with an outer bound from a sample's worst cannot hold, and the owner
 took the rate-based form, C2 ("I'll take your best recommendation on those bounds"). Decisions D3 to D9 are
-recommendations for the owner. Trial-run twice, task by task, before proposing (*The trials*, below).
+recommendations, all taken. Trial-run twice, task by task, before proposing (*The trials*, below).
 **Board:** [`2026-11-21-gpu-bounds-from-a-large-fresh-sample`](../../plan/board/2026-11-21-gpu-bounds-from-a-large-fresh-sample.md)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or

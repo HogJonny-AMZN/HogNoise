@@ -12,8 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The library floor: Maya 2026 ships Python 3.11 and numpy 1.x.
-          - {name: "3.11 + numpy 1.26 (floor)", os: ubuntu-latest, python: "3.11", numpy: "numpy==1.26.*", extras: "dev"}
+          # The DCC hosts, each at its own Python and numpy (Docs/standards/compatibility-matrix-project.md). The floor:
+          # Maya 2026, Houdini 21 and Unreal 5.8 ship Python 3.11 with numpy 1.26.4. Blender 5.2: 3.13 with numpy 2.3.4.
+          - {name: "3.11 + numpy 1.26 (floor: Maya 2026, Houdini 21, Unreal 5.8)", os: ubuntu-latest, python: "3.11", numpy: "numpy==1.26.*", extras: "dev"}
+          - {name: "3.13 + numpy 2.3 (Blender 5.2)", os: ubuntu-latest, python: "3.13", numpy: "numpy==2.3.*", extras: "dev"}
           # The edge: newest Python the package admits, newest numpy.
           - {name: "3.13 + latest numpy", os: ubuntu-latest, python: "3.13", numpy: "numpy", extras: "dev"}
           # The self-contained claim: numpy is the only runtime dependency, so the suite must pass with no extras.

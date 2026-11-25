@@ -51,8 +51,10 @@ a fake naga, so they need none.
 
 ## The environments that must pass
 
-Three, because each catches what the others cannot: Python 3.13 with every extra; Python 3.11 with numpy 1.26 (the library
-floor); and numpy alone, with no extras, which proves the package stands on its one runtime dependency. A test that names the
+Four, because each catches what the others cannot: Python 3.13 with every extra; Python 3.11 with numpy 1.26 (the library
+floor: Maya 2026, Houdini 21 and Unreal 5.8); Python 3.13 with numpy 2.3 (Blender 5.2); and numpy alone, with no extras,
+which proves the package stands on its one runtime dependency. The two host legs are [the DCC hosts](compatibility-matrix-project.md)'
+own Python and numpy, and `test_dcc_host_floors.py` keeps the declared floors on the oldest host's. A test that names the
 best rung it expects computes it from what is installed (`HAVE_NUMBA`, `_have_fastnoiselite()`).
 
 And three for the `wgpu` rung, each Python 3.13 with the `dev` and `gpu` extras on the hosted runner's own adapter, so
