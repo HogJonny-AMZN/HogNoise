@@ -100,7 +100,7 @@ from `tables.f32`.
 ## What is proven, and what is not
 
 Proven on every push: each file is what the pinned naga writes from the current `noise.wgsl`, and each compiles or
-validates in its own language's tools. Two of them also run, each in a host written from this page alone
+validates in its own language's tools. All three also run, each in a host written from this page alone
 (`hog_noise_tools.hosts` in `apps/hog-noise-tools`), and pass every hog case of the
 [reference vectors](https://github.com/HogJonny-AMZN/HogNoise/tree/main/vectors) within the wgpu rung's tolerance,
 `vectors/tolerance/wgpu.json`, unmodified:
@@ -109,9 +109,10 @@ validates in its own language's tools. Two of them also run, each in a host writ
 | --- | --- | --- |
 | `noise.spv` | wgpu's SPIR-V front end: naga reads the file back, so no driver consumes it | WARP (D3D12), llvmpipe (Vulkan, and OpenGL beside the GLSL), Apple's paravirtual GPU (Metal) |
 | `noise.<entry_point>.comp` | moderngl, OpenGL 4.3 | Mesa llvmpipe through EGL |
+| `noise.hlsl` | FXC `cs_5_0` on D3D11, and DXC `cs_6_0` on D3D12, in a C++ harness | WARP |
 
 On D3D12, Vulkan and OpenGL, `noise.spv` through naga gives the wgpu rung's output bit for bit. On Metal it does not:
 `sample_points_3d` differs by up to 3.58e-7 (2026-11-23), within the tolerance.
 
-Not yet run: `noise.hlsl` (D3D11 and D3D12 on WARP), and `noise.spv` read by a Vulkan driver (lavapipe), each its own
-pull request.
+Not yet run: `noise.spv` read by a Vulkan driver (lavapipe), its own pull request; and any of them on hardware outside
+CI, where only the RTX 5090 they were written on has run them.

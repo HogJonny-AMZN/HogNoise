@@ -69,7 +69,7 @@ glsl = shaders.source("glsl", "sample_points_3d")
 table = shaders.tables()  # what binding 1 holds
 ```
 
-What is proven on every push: each file is what the pinned naga writes from the current WGSL, and each compiles or validates in its own language's tools (FXC and DXC, glslang, spirv-val). The SPIR-V and the GLSL also run, in hosts written from the shaders' README alone, and pass every hog case within the wgpu rung's tolerance: the SPIR-V through wgpu on WARP, llvmpipe and Metal, the GLSL in OpenGL on llvmpipe. The HLSL compiles and has not run yet. Metal is not shipped. The bindings, the dispatch and how to fill the uniforms are in [the shaders' README](packages/python/hog-noise/src/hog_noise/shaders/README.md).
+What is proven on every push: each file is what the pinned naga writes from the current WGSL, and each compiles or validates in its own language's tools (FXC and DXC, glslang, spirv-val). All three also run, in hosts written from the shaders' README alone, and pass every hog case within the wgpu rung's tolerance: the SPIR-V through wgpu on WARP, llvmpipe and Metal, the GLSL in OpenGL on llvmpipe, and the HLSL on WARP through Direct3D 11 (FXC) and Direct3D 12 (DXC). Metal is not shipped. The bindings, the dispatch and how to fill the uniforms are in [the shaders' README](packages/python/hog-noise/src/hog_noise/shaders/README.md).
 
 ## What's in it
 
@@ -96,7 +96,7 @@ So I ported it, with AI, in days to weeks rather than the weeks to months it wou
 ## Limits
 
 - 2D and 3D only: no 4D, no derivatives, no tileable noise yet.
-- The GPU rung is float32 and measured only at frequency 0.01 out to 4,096 units; far from the origin it drifts further, and that is a later stage of the roadmap. It is not benchmarked. The HLSL, GLSL and SPIR-V files compile, but no host has run them against the vectors yet, and there is no Metal file.
+- The GPU rung is float32 and measured only at frequency 0.01 out to 4,096 units; far from the origin it drifts further, and that is a later stage of the roadmap. It is not benchmarked. The HLSL, GLSL and SPIR-V files run against the vectors only on CI's software adapters, and the SPIR-V only through naga, not yet a Vulkan driver; there is no Metal file.
 - Close to, not byte-identical with, the originals: the maths is float64 after the frequency multiply.
 - For now, if you need 4D, a node editor or raw C++ speed, [FastNoise2](https://github.com/Auburn/FastNoise2) is the one to use.
 

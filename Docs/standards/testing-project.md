@@ -112,7 +112,11 @@ The emitted shaders run in `hog_noise_tools.hosts` (`apps/hog-noise-tools/README
   it to `glsl,spirv-naga`, with wgpu pinned to OpenGL (`WGPU_BACKEND_TYPE`) and its Adapter step asserting it: lavapipe,
   Mesa's Vulkan driver, is also named llvmpipe. A name that is no host fails the run, so a misspelling cannot require nothing.
 - **`HOG_NOISE_HOST_TARGET`** is part of the target line a host must run on: each GPU leg sets its pinned back end, the
-  `glsl` job `llvmpipe`. A host on anything else fails before its first dispatch (the project ledger's P-22).
+  `glsl` job `llvmpipe`, the `hlsl` job `Microsoft Basic Render Driver` (WARP). A host on anything else fails before its
+  first dispatch (the project ledger's P-22).
+- **The `hlsl` job builds the C++ harness** (`apps/hog-noise-tools/hosts/hlsl/build.bat`) and requires
+  `hlsl-d3d11,hlsl-d3d12`. Nothing else builds it, so `tests.yml`'s Windows legs skip both hosts: those legs have MSVC
+  but did not ask for them. It runs `-n 0`, so FXC compiles the five entry points once per host, not once per worker.
 - **The `glsl` job installs the `gpu` extra too.** It is the one job with moderngl and wgpu together, so
   `test_a_gl_host_builds_after_wgpu_has_enumerated_its_adapters` runs there, and fails rather than skips if wgpu goes
   missing. It reports every test by name (`-rA`).

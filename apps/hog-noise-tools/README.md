@@ -26,8 +26,10 @@ the domain-warp vectors the FastNoiseLite binding does not expose.
 | --- | --- | --- |
 | `spirv-naga` | `noise.spv` through wgpu's SPIR-V front end | the `gpu` group and an adapter |
 | `glsl` | the five `noise.<entry_point>.comp` in moderngl | the `hosts` group and an OpenGL 4.3 context |
+| `hlsl-d3d11`, `hlsl-d3d12` | `noise.hlsl`, compiled by FXC `cs_5_0` or DXC `cs_6_0`, in `hosts/hlsl/hlsl_host.exe` on WARP | Windows, the Windows SDK, and the harness built: `cmd /c apps\hog-noise-tools\hosts\hlsl\build.bat` (Visual Studio's C++ tools) |
 
-`uv run --group gpu --group hosts pytest apps/hog-noise-tools/tests/hosts` runs both. A host that is missing skips
+`uv run --group gpu --group hosts pytest apps/hog-noise-tools/tests/hosts` runs them all. The harness is never built
+by the tests: unbuilt, or older than its source, its hosts skip naming `build.bat`. A host that is missing skips
 with the reason, unless `HOG_NOISE_REQUIRE_HOST` names it (a comma-separated list), which makes the skip a failure.
 `HOG_NOISE_HOST_TARGET` is part of the adapter or renderer a host must run on; unset, the target is logged and not
 asserted. `HOG_NOISE_GL_BACKEND` names moderngl's context back end; unset, it is `egl` on Linux and the default
