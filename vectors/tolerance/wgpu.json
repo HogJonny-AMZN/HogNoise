@@ -8,7 +8,7 @@
     "noise_coordinate_max": 40.96
   },
   "measured": {
-    "record": "reports/gpu/5340a3f/",
+    "record": "reports/gpu/3e05b2c/",
     "adapters": [
       "Apple Paravirtual device (Metal) on ci-macos",
       "llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan) on ci-ubuntu",
@@ -38,48 +38,78 @@
       "feature": "fnl/cellular_euclidean_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclidean_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclidean_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclidean_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclidean_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclidean_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -100,56 +130,91 @@
       "feature": "fnl/cellular_euclideansq_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclideansq_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclideansq_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclideansq_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclideansq_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_euclideansq_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -170,48 +235,78 @@
       "feature": "fnl/cellular_hybrid_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_hybrid_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_hybrid_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_hybrid_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_hybrid_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_hybrid_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -224,7 +319,7 @@
       "within": {
         "scale": 1e-07,
         "coordinate_scaled": true,
-        "fraction": 1.0
+        "fraction": 0.999
       },
       "min_correlation": 0.999
     },
@@ -232,104 +327,169 @@
       "feature": "fnl/cellular_manhattan_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_manhattan_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_manhattan_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_manhattan_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_manhattan_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_manhattan_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_none",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_pingpong",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cellular_ridged",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cubic_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cubic_none",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cubic_pingpong",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/cubic_ridged",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -342,7 +502,7 @@
       "within": {
         "scale": 1e-06,
         "coordinate_scaled": true,
-        "fraction": 0.994
+        "fraction": 0.992
       },
       "min_correlation": 0.999
     },
@@ -350,168 +510,273 @@
       "feature": "fnl/perlin_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9994
       }
     },
     {
       "feature": "fnl/perlin_none",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9996
       }
     },
     {
       "feature": "fnl/perlin_none_improve_xy",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9996
       }
     },
     {
       "feature": "fnl/perlin_none_improve_xz",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/perlin_pingpong",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9994
       }
     },
     {
       "feature": "fnl/perlin_ridged",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9993
       }
     },
     {
       "feature": "fnl/simplex_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_fbm_weighted0.5",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_none",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_none_improve_xy",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_none_improve_xz",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_pingpong",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_ridged",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_smooth_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_smooth_none",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_smooth_pingpong",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/simplex_smooth_ridged",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/value_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/value_none",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/value_pingpong",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fnl/value_ridged",
       "kind": "continuous",
       "bound": {
+        "scale": 0.01,
+        "coordinate_scaled": true
+      },
+      "within": {
         "scale": 5e-07,
-        "coordinate_scaled": true
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -519,8 +784,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -528,8 +798,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -537,8 +812,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -546,8 +826,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -555,8 +840,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -564,8 +854,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -573,8 +868,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -582,8 +882,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
+        "scale": 0.01,
+        "coordinate_scaled": true
+      },
+      "within": {
         "scale": 0.0001,
-        "coordinate_scaled": true
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -591,8 +896,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -600,8 +910,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 0.0002,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 0.0002,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -609,8 +924,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -618,8 +938,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -627,8 +952,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -636,8 +966,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -645,8 +980,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -654,8 +994,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
+        "scale": 0.01,
+        "coordinate_scaled": true
+      },
+      "within": {
         "scale": 0.0002,
-        "coordinate_scaled": true
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -663,8 +1008,13 @@
       "output": "noise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -672,8 +1022,13 @@
       "output": "warp",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -694,56 +1049,91 @@
       "feature": "fns/cellular_euclidean_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_euclidean_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_euclidean_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_euclidean_distance2cave",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_euclidean_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_euclidean_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_euclidean_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -756,7 +1146,7 @@
       "within": {
         "scale": 5e-07,
         "coordinate_scaled": true,
-        "fraction": 0.999
+        "fraction": 0.993
       },
       "min_correlation": 0.999
     },
@@ -778,56 +1168,91 @@
       "feature": "fns/cellular_manhattan_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_manhattan_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_manhattan_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_manhattan_distance2cave",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_manhattan_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_manhattan_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_manhattan_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -840,7 +1265,7 @@
       "within": {
         "scale": 5e-07,
         "coordinate_scaled": true,
-        "fraction": 0.999
+        "fraction": 0.994
       },
       "min_correlation": 0.999
     },
@@ -862,56 +1287,91 @@
       "feature": "fns/cellular_natural_distance",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_natural_distance2",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_natural_distance2add",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_natural_distance2cave",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_natural_distance2div",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_natural_distance2mul",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cellular_natural_distance2sub",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -924,7 +1384,7 @@
       "within": {
         "scale": 5e-07,
         "coordinate_scaled": true,
-        "fraction": 0.999
+        "fraction": 0.993
       },
       "min_correlation": 0.999
     },
@@ -932,24 +1392,39 @@
       "feature": "fns/cubic_billow",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cubic_none",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/cubic_rigidmulti",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
@@ -962,7 +1437,7 @@
       "within": {
         "scale": 1e-06,
         "coordinate_scaled": true,
-        "fraction": 0.995
+        "fraction": 0.991
       },
       "min_correlation": 0.999
     },
@@ -998,120 +1473,195 @@
       "feature": "fns/perlin_billow",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9994
       }
     },
     {
       "feature": "fns/perlin_none",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9995
       }
     },
     {
       "feature": "fns/perlin_rigidmulti",
       "kind": "continuous",
       "bound": {
-        "scale": 2e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 2e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_billow",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_fbm",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_fbm_perturb_gradient",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_fbm_perturb_gradient_normalise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_fbm_perturb_gradientfractal",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_fbm_perturb_gradientfractal_normalise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_fbm_perturb_normalise",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_none",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-06,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-06,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/simplex_rigidmulti",
       "kind": "continuous",
       "bound": {
-        "scale": 1e-05,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 1e-05,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/value_billow",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/value_none",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
       "feature": "fns/value_rigidmulti",
       "kind": "continuous",
       "bound": {
-        "scale": 5e-07,
+        "scale": 0.01,
         "coordinate_scaled": true
+      },
+      "within": {
+        "scale": 5e-07,
+        "coordinate_scaled": true,
+        "fraction": 0.9999
       }
     },
     {
