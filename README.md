@@ -15,7 +15,7 @@ If you searched for Perlin or simplex noise in Python, cellular or Voronoi noise
 - **Terrain, worlds and levels.** Heightmaps, biome masks, caves, scatter: whole numpy grids at once, a 1024 x 1024 field in about 17 ms with numba (numpy alone gives the same numbers, slower).
 - **Game developers who already know FastNoiseLite** from Godot 4, Unity or C++. Same algorithms, same parameters, same seeds, so a tool or a bake in Python agrees with the engine to float32 rounding.
 - **Anyone stuck on `pyfastnoisesimd`.** FastNoiseSIMD's classic Simplex is here as `NoiseType.SIMPLEX_CLASSIC`, with its Billow, RigidMulti and gradient perturb, and its white noise too: seeds for those reproduce, within float32 rounding of the original, on Python 3.11 to 3.13. Its Perlin, value and cellular hash differently, so fields made with those will change.
-- **Technical artists in a DCC host.** It installs with numpy alone, no compiler, and CI tests the numpy 1.26 that Maya 2026 ships.
+- **Technical artists in a DCC host.** It installs with numpy alone, no compiler, into the host's own Python without touching its numpy (`--no-deps`). CI tests each supported host's Python and numpy: 3.11 with numpy 1.26 for Maya 2026, Houdini 21 and Unreal 5.8, and 3.13 with numpy 2.3 for Blender 5.2 ([the DCC hosts](Docs/standards/compatibility-matrix-project.md)).
 - **Textures, generative art and synthetic data.** Seeded and repeatable: the same parameters give the same array, with or without numba.
 
 What it adds over the other options is proof: the numbers are compared against the original C++ libraries, and the two renderings agree bit for bit. If you need 4D, a node editor or raw C++ speed today, see [Limits](#limits).
@@ -91,7 +91,7 @@ So I ported it, with AI, in days to weeks rather than the weeks to months it wou
 
 - 208 comparisons against the originals: 75 bit-identical, the rest within float32 rounding (largest difference 2.0e-4). They are listed in [the comparison table](vectors/portability.md).
 - A difference never quietly passes or fails: it produces a side-by-side image and waits for a person's verdict.
-- The suite runs on Python 3.11 with numpy 1.26, on 3.13, and with numpy alone; the GPU rung on three hosted runners' adapters in CI (WARP on Windows, llvmpipe on Ubuntu, the Apple Paravirtual device on Metal on macOS), each pinned to its back end, against every hog case and its [tolerance file](vectors/tolerance/wgpu.json), with the per-feature numbers in [the GPU table](vectors/portability-gpu.md).
+- The suite runs on Python 3.11 with numpy 1.26, on 3.13 with numpy 2.3 and with the latest, and with numpy alone; the GPU rung on three hosted runners' adapters in CI (WARP on Windows, llvmpipe on Ubuntu, the Apple Paravirtual device on Metal on macOS), each pinned to its back end, against every hog case and its [tolerance file](vectors/tolerance/wgpu.json), with the per-feature numbers in [the GPU table](vectors/portability-gpu.md).
 
 ## Limits
 

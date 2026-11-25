@@ -8,8 +8,8 @@
 **Raised:** [the journal, 2026-11-15](../../journal/2026-11/2026-11-15-HogJonny-AMZN-0551.md)
 
 The owner asked what a numpy 2.5+ port would look like. The constraint first: the package's floor is `numpy>=1.26`
-(`packages/python/hog-noise/pyproject.toml`), CI keeps a leg on it (`tests.yml`, *3.11 + numpy 1.26 (floor)*), and DCC
-hosts such as Maya ship numpy 1.x. So nothing that needs numpy 2 can replace `vectorized.py`; it is a new rung beside
+(`packages/python/hog-noise/pyproject.toml`), CI keeps a leg on it (`tests.yml`, *3.11 + numpy 1.26 (floor: Maya 2026, Houdini 21, Unreal 5.8)*), and DCC
+hosts such as Maya ship numpy 1.x ([the DCC hosts](../../standards/compatibility-matrix-project.md)). So nothing that needs numpy 2 can replace `vectorized.py`; it is a new rung beside
 it, or it waits for a floor bump.
 
 Three options, ranked by what they buy:

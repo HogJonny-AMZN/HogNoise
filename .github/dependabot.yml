@@ -4,6 +4,9 @@ version: 2
 updates:
   - package-ecosystem: "uv"
     directory: "/"
+    # The lock only: never a declared requirement. HogNoise's floors are the oldest DCC host's (Python 3.11, numpy
+    # 1.26), and Dependabot rewrote a declared floor twice (PR #28, #47). Docs/standards/compatibility-matrix-project.md.
+    versioning-strategy: "lockfile-only"
     schedule:
       interval: "weekly"
       day: "monday"

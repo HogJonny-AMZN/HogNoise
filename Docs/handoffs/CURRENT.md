@@ -3,48 +3,26 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-24: **[the fresh-sample bounds' plan](../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md),
-Proposed.** Its first trial disproved the two-tier form the owner first chose (an outer bound from a sample's worst
-failed the far probe's own points at up to 4.5 times), and the owner took the recommended form C2: a continuous rule's
+**Last updated:** 2026-11-25: **the DCC hosts** ([the matrix](../standards/compatibility-matrix-project.md)). The owner:
+HogNoise must import in every supported DCC host on that host's own Python and numpy. The floors stay Maya 2026's
+(Python 3.11, numpy 1.26), which Houdini 21 and Unreal 5.8 share; Blender 5.2 (3.13, numpy 2.3) gets its own CI leg;
+Marmoset Toolbag 4 (Python 3.9, no numpy) is out until Toolbag 5. Dependabot moves the lock only, and
+`test_dcc_host_floors.py` refuses a raised floor or a cap. The import inside each host, through HogShade's BATS, is
+[a row](../plan/board/2026-11-25-hognoise-imported-inside-each-dcc-host.md). The same day,
+**[the fresh-sample bounds' plan](../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md) merged**
+([PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56), `620750a`) and is Accepted, with D3 to D9 as recommended and
+the small loosening of the vectors gate on `grid_y0` taken over a separate all-points check; its build is in flight,
+then the HLSL build. The plan's first trial disproved the two-tier form the owner first chose (an outer bound from a
+sample's worst failed the far probe's own points at up to 4.5 times), and the owner took form C2: a continuous rule's
 tight bound held for the measured fraction of points, at most 0.9999, under the fixed ceiling `LARGEST`, with fresh
 points drawn the probe's way. Its second trial passed the probe, 246 of 246 inside 4,096 units on three adapters.
-Accepting the plan is the owner's; the build follows it, then the HLSL build. Before it, the same day:
+Before it, 2026-11-24:
 **LargeWorlds takes HogNoise from a pinned commit**
 ([LargeWorlds PR #134](https://github.com/HogJonny-AMZN/LargeWorlds/pull/134), its ADR-014), with no PyPI release. Its `hognoise`
 extra is `b008c5f`, its agreement test holds the 78 shared presets bit for bit, and a weekly canary runs that test
 against this `main`. The owner made keeping the two in step the agent's job (*What the owner has said that still holds*). Before it, the same day: [the warp rules](../plan/board/2026-11-21-warp-output-rules-coordinate-scaled.md) landed in [PR #53](https://github.com/HogJonny-AMZN/HogNoise/pull/53) (`7ad23ff`), as option A on the owner's "go": `measure_gpu.derive` takes a warp rule from its coordinate-scaled measurement, as it does a noise rule, and the nine warp rules were derived again from the committed `5340a3f` records (absolute 5e-4 to 5e-3 became coordinate-scaled 5e-5 to 2e-4). Run again with them, [the far-coordinate probe](../../Spikes/far_coordinates/README.md) passes every warp output past 32,768 units on the 5090's Vulkan and D3D12 and on WARP, where none passed before; inside that, a few points in 65,536 remain past, the rare tail [the fresh-sample bounds](../plan/board/2026-11-21-gpu-bounds-from-a-large-fresh-sample.md) are next for, then the HLSL build. Before it, 2026-11-23, late: [the HLSL pull request's plan](../superpowers/plans/2026-11-23-the-emitted-hlsl-on-warp.md) merged ([PR #51](https://github.com/HogJonny-AMZN/HogNoise/pull/51)) and Accepted with its six decisions (B1 to B6) as recommended ("ok accepted"). It was trial-run before it was proposed: every hog case passed on D3D11 and D3D12 on WARP, and the spec's open risk (D3D11 rejecting naga's HLSL at pipeline creation) did not happen. It was written out of the agreed order, because the agent said the HLSL was next, and the owner kept the order: **[the warp rules](../plan/board/2026-11-21-warp-output-rules-coordinate-scaled.md) are next**, then [the fresh-sample bounds](../plan/board/2026-11-21-gpu-bounds-from-a-large-fresh-sample.md), then the HLSL build. Ledger P-24 to P-26 record what that session's checks missed. Before it, the CI proof's first pull request merged, [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49) (`adf4f30`), after Copilot's four findings were fixed (the `glsl` job's wgpu pinned to OpenGL, a buffer-update barrier before the GL read among them): `noise.spv` and the GLSL run in hosts written from the shaders README and pass every hog case within the wgpu tolerance on WARP, llvmpipe and Metal; bit for bit with the rung except on Metal (3.58e-7). Before that, [the CI proof's plan](../superpowers/plans/2026-11-23-emitted-shaders-ci-proof.md) Accepted by the owner with its five decisions as recommended ("I accept your recommendations") and being built, for its first pull request alone (the shared host harness, SPIR-V through naga, GLSL); the HLSL and Vulkan pull requests are rows of their own on *Next*, so the buffer-limit refusal and the engine trials wait on exactly the ones they need. Earlier that day, on the owner's "take them", recorded in [PR #45](https://github.com/HogJonny-AMZN/HogNoise/pull/45): gate G2 closed and [the roadmap](../design/2026-11-01-north-star-roadmap.md) Accepted; the warm-start flake's first step landed (the child's stderr kept); the warp rules, the fresh-sample bounds and the buffer-limit refusal queued on *Next*; PyPI after the CI proof's HLSL pull request and those three. The order: the warp rules, the CI proof's plan and first pull request, the fresh-sample bounds, the HLSL pull request, the buffer limit, then PyPI on the owner's go.
-Before it, 2026-11-22: [the CI proof's spec](../superpowers/specs/2026-11-22-emitted-shaders-ci-proof.md), the
-account's gap 4, Accepted the same day with its five decisions as recommended; the plan is next. Measured first: the shipped SPIR-V reproduces the WGSL bit for bit
-read back through wgpu, and the shipped GLSL runs in moderngl bound by the manifest's names. Ledger P-22 is in the same
-pull request. Then, on the owner's ask, [the MaterialX noise survey](../design/2026-11-22-noise-in-materialx.md), Accepted the
-same day: MaterialX's noise is OSL's Perlin, checked across languages by eye only, and not HogNoise's. The owner took
-option C (MaterialX as a third original library first, its oracle vectors from GLSL and OSL, then a `hognoise:`
-MaterialX library) and a row on HogShade's board.
-Before it, the macOS leg merged 2026-11-21 ([PR #42](https://github.com/HogJonny-AMZN/HogNoise/pull/42), `01480cd`),
-[the macOS leg](../plan/board/2026-11-21-the-wgpu-rung-on-a-macos-runner.md), the
-account's gap 3: GitHub's macOS runner gives wgpu a Metal adapter (a virtual GPU), 365 of 368 hog cases passed, and
-on the owner's choice its record joined the tolerance file (seven adapters at `5340a3f`, five FastNoiseSIMD fields
-looser); its template bug is [ai-first-template issue #265](https://github.com/HogJonny-AMZN/ai-first-template/issues/265).
-Before it, [the far-coordinate probe](../../Spikes/far_coordinates/README.md), the account's gap 1, merged 2026-11-21
-([PR #41](https://github.com/HogJonny-AMZN/HogNoise/pull/41), `2d8bb8f`), on three adapters: the noise rules hold to 1,048,576 units, the warp outputs' absolute rules do not, and the
-bounds miss rare points inside the measured range; two derivation changes are on the Icebox for the owner. Before it,
-the tolerance file re-derived from six GPU adapters at `efb910a`, merged 2026-11-21
-([PR #40](https://github.com/HogJonny-AMZN/HogNoise/pull/40), `f2df5e7`), the account's gap 6
-([its row](../plan/board/2026-11-21-record-the-5090s-d3d12-and-opengl-runs.md)).
-Before it, [the GPU fast track's account](../design/2026-11-20-gpu-fast-track-account.md) (merged 2026-11-20,
-[PR #39](https://github.com/HogJonny-AMZN/HogNoise/pull/39), `efb910a`),
-the hardening row's work, written and Proposed: its claims hold within the measured range, and its seven gaps wait
-on the owner's verdicts. Before it, ai-first-template 0.11.1 taken with HogNoise's own `--update`, its first run of its
-own copy, merged 2026-11-20 ([PR #36](https://github.com/HogJonny-AMZN/HogNoise/pull/36), `8527b17`). Before it, 0.11.0 (`--update`, `--upstream` on git, the no-inline-python
-hook, parallel suites and a uv floor) merged 2026-11-20 ([PR #35](https://github.com/HogJonny-AMZN/HogNoise/pull/35),
-`be723d2`). Before that, stage 3's emitter merged
-2026-11-19 ([PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34), `7dfec85`), after the move of the tools into an app ([PR #33](https://github.com/HogJonny-AMZN/HogNoise/pull/33)); with it the GPU fast track's three stages are done, and the PyPI release's condition (numpy, WGSL, at least HLSL) is met. Before that, the GPU port
-([PR #22](https://github.com/HogJonny-AMZN/HogNoise/pull/22), merged 2026-11-15); ai-first-template 0.10.2
-([PR #23](https://github.com/HogJonny-AMZN/HogNoise/pull/23)) landed first. Before them, 0.9.4 and its workspace layout
-([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18)) and 0.10.1
-([PR #19](https://github.com/HogJonny-AMZN/HogNoise/pull/19)) landed; the GPU port's spec is Accepted
-([PR #20](https://github.com/HogJonny-AMZN/HogNoise/pull/20)), and so is its plan
-([PR #21](https://github.com/HogJonny-AMZN/HogNoise/pull/21)).
+Everything before 2026-11-23 (the CI proof's spec, the MaterialX survey, the macOS leg, the far probe, the account, the
+template updates, stage 3) is in [../journal/](../journal/README.md) and `git log`.
 Published 2026-11-01 at
 [https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.11.1
 (0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1, 0.10.2, 0.11.0 and 0.11.1) with no
@@ -89,6 +67,17 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
   weeks instead of weeks to months, used in LargeWorlds and SpriteJammer, "I'm not a noise researcher" (keep both, 2026-11-01).
   It claims only what the vectors prove.
 - **What lies beyond the edge is not known yet**, and stays an open slot, not a roadmap.
+- **HogNoise imports in every supported DCC host, on that host's Python and numpy** (2026-11-25): *"we will need to be
+  able to have a HogNoise that is importable to the DCC packages that we are going to support, their versions of
+  Python. and their versions of NumPy, etc"*. It supports a range, not the shared table's lock: *"HogNoise is special
+  it's the type of project and packages that supports many languages and should probably support multiple python
+  versions"* (2026-11-24, relayed by HogHydra). Raising the numpy floor to 2.x was tried once and *"wasn't the right
+  direction to head in"*. The hosts: *"maya 2026 is the floor, Blender we can set the floor now, Houdini whatever I have
+  installed, unreal 5.8, max I really don't care about, substance tools haven't started yet but I would generally try to
+  support one significant version back from whatever the latest is ... what's running currently in the HogShade BATS is
+  the current focus and we aren't looking back"*; Unreal through HogHydra (*"it supports USD and MaterialX"*); Toolbag:
+  *"If I have to update to marmoset toolbag 5 I will, not a current high priority to solve for"*.
+  [The DCC hosts](../standards/compatibility-matrix-project.md) hold the rule.
 - **Hog branding** (2026-10-15): repository `HogNoise`, distribution `hog-noise`, import `hog_noise`.
 - **Fresh public history, `src/` layout, the template adopted before publishing** (2026-11-01). The layout is
   now the template's (2026-11-13, "yes we need to adapt to the specified layout"): the library is the member

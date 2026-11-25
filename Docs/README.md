@@ -30,6 +30,7 @@
 | [plan/board/README.md](plan/board/README.md) | how a board row is written |
 | [standards/layout.md](standards/layout.md) | adding an app or a library, or asking where code lives: the workspace members (the library is `packages/python/hog-noise/`) |
 | [standards/compatibility-matrix.md](standards/compatibility-matrix.md) | which coding harnesses the framework supports, and how well |
+| [standards/compatibility-matrix-project.md](standards/compatibility-matrix-project.md) | the DCC hosts HogNoise imports into, on their own Python and numpy: the floors, the CI points, what is supported |
 | [standards/harness-probes.md](standards/harness-probes.md) | the conformance probe each enabled harness must pass |
 | [knowledge/ai-first-framework-graph.md](knowledge/ai-first-framework-graph.md) | the framework's documents and checks, as a graph |
 
