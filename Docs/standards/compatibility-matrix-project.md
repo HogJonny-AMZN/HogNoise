@@ -10,10 +10,16 @@ base.
 owner, 2026-11-25: *"we will need to be able to have a HogNoise that is importable to the DCC packages that we are going
 to support, their versions of Python. and their versions of NumPy, etc"*.
 
-- **The declared requirements are floors, set by the oldest supported host, and never capped:** Python 3.11 and numpy
-  1.26, Maya 2026's. A cap would refuse a newer host's numpy, as Blender 5.2's. A floor moves only when the owner drops
-  the host that sets it. Raising numpy's to 2.x was tried once and was the wrong direction (the owner, 2026-11-25).
-  `packages/python/hog-noise/tests/test_dcc_host_floors.py` fails on a raised floor or a cap, and says why.
+- **The declared requirements admit every supported host's own Python and numpy, and their floors are the oldest
+  host's:** Python 3.11 and numpy 1.26, Maya 2026's. A floor moves only when the owner drops the host that sets it.
+  Raising numpy's to 2.x was tried once and was the wrong direction (the owner, 2026-11-25).
+  - **numpy is never capped or excluded:** a newer host brings a newer numpy (Blender 5.2's 2.3.4), and HogNoise cannot
+    choose it.
+  - **Python's cap, `<3.14`, is the newest Python CI tests,** not a host limit. It rises when CI tests the next Python,
+    which numba's support gates; a host on a newer Python is a reason to raise it.
+  - `packages/python/hog-noise/tests/test_dcc_host_floors.py` checks each host's exact Python and numpy against the
+    whole requirement, not its first clause, and the floors and numpy's openness. It refuses a narrowed requirement by
+    naming what it drops.
 - **The lock is HogNoise's own environment, not a host's.** Dependabot moves `uv.lock` only
   (`versioning-strategy: lockfile-only` in `.github/dependabot.yml`), because it rewrote a declared floor twice before
   ([PR #28](https://github.com/HogJonny-AMZN/HogNoise/pull/28), [PR #47](https://github.com/HogJonny-AMZN/HogNoise/pull/47),
