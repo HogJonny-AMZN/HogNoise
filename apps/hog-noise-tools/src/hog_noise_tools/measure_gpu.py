@@ -415,8 +415,15 @@ def _malformed_numbers(s: object) -> str | None:
         if not _is_number(s.get(key)):
             return f"{key} is {s.get(key)!r}, not a number"
     outside = s.get("outside")
-    if not isinstance(outside, dict) or not all(_is_number(outside.get(k)) for k in CANDIDATE_KEYS):
-        return f"outside is not a number for every candidate bound ({CANDIDATE_KEYS[0]} to {CANDIDATE_KEYS[-1]})"
+    if (
+        not isinstance(outside, dict)
+        or set(outside) != set(CANDIDATE_KEYS)  # an extra key would reach derive's isfinite (review on #58)
+        or not all(_is_number(v) for v in outside.values())
+    ):
+        return (
+            f"outside is not a number for each candidate bound ({CANDIDATE_KEYS[0]} to {CANDIDATE_KEYS[-1]}) "
+            "and nothing else"
+        )
     return None
 
 

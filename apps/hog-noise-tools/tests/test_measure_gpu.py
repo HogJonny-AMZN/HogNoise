@@ -461,6 +461,8 @@ def test_a_well_formed_record_with_fresh_points_reads(tmp_path):
         (lambda s: s.pop("max_abs"), "max_abs"),
         (lambda s: s.update(correlation=True), "correlation"),
         (lambda s: s.update(output="both"), "feature 'fnl/f' and output 'both'"),
+        (lambda s: s["outside"].update(unexpected="oops"), "outside"),
+        (lambda s: s["fresh"]["outside"].update(unexpected="oops"), "fresh: outside"),
     ],
 )
 def test_a_malformed_case_is_a_finding_naming_the_file_and_the_case(tmp_path, mutate, says):
