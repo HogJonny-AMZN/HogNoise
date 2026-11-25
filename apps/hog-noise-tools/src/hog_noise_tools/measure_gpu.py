@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,7 @@ import numpy as np
 
 from hog_noise import compare, conformance
 from hog_noise.conformance import Bound
+from hog_noise.samplers import grid_points
 from hog_noise_tools.repo import REPO_ROOT as ROOT
 
 _MODULE_NAME = "hog_noise_tools.measure_gpu"
@@ -50,6 +52,16 @@ LARGEST = 1e-2
 #: The highest correlation a discrete rule asks for: np.corrcoef of two identical arrays is 1.0 on one run and
 #: 0.9999999999999998 on another (the owner's decision, 2026-11-15). Precision is the rule's `within`.
 MAX_CORRELATION = 0.999
+#: Fresh points a hog case, drawn over the measured range as the far-coordinate probe draws them and rendered by numpy
+#: (the reference, which gives the hog set bit for bit) and by the GPU: 16 times a scatter set, the probe's size, so a
+#: tail rarer than the vectors' 1 in 4,096 shows (the fresh-sample bounds' row).
+FRESH = 65536
+#: A case's fresh points come from (FRESH_SEED, crc32 of its id), so a case added later moves no other case's points.
+FRESH_SEED = 20261124
+#: The most a continuous rule's tight bound may ask for once fresh points are measured: all but 1 point in 10,000.
+#: GPU float32 has rare spikes, a few a million at 3 to 13 times the tight bound, and one sample's worst does not bound
+#: the next sample's (the fresh-sample bounds' trial). It lets none of a scatter case's 4,096 points past, 1 of 16,384.
+MAX_FRACTION = 0.9999
 
 
 class Finding(Exception):
@@ -82,6 +94,15 @@ def floor3(x: float) -> float:
     return float(decimal.Decimal(repr(float(x))).quantize(decimal.Decimal("0.001"), rounding=decimal.ROUND_FLOOR))
 
 
+def floor4(x: float) -> float:
+    """
+    ``x`` rounded down to four places, as `floor3`: a continuous rule's fraction within its tight bound. At three, the
+    rarest tail a fresh sample finds (1 point in 65,536) would give 0.999 and let 4 of a case's 4,096 vectors points
+    past the tight bound; at four it gives 0.9999, which lets none past, as the bound alone did.
+    """
+    return float(decimal.Decimal(repr(float(x))).quantize(decimal.Decimal("0.0001"), rounding=decimal.ROUND_FLOOR))
+
+
 def feature_of(case_id: str) -> str:
     """``<library dir>/<feature>``, the middle of a case id, as the harness names a tolerance rule's feature."""
     return "/".join(case_id.split("/")[1:3])
@@ -100,41 +121,155 @@ def measure(
         it, as the harness checks it.
     :raises Finding: A rendering that wrote a value that is not finite, or an output of the wrong shape.
     """
-    unit = Bound(1.0, coordinate_scaled=True)
     cases: dict[str, dict[str, Any]] = {}
-    for case in vectors.cases:
-        if case.set != "hog":
-            continue
+    for case in _hog(vectors):
         ps = vectors.point_sets[case.point_set]
-        if ps.origin is not None and case.output == "noise":
-            o = ps.origin
-            values = np.asarray(grid(case.params, tuple(o["start"]), tuple(o["shape"]), tuple(o["scales"])))
-            if values.shape != tuple(o["shape"]):  # flattening would hide a grid of the wrong shape
-                raise Finding(f"{case.id}: grid shape {values.shape}, expected {tuple(o['shape'])}")
-            ours = values.ravel(order=str(o.get("order", "C")))
-        else:
-            fn = warp if case.output == "warp" else sample
-            ours = fn(case.params, ps.axes[0], ps.axes[1], ps.axes[2] if ps.dims == 3 else None)
-        ours = np.asarray(ours, np.float32)
-        if ours.shape != case.values.shape:
-            raise Finding(f"{case.id}: shape {ours.shape}, expected {case.values.shape}")
-        bad = int(np.count_nonzero(~np.isfinite(ours)))
-        if bad:  # NaN would make every statistic NaN, and step_up(NaN) the tightest rule there is
-            raise Finding(f"{case.id}: the GPU wrote {bad} values that are not finite")
-        diff = np.abs(ours.astype(np.float64) - case.values.astype(np.float64))
-        if diff.ndim == 2:
-            diff = diff.max(axis=1)  # a warped point is held to one bound over its components, as the harness does
-        normalised = diff / unit.per_point(case.params.frequency, ps.axes)
+        ours = _render(case, ps, (sample, warp, grid), ps.origin)
         cases[case.id] = {
             "feature": feature_of(case.id),
             "output": case.output,
-            "max_abs": float(diff.max()),
-            "max_normalised": float(normalised.max()),
-            "p99_normalised": float(np.quantile(normalised, 0.99)),
-            "correlation": float(compare.compare_values(ours.ravel(), case.values.ravel()).correlation),
-            "outside": {key: float(np.mean(normalised > c)) for key, c in zip(CANDIDATE_KEYS, CANDIDATES, strict=True)},
-            "ref_range": float(case.values.max() - case.values.min()),
+            **_numbers(case.id, ours, case.values, case.params.frequency, ps.axes),
         }
+    return cases
+
+
+def _hog(vectors: conformance.Vectors) -> list[conformance.Case]:
+    return [case for case in vectors.cases if case.set == "hog"]
+
+
+def _render(
+    case: conformance.Case,
+    ps: conformance.PointSet,
+    rendering: tuple[conformance.Sample, conformance.Sample, conformance.Grid],
+    origin: Any = None,
+    axes: tuple[np.ndarray, ...] | None = None,
+) -> np.ndarray:
+    """
+    ``case`` rendered by ``rendering`` (sample, warp, grid): through its grid entry point at ``origin`` when it is a
+    grid case, else at ``axes`` (its point set's own when None), as the harness checks it.
+
+    :raises Finding: A grid of the wrong shape.
+    """
+    sample, warp, grid = rendering
+    if ps.origin is not None and case.output == "noise":
+        o = origin or ps.origin
+        values = np.asarray(grid(case.params, tuple(o["start"]), tuple(o["shape"]), tuple(o["scales"])))
+        if values.shape != tuple(o["shape"]):  # flattening would hide a grid of the wrong shape
+            raise Finding(f"{case.id}: grid shape {values.shape}, expected {tuple(o['shape'])}")
+        return values.ravel(order=str(o.get("order", "C")))
+    axes = ps.axes if axes is None else axes
+    fn = warp if case.output == "warp" else sample
+    return np.asarray(fn(case.params, axes[0], axes[1], axes[2] if ps.dims == 3 else None))
+
+
+def _numbers(
+    case_id: str, ours: np.ndarray, ref: np.ndarray, frequency: float, axes: tuple[np.ndarray, ...]
+) -> dict[str, Any]:
+    """
+    The numbers a rule is derived from, for one rendering's values against the reference's at the points ``axes``.
+
+    :raises Finding: Values of the wrong shape, or a value that is not finite.
+    """
+    ours = np.asarray(ours, np.float32)
+    if ours.shape != ref.shape:
+        raise Finding(f"{case_id}: shape {ours.shape}, expected {ref.shape}")
+    bad = int(np.count_nonzero(~np.isfinite(ours)))
+    if bad:  # NaN would make every statistic NaN, and step_up(NaN) the tightest rule there is
+        raise Finding(f"{case_id}: the GPU wrote {bad} values that are not finite")
+    diff = np.abs(ours.astype(np.float64) - ref.astype(np.float64))
+    if diff.ndim == 2:
+        diff = diff.max(axis=1)  # a warped point is held to one bound over its components, as the harness does
+    normalised = diff / Bound(1.0, coordinate_scaled=True).per_point(frequency, axes)
+    return {
+        "max_abs": float(diff.max()),
+        "max_normalised": float(normalised.max()),
+        "p99_normalised": float(np.quantile(normalised, 0.99)),
+        "correlation": float(compare.compare_values(ours.ravel(), ref.ravel()).correlation),
+        "outside": {key: float(np.mean(normalised > c)) for key, c in zip(CANDIDATE_KEYS, CANDIDATES, strict=True)},
+        "ref_range": float(ref.max() - ref.min()),
+    }
+
+
+def fresh_rng(case_id: str) -> np.random.Generator:
+    """The generator of ``case_id``'s fresh points: its own stream, whatever other cases there are."""
+    return np.random.default_rng([FRESH_SEED, zlib.crc32(case_id.encode("utf-8"))])
+
+
+def fresh_reach(vectors: conformance.Vectors) -> float:
+    """The largest coordinate magnitude of the hog set's scattered points: how far out fresh points are drawn."""
+    sets = {c.point_set for c in _hog(vectors) if vectors.point_sets[c.point_set].origin is None}
+    return max(float(np.max(np.abs(a))) for name in sets for a in vectors.point_sets[name].axes)
+
+
+def fresh_points(dims: int, reach: float, rng: np.random.Generator) -> tuple[np.ndarray, ...]:
+    """
+    `FRESH` points as the far-coordinate probe draws them: the largest coordinate's magnitude uniform in [0, ``reach``),
+    signs mixed, on a random axis, the others smaller. Uniform over the area would put about 1 point in 1,700 within
+    100 units of the origin, where the coordinate-scaled bound is at its floor and tightest; this puts 1 in 40 there.
+    """
+    big = rng.uniform(0.0, reach, FRESH) * rng.choice([-1.0, 1.0], FRESH)
+    axes = [rng.uniform(-1.0, 1.0, FRESH) * np.abs(big) for _ in range(dims)]
+    which = rng.integers(0, dims, FRESH)
+    return tuple(np.where(which == d, big, axes[d]).astype(np.float32) for d in range(dims))
+
+
+def fresh_grids(origin) -> list[tuple[int, ...]]:
+    """
+    The starts of grids of a grid case's shape and scales, beside its own along x, `FRESH` points in all: the same
+    lattice, so a tie the case's grid sits on is sat on again at new places.
+    """
+    start, shape = list(origin["start"]), list(origin["shape"])
+    tiles = max(1, FRESH // math.prod(shape))
+    return [(start[0] + k * shape[0], *start[1:]) for k in range(1, tiles + 1)]
+
+
+def reference() -> tuple[conformance.Sample, conformance.Sample, conformance.Grid]:
+    """numpy's sample, warp and grid entry points: the rendering the hog set was made with."""
+    return (*conformance.renderings("numpy"), conformance.grid_rendering("numpy"))
+
+
+def check_reference(
+    vectors: conformance.Vectors, ref: tuple[conformance.Sample, conformance.Sample, conformance.Grid]
+) -> None:
+    """
+    ``ref`` gives every hog case's committed values bit for bit on the case's own points: the control that fresh points,
+    which have no committed values, are judged against the hog set's reference.
+
+    :raises Finding: A case it does not reproduce.
+    """
+    for case in _hog(vectors):
+        ours = np.asarray(_render(case, vectors.point_sets[case.point_set], ref), np.float32)
+        if not np.array_equal(ours, case.values):
+            raise Finding(f"{case.id}: the reference does not reproduce the hog set bit for bit")
+
+
+def measure_fresh(
+    vectors: conformance.Vectors,
+    ref: tuple[conformance.Sample, conformance.Sample, conformance.Grid],
+    ours: tuple[conformance.Sample, conformance.Sample, conformance.Grid],
+) -> dict[str, dict[str, Any]]:
+    """
+    Per hog case, `measure`'s numbers for ``ours`` against ``ref`` on `FRESH` new points: drawn over the measured range
+    (`fresh_points`) in the case's dimensions, or for a grid case, grids beside its own (`fresh_grids`).
+
+    :raises Finding: A rendering that wrote a value that is not finite, or an output of the wrong shape.
+    """
+    reach = fresh_reach(vectors)
+    cases: dict[str, dict[str, Any]] = {}
+    for case in _hog(vectors):
+        ps = vectors.point_sets[case.point_set]
+        if ps.origin is not None and case.output == "noise":
+            o = ps.origin
+            origins = [{**o, "start": list(start)} for start in fresh_grids(o)]
+            want = np.concatenate([_render(case, ps, ref, origin) for origin in origins])
+            got = np.concatenate([_render(case, ps, ours, origin) for origin in origins])
+            parts = [grid_points(g["start"], g["shape"], g["scales"]) for g in origins]  # the generator's own
+            axes = tuple(np.concatenate(axis) for axis in zip(*parts, strict=True))
+        else:
+            axes = fresh_points(ps.dims, reach, fresh_rng(case.id))
+            want = _render(case, ps, ref, axes=axes)
+            got = _render(case, ps, ours, axes=axes)
+        cases[case.id] = _numbers(case.id, got, np.asarray(want, np.float32), case.params.frequency, axes)
     return cases
 
 
@@ -142,8 +277,14 @@ def derive(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     The rules, from every adapter's record, by the spec's rules and the plan's decisions.
 
-    :raises Finding: A measurement that is not finite, a continuous feature or a warp past `LARGEST`, or a discrete
-        feature flipping more than 1% of points.
+    A tight number comes from the vectors' points, as before. When the records hold fresh points (`measure_fresh`),
+    a continuous rule's bound becomes its ``within``, held to the fraction the fresh points measured and never more than
+    `MAX_FRACTION`, under the ceiling `LARGEST` as its bound: a fixed number, since one sample's worst does not bound
+    the next's. A discrete rule takes how often its tight bound is missed, its correlation and its range from the worse
+    of the two samples.
+
+    :raises Finding: A measurement that is not finite, a continuous feature or a warp past `LARGEST` (on either
+        sample), more than 1% of points past a tight bound, or records of which some have fresh points and some not.
     """
     groups: dict[tuple[str, str], list[dict[str, Any]]] = collections.defaultdict(list)
     outputs: dict[str, set[str]] = collections.defaultdict(set)
@@ -151,42 +292,60 @@ def derive(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for s in rec["cases"].values():
             groups[(s["feature"], s["output"])].append(s)
             outputs[s["feature"]].add(s["output"])
+    with_fresh = sum("fresh" in s for stats in groups.values() for s in stats)
+    if 0 < with_fresh < sum(len(stats) for stats in groups.values()):
+        raise Finding("some cases were measured on fresh points and some not: measure every adapter again")
     rules = []
     for (feature, output), stats in sorted(groups.items()):
-        for s in stats:  # a record written by hand or by an older tool is held to the same standard as `measure`'s
+        fresh = [s["fresh"] for s in stats if "fresh" in s]
+        for s in [*stats, *fresh]:  # a record written by hand or by an older tool is held to `measure`'s standard
             numbers = [s[k] for k in ("max_abs", "max_normalised", "p99_normalised", "correlation", "ref_range")]
             if not all(math.isfinite(v) for v in [*numbers, *s["outside"].values()]):
                 raise Finding(f"{feature} {output}: a measurement that is not finite")
         rule: dict[str, object] = {"feature": feature}
         if len(outputs[feature]) > 1:
             rule["output"] = output
-        if output == "warp":
+        if output != "warp" and any(k in feature for k in DISCRETE):
+            both = [*stats, *fresh]
+            within = step_up(2.0 * max(s["p99_normalised"] for s in stats))
+            if within > LARGEST:
+                raise Finding(f"{feature}: its 99th percentile is itself a flip, more than 1% of points")
+            key = f"{within:.0e}"
+            outside = max(s["outside"][key] for s in both)
+            if outside > 0.01:
+                raise Finding(f"{feature}: {outside:.4f} of points outside {within}, more than 1%")
+            rule.update(
+                kind="discrete",
+                bound={"scale": step_up(max(s["ref_range"] for s in both)), "coordinate_scaled": False},
+                within={"scale": within, "coordinate_scaled": True, "fraction": floor3(1.0 - 2.0 * outside)},
+                min_correlation=min(MAX_CORRELATION, floor3(min(s["correlation"] for s in both))),
+            )
+        else:
             # A warp's output is a coordinate, and its drift is a few float32 steps of the coordinate warped, so it
             # grows with the raw coordinate (Spikes/far_coordinates). Coordinate-scaled, the bound grows with it too;
             # it is scaled by raw * frequency, not raw, so it holds at the frequencies the tolerance file's range names.
             scale = step_up(2.0 * max(s["max_normalised"] for s in stats))
             if scale > LARGEST:
-                raise Finding(f"{feature} warp: {scale} past {LARGEST}")
+                jump = "" if output == "warp" else "; a jump the DISCRETE list does not name"
+                raise Finding(f"{feature}{' warp' if output == 'warp' else ''}: {scale} past {LARGEST}{jump}")
             rule.update(kind="continuous", bound={"scale": scale, "coordinate_scaled": True})
-        elif any(k in feature for k in DISCRETE):
-            within = step_up(2.0 * max(s["p99_normalised"] for s in stats))
-            if within > LARGEST:
-                raise Finding(f"{feature}: its 99th percentile is itself a flip, more than 1% of points")
-            key = f"{within:.0e}"
-            outside = max(s["outside"][key] for s in stats)
-            if outside > 0.01:
-                raise Finding(f"{feature}: {outside:.4f} of points outside {within}, more than 1%")
-            rule.update(
-                kind="discrete",
-                bound={"scale": step_up(max(s["ref_range"] for s in stats)), "coordinate_scaled": False},
-                within={"scale": within, "coordinate_scaled": True, "fraction": floor3(1.0 - 2.0 * outside)},
-                min_correlation=min(MAX_CORRELATION, floor3(min(s["correlation"] for s in stats))),
-            )
-        else:
-            scale = step_up(2.0 * max(s["max_normalised"] for s in stats))
-            if scale > LARGEST:
-                raise Finding(f"{feature}: {scale} past {LARGEST}; a jump the DISCRETE list does not name")
-            rule.update(kind="continuous", bound={"scale": scale, "coordinate_scaled": True})
+            if fresh:
+                worst = max(f["max_normalised"] for f in fresh)
+                if worst > LARGEST:
+                    raise Finding(
+                        f"{feature} {output}: a fresh point at {worst:.3g} a unit, past the ceiling {LARGEST}"
+                    )
+                outside = max(f["outside"][f"{scale:.0e}"] for f in fresh)
+                if outside > 0.01:
+                    raise Finding(f"{feature} {output}: {outside:.4f} of fresh points past {scale}, more than 1%")
+                rule.update(
+                    bound={"scale": LARGEST, "coordinate_scaled": True},
+                    within={
+                        "scale": scale,
+                        "coordinate_scaled": True,
+                        "fraction": min(MAX_FRACTION, floor4(1.0 - 2.0 * outside)),
+                    },
+                )
         rules.append(rule)
     return rules
 
@@ -302,14 +461,21 @@ def run(out: Path) -> Path:
     commit = _commit()
     _LOGGER.info(f"run: measuring the hog set under {VECTORS} at commit {commit}, writing to {out}")
     vectors = conformance.load(VECTORS)
-    sample, warp = conformance.renderings("wgpu")
+    ours = (*conformance.renderings("wgpu"), conformance.grid_rendering("wgpu"))
     info = gpu.adapter_info()
     _LOGGER.info(f"run: GPU adapter {info['device']} ({info['backend_type']}, {info['adapter_type']})")
+    cases = measure(vectors, *ours)
+    ref = reference()
+    check_reference(vectors, ref)
+    _LOGGER.info(f"run: numpy gives the hog set bit for bit; {FRESH} fresh points a case against it")
+    for case_id, numbers in measure_fresh(vectors, ref, ours).items():
+        cases[case_id]["fresh"] = numbers
     data = {
         "adapter": info,
         "host": os.environ.get(HOST_ENV, "").strip() or "local",
         "commit": commit,
-        "cases": measure(vectors, sample, warp, conformance.grid_rendering("wgpu")),
+        "fresh": {"points": FRESH, "seed": FRESH_SEED},
+        "cases": cases,
     }
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"{_slug(label(data))}.json"
@@ -322,10 +488,18 @@ def _tables(records: list[dict[str, Any]], rules: list[dict[str, Any]]) -> tuple
     """``record.md`` (per case and adapter) and ``portability-gpu.md`` (per feature and adapter)."""
     adapters = [label(r) for r in records]
     tight = {r["feature"]: f"{r['within']['scale']:.0e}" for r in rules if r["kind"] == "discrete"}
+    by_output = {(r["feature"], r.get("output")): r for r in rules}
+
+    def tight_of(s: dict[str, Any]) -> str:  # the bound a case's fresh points are counted past: within, else bound
+        rule = by_output.get((s["feature"], s["output"])) or by_output[(s["feature"], None)]
+        return f"{(rule.get('within') or rule['bound'])['scale']:.0e}"
+
+    fresh = any("fresh" in s for r in records for s in r["cases"].values())
     lines = ["# The wgpu rung against the hog set, per feature", "", "Written by `hog-noise-measure-gpu derive`.", "",
              "| Feature | " + " | ".join(adapters) + " |", "| --- |" + " --- |" * len(adapters)]  # fmt: skip
-    per_case = ["# The measurement, per case", "", "| Case | Adapter | Max abs | Max / unit | p99 / unit | Corr |",
-                "| --- | --- | --- | --- | --- | --- |"]  # fmt: skip
+    per_case = ["# The measurement, per case", "", "| Case | Adapter | Max abs | Max / unit | p99 / unit | Corr |"
+                + (" Fresh max / unit | Fresh past tight |" if fresh else ""),
+                "| --- | --- | --- | --- | --- | --- |" + (" --- | --- |" if fresh else "")]  # fmt: skip
     features = sorted({s["feature"] for r in records for s in r["cases"].values()})
     for feature in features:
         cells = []
@@ -333,16 +507,22 @@ def _tables(records: list[dict[str, Any]], rules: list[dict[str, Any]]) -> tuple
             stats = [s for s in r["cases"].values() if s["feature"] == feature]
             worst = max(s["max_normalised"] for s in stats)
             cell = f"{worst:.2e}"
+            if fresh:
+                cell += f", {max(s['fresh']['max_normalised'] for s in stats):.2e} fresh"
             if feature in tight:
                 cell += f", {max(s['outside'][tight[feature]] for s in stats):.4f} flipped"
             cells.append(cell)
         lines.append(f"| {feature} | " + " | ".join(cells) + " |")
     for r, name in zip(records, adapters, strict=True):
         for case_id, s in sorted(r["cases"].items()):
-            per_case.append(
+            row = (
                 f"| {case_id} | {name} | {s['max_abs']:.2e} | {s['max_normalised']:.2e} | {s['p99_normalised']:.2e} "
                 f"| {s['correlation']:.6f} |"
             )
+            if fresh:
+                f = s["fresh"]
+                row += f" {f['max_normalised']:.2e} | {f['outside'][tight_of(s)]:.7f} |"
+            per_case.append(row)
     return "\n".join(per_case) + "\n", "\n".join(lines) + "\n"
 
 
