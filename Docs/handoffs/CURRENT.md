@@ -3,7 +3,13 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-25: **the DCC hosts** ([the matrix](../standards/compatibility-matrix-project.md)). The owner:
+**Last updated:** 2026-11-25: **the fresh-sample bounds, built** ([PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58),
+in review). Tolerance format 2: a continuous rule's tight bound, from the vectors, is held for the fraction measured on
+65,536 fresh points a case (at most 0.9999) under a ceiling of 1e-2 a unit. Seven records at `3e05b2c`; no tight number
+moved; the far probe passes 246 of 246 inside the range on three adapters. Ledger P-28. **Next: the HLSL build**
+([its row](../plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md)), then the buffer limit, then PyPI on the owner's
+go. Before it, the same day, **the DCC hosts** ([the matrix](../standards/compatibility-matrix-project.md),
+[PR #57](https://github.com/HogJonny-AMZN/HogNoise/pull/57), `9f982ac`). The owner:
 HogNoise must import in every supported DCC host on that host's own Python and numpy. The floors stay Maya 2026's
 (Python 3.11, numpy 1.26), which Houdini 21 and Unreal 5.8 share; Blender 5.2 (3.13, numpy 2.3) gets its own CI leg;
 Marmoset Toolbag 4 (Python 3.9, no numpy) is out until Toolbag 5. Dependabot moves the lock only, and
@@ -11,7 +17,7 @@ Marmoset Toolbag 4 (Python 3.9, no numpy) is out until Toolbag 5. Dependabot mov
 [a row](../plan/board/2026-11-25-hognoise-imported-inside-each-dcc-host.md). The same day,
 **[the fresh-sample bounds' plan](../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md) merged**
 ([PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56), `620750a`) and is Accepted, with D3 to D9 as recommended and
-the small loosening of the vectors gate on `grid_y0` taken over a separate all-points check; its build is in flight,
+the small loosening of the vectors gate on `grid_y0` taken over a separate all-points check; its build is in review ([PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58)),
 then the HLSL build. The plan's first trial disproved the two-tier form the owner first chose (an outer bound from a
 sample's worst failed the far probe's own points at up to 4.5 times), and the owner took form C2: a continuous rule's
 tight bound held for the measured fraction of points, at most 0.9999, under the fixed ceiling `LARGEST`, with fresh

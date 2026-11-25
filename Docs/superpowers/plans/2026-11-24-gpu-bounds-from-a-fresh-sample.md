@@ -1102,8 +1102,15 @@ Built 2026-11-25 in [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58),
   three `noiselookup` features to 0.993 or 0.994 (the trial's four adapters: 0.995). The worst continuous fresh point
   2e-4 a unit; the worst of all, 0.0134, a cell flip. The suite 3,163 passed; the GPU suite 26 of 26 on each local
   adapter. The far probe: 246 of 246 inside the range on all three, the control held.
-- **Task 9:** the handoff's lead, the row's State and the journal wait for [PR #57](https://github.com/HogJonny-AMZN/HogNoise/pull/57),
-  which edits all three; this branch is rebased on it once it merges.
+- **Task 9:** the ledger's P-28 with Task 8. The handoff's lead, the row's State and the journal waited for
+  [PR #57](https://github.com/HogJonny-AMZN/HogNoise/pull/57), which edited all three; the branch was rebased on its
+  merge (`9f982ac`), so the commits after `3e05b2c` have new hashes. The records still name `3e05b2c`, the head they
+  were measured at: the rebase brought only #57's documents, CI leg and floor test, and the one later source change
+  (the review's, below) touches how records are read and how a failure is worded, not what `run` measures.
+- **Task 10:** the deliberate review returned *needs work* on one hard finding, a malformed `fresh` block or case
+  reaching `derive` as a raw `KeyError` or `TypeError`. Fixed with eleven tests (nine malformed shapes from the
+  reviewer's probes, a missing header, mismatched headers), with its other code findings; the table and each answer
+  are in the pull request.
 
 ## Decisions
 
