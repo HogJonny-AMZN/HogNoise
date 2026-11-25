@@ -3,25 +3,21 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-25: **the fresh-sample bounds, built** ([PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58),
-in review). Tolerance format 2: a continuous rule's tight bound, from the vectors, is held for the fraction measured on
-65,536 fresh points a case (at most 0.9999) under a ceiling of 1e-2 a unit. Seven records at `3e05b2c`; no tight number
-moved; the far probe passes 246 of 246 inside the range on three adapters. Ledger P-28. **Next: the HLSL build**
-([its row](../plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md)), then the buffer limit, then PyPI on the owner's
-go. Before it, the same day, **the DCC hosts** ([the matrix](../standards/compatibility-matrix-project.md),
-[PR #57](https://github.com/HogJonny-AMZN/HogNoise/pull/57), `9f982ac`). The owner:
-HogNoise must import in every supported DCC host on that host's own Python and numpy. The floors stay Maya 2026's
-(Python 3.11, numpy 1.26), which Houdini 21 and Unreal 5.8 share; Blender 5.2 (3.13, numpy 2.3) gets its own CI leg;
-Marmoset Toolbag 4 (Python 3.9, no numpy) is out until Toolbag 5. Dependabot moves the lock only, and
-`test_dcc_host_floors.py` refuses a raised floor or a cap. The import inside each host, through HogShade's BATS, is
-[a row](../plan/board/2026-11-25-hognoise-imported-inside-each-dcc-host.md). The same day,
-**[the fresh-sample bounds' plan](../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md) merged**
-([PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56), `620750a`) and is Accepted, with D3 to D9 as recommended and
-the small loosening of the vectors gate on `grid_y0` taken over a separate all-points check; its build is in review ([PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58)),
-then the HLSL build. The plan's first trial disproved the two-tier form the owner first chose (an outer bound from a
-sample's worst failed the far probe's own points at up to 4.5 times), and the owner took form C2: a continuous rule's
-tight bound held for the measured fraction of points, at most 0.9999, under the fixed ceiling `LARGEST`, with fresh
-points drawn the probe's way. Its second trial passed the probe, 246 of 246 inside 4,096 units on three adapters.
+**Last updated:** 2026-11-25: **the HLSL runs** ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)). `noise.hlsl`, compiled by FXC `cs_5_0` and DXC
+`cs_6_0`, runs on WARP through D3D11 and D3D12 in a C++ harness written from the shaders README, and passes every hog
+case within `wgpu.json` unmodified, locally and in CI's new `hlsl` job. That meets the PyPI condition's HLSL; the
+release is still the owner's go. **Next: [the buffer limit](../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md)**,
+then PyPI on the owner's go; [the SPIR-V on lavapipe](../plan/board/2026-11-23-the-emitted-spirv-runs-on-lavapipe.md)
+has its plan to write. Before it, the same day: **the fresh-sample bounds landed** ([PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58), `8e77673`). Tolerance
+format 2: a continuous rule's tight bound, from the vectors, is held for the fraction measured on 65,536 fresh points a
+case (at most 0.9999) under a ceiling of 1e-2 a unit; the far probe passes 246 of 246 inside the range on three
+adapters; ledger P-28. Its plan merged in [PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56) (`620750a`), form C2 on the owner's "I'll take your best
+recommendation". And **the DCC hosts** ([the matrix](../standards/compatibility-matrix-project.md),
+[PR #57](https://github.com/HogJonny-AMZN/HogNoise/pull/57), `9f982ac`): HogNoise must import in every supported DCC host on that host's own Python and numpy. The
+floors stay Maya 2026's (Python 3.11, numpy 1.26), which Houdini 21 and Unreal 5.8 share; Blender 5.2 (3.13, numpy
+2.3) has its own CI leg; Marmoset Toolbag 4 (Python 3.9, no numpy) is out until Toolbag 5. Dependabot moves the lock
+only, and `test_dcc_host_floors.py` refuses a raised floor or a cap. The import inside each host, through HogShade's
+BATS, is [a row](../plan/board/2026-11-25-hognoise-imported-inside-each-dcc-host.md).
 Before it, 2026-11-24:
 **LargeWorlds takes HogNoise from a pinned commit**
 ([LargeWorlds PR #134](https://github.com/HogJonny-AMZN/LargeWorlds/pull/134), its ADR-014), with no PyPI release. Its `hognoise`
@@ -62,7 +58,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 | [Noise in MaterialX](../plan/board/2026-11-22-noise-in-materialx.md) (2026-11-22) | [The survey](../design/2026-11-22-noise-in-materialx.md), Accepted 2026-11-22, for the two goals (HogNoise presented to MaterialX; MaterialX's own noise respected through the look-dev chain): option C, MaterialX as a third original library first (3 to 5 d, after the CI proof's first pull request; oracle vectors from its GLSL and from its generated OSL through `testshade`), then a `hognoise:` MaterialX library, as source or as standard-node graphs with MaterialX's hash | The CI proof's first pull request; a row on HogShade's board (a HogShade pull request) |
 | The member's author email ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), merged) | The manifest names the address `project.json` already makes public, because the boundary check's `no-authors` requires an email | The owner, to keep or change it |
 | The north-star roadmap (gate G2) | Accepted 2026-11-23, G2 closed, its decisions as recommended | Nothing |
-| PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL. With [PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34) the HLSL (and GLSL) ships and compiles, so that condition is met as far as compiling goes; no host has run the HLSL against the vectors | The CI proof's HLSL pull request, the warp rules, the fresh-sample bounds and the buffer-limit refusal (2026-11-23); then the owner's go and PyPI credentials |
+| PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL. The HLSL condition is met: it runs against the vectors on WARP through D3D11 and D3D12 ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)) | The buffer-limit refusal; then the owner's go and PyPI credentials |
 
 ## What the owner has said that still holds
 
