@@ -34,8 +34,13 @@ _LOGGER = _logging.getLogger(_MODULE_NAME)
 REQUIRE_ENV = "HOG_NOISE_REQUIRE_HOST"
 #: Part of what the host must run on, its ``target`` line, ignoring case; unset, the target is logged and not asserted.
 TARGET_ENV = "HOG_NOISE_HOST_TARGET"
-#: The hosts, by name, and the module that opens each (the spec's hosts table).
-HOSTS = {"glsl": "hog_noise_tools.hosts.glsl", "spirv-naga": "hog_noise_tools.hosts.spirv_naga"}
+#: The hosts, by name, and what opens each (the spec's hosts table): a module's ``open_host``, or ``module:function``.
+HOSTS = {
+    "glsl": "hog_noise_tools.hosts.glsl",
+    "hlsl-d3d11": "hog_noise_tools.hosts.hlsl:open_d3d11",
+    "hlsl-d3d12": "hog_noise_tools.hosts.hlsl:open_d3d12",
+    "spirv-naga": "hog_noise_tools.hosts.spirv_naga",
+}
 #: The README's *The entry points*.
 WORKGROUP = 64
 MAX_GROUPS = 65535
@@ -131,7 +136,8 @@ def check_target(host: str, found: str, expected: str | None) -> None:
 @functools.cache
 def _open(name: str) -> Host:
     """The host ``name``, opened once per process: a device or context is costly, and one per process is enough."""
-    return importlib.import_module(HOSTS[name]).open_host()
+    module, _, function = HOSTS[name].partition(":")
+    return getattr(importlib.import_module(module), function or "open_host")()
 
 
 def open_host(name: str, target: str | None = None) -> Host:
