@@ -18,12 +18,27 @@ from hog_noise.gpu import pack_grid, pack_params
 from hog_noise_tools import compile_shaders
 from hog_noise_tools.hosts import HostUnavailable, hlsl, verified_tables
 
-#: The opening of a stand-in harness: it answers the init frame as a harness with a device does, then the test's lines.
+#: The opening of a stand-in harness: it reads the init frame and answers it as a harness with a device does, then the
+#: test's lines. ``request()`` reads one whole request frame, so a stand-in that then exits cannot break the pipe while
+#: Python is still writing it: that is the "is gone" path, and a test naming another path failed on Linux by its timing.
 _ANSWERS_INIT = (
     "import struct, sys, time\n"
     "def reply(status, body):\n"
     "    sys.stdout.buffer.write(struct.pack('<II', status, len(body)) + body)\n"
     "    sys.stdout.buffer.flush()\n"
+    "def u32():\n"
+    "    return struct.unpack('<I', sys.stdin.buffer.read(4))[0]\n"
+    "def blob():\n"
+    "    return sys.stdin.buffer.read(u32())\n"
+    "def request():\n"
+    "    sys.stdin.buffer.read(20)\n"
+    "    blob(), blob()\n"
+    "    for _ in range(u32()):\n"
+    "        blob()\n"
+    "sys.stdin.buffer.read(4)\n"
+    "blob()\n"
+    "for _ in range(u32()):\n"
+    "    blob(), blob()\n"
     "reply(0, b'stand-in')\n"
 )
 
@@ -157,21 +172,19 @@ def test_a_harness_that_never_replies_fails_within_the_timeout(monkeypatch, tmp_
 
 def test_a_harness_that_crashes_mid_dispatch_reports_its_exit_code_and_stderr(tmp_path):
     """The evidence a crash leaves: its exit code and what it wrote to standard error, read after it is reaped."""
-    host = _stand_in(tmp_path, "sys.stdin.buffer.read(4)\nsys.stderr.write('access violation at 0x0')\nsys.exit(3)\n")
+    host = _stand_in(tmp_path, "request()\nsys.stderr.write('access violation at 0x0')\nsys.exit(3)\n")
     with pytest.raises(RuntimeError, match=r"\(exit 3\) access violation at 0x0"):
         _dispatch(host)
 
 
 def test_a_truncated_reply_is_an_error_naming_how_the_harness_ended(tmp_path):
-    host = _stand_in(
-        tmp_path, "sys.stdin.buffer.read(4)\nsys.stdout.buffer.write(struct.pack('<II', 0, 16) + b'abcd')\n"
-    )
+    host = _stand_in(tmp_path, "request()\nsys.stdout.buffer.write(struct.pack('<II', 0, 16) + b'abcd')\n")
     with pytest.raises(RuntimeError, match=r"the harness stopped \(exit 0\)"):
         _dispatch(host)
 
 
 def test_a_reply_of_the_wrong_length_is_an_error_not_a_short_array(tmp_path):
-    host = _stand_in(tmp_path, "sys.stdin.buffer.read(4)\nreply(0, b'\\0' * 8)\nsys.stdin.buffer.read()\n")
+    host = _stand_in(tmp_path, "request()\nreply(0, b'\\0' * 8)\nsys.stdin.buffer.read()\n")
     with pytest.raises(RuntimeError, match="sent 8 bytes for 4 points x 1 floats"):
         _dispatch(host)
     host.close()
@@ -182,7 +195,7 @@ def test_a_harness_writing_much_to_stderr_does_not_block(tmp_path, monkeypatch):
     monkeypatch.setattr(hlsl, "TIMEOUT", 20)
     host = _stand_in(
         tmp_path,
-        "sys.stdin.buffer.read(4)\nsys.stderr.write('x' * 1_000_000)\nsys.stderr.flush()\n"
+        "request()\nsys.stderr.write('x' * 1_000_000)\nsys.stderr.flush()\n"
         "reply(0, b'\\0' * 16)\nsys.stdin.buffer.read()\n",
     )
     started = time.monotonic()
@@ -228,7 +241,7 @@ class _InFlightTimer:
 
 
 def test_a_timeout_in_flight_ends_with_its_exchange_not_during_the_next(tmp_path, monkeypatch):
-    host = _stand_in(tmp_path, "sys.stdin.buffer.read(4)\nreply(0, b'\\0' * 16)\nsys.stdin.buffer.read()\n")
+    host = _stand_in(tmp_path, "request()\nreply(0, b'\\0' * 16)\nsys.stdin.buffer.read()\n")
     monkeypatch.setattr(hlsl.threading, "Timer", _InFlightTimer)
     with pytest.raises(RuntimeError, match="did not reply within"):
         _dispatch(host)
