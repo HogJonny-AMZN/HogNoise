@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from hog_noise import NoiseParams, shaders
-from hog_noise.gpu import pack_params
+from hog_noise.gpu import pack_grid, pack_params
 from hog_noise_tools import compile_shaders
 from hog_noise_tools.hosts import HostUnavailable, hlsl, verified_tables
 
@@ -208,6 +208,33 @@ def test_a_harness_that_ignores_its_input_closing_is_ended(tmp_path, monkeypatch
     assert host.process.returncode is not None
 
 
+class _InFlightTimer:
+    """
+    A watchdog whose callback has already started when the exchange cancels it: `cancel` cannot stop it, and it
+    finishes only when joined. Without the join, the exchange returns success and the callback kills the harness later.
+    """
+
+    def __init__(self, interval, function):
+        self.function = function
+
+    def start(self):
+        pass
+
+    def cancel(self):
+        pass
+
+    def join(self):
+        self.function()
+
+
+def test_a_timeout_in_flight_ends_with_its_exchange_not_during_the_next(tmp_path, monkeypatch):
+    host = _stand_in(tmp_path, "sys.stdin.buffer.read(4)\nreply(0, b'\\0' * 16)\nsys.stdin.buffer.read()\n")
+    monkeypatch.setattr(hlsl.threading, "Timer", _InFlightTimer)
+    with pytest.raises(RuntimeError, match="did not reply within"):
+        _dispatch(host)
+    assert host.process.returncode is not None
+
+
 def test_a_compiler_that_exits_0_and_writes_nothing_is_an_error(monkeypatch):
     monkeypatch.setattr(compile_shaders, "find", lambda name: "fxc")
     monkeypatch.setattr(hlsl.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""))
@@ -251,6 +278,14 @@ def test_the_harness_refuses_an_init_frame_without_five_programs(built):
     assert message == b"the init frame has 0 programs, not 5"
 
 
+def test_the_harness_refuses_an_init_frame_naming_an_entry_point_the_readme_does_not(built):
+    names = [*shaders.ENTRY_POINTS[:4], "sample_points_4d"]
+    programs = b"".join(_blob(name.encode()) + _blob(b"") for name in names)
+    status, message, _ = _raw(b"HNH1" + _blob(b"") + struct.pack("<I", 5) + programs)
+    assert status == 1
+    assert message == b'the init frame names "sample_points_4d", not one of the README\'s entry points'
+
+
 def test_the_harness_refuses_a_blob_past_its_limit_before_allocating_it(built):
     status, message, _ = _raw(b"HNH1" + struct.pack("<I", 0xFFFFFFF0))
     assert status == 1
@@ -272,6 +307,28 @@ def test_the_harness_refuses_an_axis_shorter_than_its_points(d3d12):
     params = pack_params(NoiseParams())
     with pytest.raises(RuntimeError, match="axis 0 holds 4 bytes, not 16 for 4 points"):
         d3d12.run("sample_points_2d", params, [np.zeros(1, np.float32)] * 2, 4, 1, None)
+    assert _dispatch(d3d12).shape == (4,)  # a refused request leaves the harness reading on
+
+
+_XS = np.zeros(4, np.float32)
+_GRID = pack_grid((0, 0, 0), (4, 1, 1), (1.0, 1.0, 1.0))
+
+
+@pytest.mark.parametrize(
+    ("entry", "axes", "width", "grid", "refusal"),
+    [
+        # each would return status 0 with output that looks valid: part unwritten, or read from zero coordinates
+        ("warp_points_3d", [_XS] * 3, 1, None, "warp_points_3d writes 3 floats per point, not 1"),
+        ("sample_points_3d", [], 1, None, "sample_points_3d reads 3 axes, not 0"),
+        ("sample_points_2d", [_XS] * 3, 1, None, "sample_points_2d reads 2 axes, not 3"),
+        ("sample_grid", [], 1, None, "sample_grid reads a 48-byte Grid, and the request sent 0 bytes"),
+        ("sample_points_2d", [_XS] * 2, 1, _GRID, "sample_points_2d reads no Grid, and the request sent 48 bytes"),
+    ],
+    ids=["width", "no-axes", "extra-axis", "no-grid", "extra-grid"],
+)
+def test_the_harness_refuses_a_request_its_entry_point_does_not_take(d3d12, entry, axes, width, grid, refusal):
+    with pytest.raises(RuntimeError, match=refusal):
+        d3d12.run(entry, pack_params(NoiseParams()), axes, 4, width, grid)
     assert _dispatch(d3d12).shape == (4,)  # a refused request leaves the harness reading on
 
 

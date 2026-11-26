@@ -197,7 +197,10 @@ class Hlsl:
             status, length = struct.unpack("<II", self._read(8))
             reply = self._read(length)
         finally:
+            # cancel cannot stop a callback already running: join it, so a timeout in flight ends with this exchange
+            # and never kills the harness during the next one
             watchdog.cancel()
+            watchdog.join()
         if self._expired:  # the watchdog fired as the reply arrived: the harness is ended, so say so now
             raise self._stopped("replied")
         return status, reply

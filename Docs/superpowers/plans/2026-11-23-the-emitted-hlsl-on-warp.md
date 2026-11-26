@@ -1422,11 +1422,11 @@ git commit -s -F msg.txt   # "CI proof (b), task 7: the row lands; the handoff, 
 
 ### Task 8: review, then out of draft
 
-- [ ] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
-- [ ] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
-- [ ] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
+- [x] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
+- [x] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
+- [x] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
   *Verified* (each mutation's result, the target lines, the CI runs), *Not covered* (lavapipe; hardware; speed).
-- [ ] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
+- [x] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
   skill). The owner merges.
 
 ## Built
@@ -1447,6 +1447,8 @@ extracted from this plan's two blocks by a script, so they are the trial's text.
 | 5 | `755e57d` | CI on the draft | every check green; the `hlsl` job (1 min 42 s) on `Microsoft Basic Render Driver (D3D11)` and `(D3D12)`, every HLSL test PASSED by name; `tests.yml`'s WARP leg skips both, `not built` |
 | 5, step 4 | `08daa54`, reverted in `dd1ad3d` | the job told `not-warp` | failed: `HostTargetError` on both hosts, 14 errors (run 45635619522) |
 | 6 | `1772b6e` | `make check` | 9 of 9 |
+| 8, review | `6872822` | `-k hlsl`, both hosts required; each fix undone once | 37 passed, 2 skipped; 6 of 6 undone caught; `make check` 9 of 9 |
+| 8, Copilot | "Copilot on #59" | `-k hlsl`, both hosts required; the 7 new tests against the code before the fixes | 7 failed before, 44 passed and 2 skipped after; `make check` 9 of 9, 3,208 passed |
 
 **Departures:**
 
@@ -1461,6 +1463,8 @@ extracted from this plan's two blocks by a script, so they are the trial's text.
 - **The deliberate review's error-handling findings changed the code past this plan's text** (Task 8): the harness
   refuses malformed frames and requests, the module reports a crashed harness's exit code and standard error, and each
   path has a test; [PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)'s *Review* lists them.
+- **Copilot's review took the harness's checks further:** each request's width, axes and `Grid` are checked against
+  its entry point, as the README's bindings table gives them, and the watchdog is joined after it is cancelled.
 
 ## Decisions
 
