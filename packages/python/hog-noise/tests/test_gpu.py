@@ -273,3 +273,73 @@ def test_a_dispatch_past_65535_workgroups_reaches_its_last_points(judged):
     allowed = Bound(**rule["bound"]).per_point(params.frequency, tail)
     diff = np.abs(ours.astype(np.float64) - numpy.astype(np.float64))
     assert rule["rule"] == "continuous" and np.all(diff <= allowed), diff.max()
+
+
+def test_the_limit_is_the_devices_own(device):
+    """The smaller of the two limits a call's buffers meet: one storage binding, and one buffer."""
+    limits = device.limits
+    expected = min(limits["max-storage-buffer-binding-size"], limits["max-buffer-size"])
+    assert gpu._Gpu.get().binding_limit == expected
+
+
+#: WebGPU's default binding limit, 128 MiB, put in place of the device's own (2 GiB on the adapters measured): the
+#: refusal is the same code at any limit, and a call past this one needs no memory to build.
+SMALL_LIMIT = 134_217_728
+
+
+class Uploaded(Exception):
+    """A call reached its first upload: the limit's check let it through."""
+
+
+@pytest.fixture
+def small(device, monkeypatch):
+    """
+    A sampler on the process's `gpu._Gpu`, its limit lowered to `SMALL_LIMIT`. The sampler is made first, since making
+    it uploads its own `Params`; then every upload, storage and uniform, is stopped: a call that reaches one has been
+    let through the check, and nothing is computed either way.
+    """
+    gpu_ = gpu._Gpu.get()
+    monkeypatch.setattr(gpu_, "binding_limit", SMALL_LIMIT)
+    sampler = gpu.GpuSampler(NoiseParams(frequency=0.01))
+
+    def stop(data):
+        raise Uploaded
+
+    monkeypatch.setattr(gpu_, "storage", stop)
+    monkeypatch.setattr(gpu_, "uniform", stop)
+    return sampler
+
+
+def _lazy(n):
+    """``n`` float32 zeros that take no memory: a call past the limit is refused before it reads them."""
+    return np.broadcast_to(np.float32(0), (n,))
+
+
+CALLS = {
+    "sample_points": (1, lambda s, a: s.sample_points(a, a, a, _lazy(len(a)))),
+    "sample_points_2d": (1, lambda s, a: s.sample_points_2d(a, a, _lazy(len(a)))),
+    "sample_grid": (1, lambda s, a: s.sample_grid((0, 0, 0), (len(a), 1, 1))),
+    "warp_points": (3, lambda s, a: s.warp_points(a, a, a)),
+    "warp_points_2d": (2, lambda s, a: s.warp_points_2d(a, a)),
+}
+
+
+@pytest.mark.parametrize("name", list(CALLS))
+def test_a_call_past_the_devices_limit_is_refused_before_any_upload(small, name):
+    """
+    Past the limit wgpu refuses too, but in its own terms (a buffer size, a binding number) that differ by backend,
+    and only after the axes are uploaded. The refusal names the call, the most points it takes and the adapter, and
+    comes before any upload: an axis's, and `sample_grid`'s `Grid`.
+    """
+    width, call = CALLS[name]
+    most = SMALL_LIMIT // (4 * width)
+    with pytest.raises(ValueError, match=f"past the {most:,} one call can take on .+ split the call"):
+        call(small, _lazy(most + 1))
+
+
+@pytest.mark.parametrize("name", ["sample_points_2d", "sample_grid", "warp_points"])
+def test_a_call_at_the_devices_limit_is_let_through(small, name):
+    """Not one point early: a call writing exactly the limit's bytes passes the check and reaches its upload."""
+    width, call = CALLS[name]
+    with pytest.raises(Uploaded):
+        call(small, _lazy(SMALL_LIMIT // (4 * width)))
