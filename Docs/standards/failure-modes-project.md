@@ -370,6 +370,20 @@ varied 56 times between samples, bound nothing. The trial caught it before anyth
 the rate-based form ([PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56)). Mechanised for the GPU rules: the far
 probe, with its own seed and points, is the acceptance check of every re-derivation (the plan's Task 7).
 
+### P-29 · Where code ran, written from the machine it ran on, not from what it opened
+
+**Trigger:** a document is about to say which hardware, adapter or back end a file, host or test has run on.
+**Do:** read it from what the code opens (the adapter it enumerates, the back end it pins) and from a log line that names
+the target, not from the machine the work was done on. A host on a machine with a hardware GPU may still run on a software
+adapter, and the sentence should name the one in the log.
+**Because:** [the HLSL plan](../superpowers/plans/2026-11-23-the-emitted-hlsl-on-warp.md)'s Task 6 had the shaders README
+say the emitted files had run on hardware outside CI, "where only the RTX 5090 they were written on has run them". The
+HLSL harness opens `EnumWarpAdapter` alone, so the HLSL had only ever run on WARP, on that machine as in CI. The plan's
+trial and its review, and the build, carried the sentence; the deliberate review on
+[PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59) read it against `hlsl_host.cpp` and caught it before the
+merge. Not mechanised: a sentence about where code ran is a reading. The hosts' target lines (`HOG_NOISE_HOST_TARGET`)
+are the evidence to quote.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

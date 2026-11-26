@@ -65,6 +65,13 @@ wrote, so a naga rename shows in the manifest's diff before it reaches a host.
 | 5 | `OUT` | the output, `f32`, read-write | `u5` | `_group_0_binding_5_cs` | 0, 5 | every one |
 | 6 | `G` | `Grid` uniform (`gpu.pack_grid`) | `b6` | `_group_0_binding_6_cs` | 0, 6 | `sample_grid` |
 
+**HLSL binds by register,** in space 0, as the table says. The tables and coordinates are `ByteAddressBuffer`s and the
+output a `RWByteAddressBuffer`, so their views are raw (`R32_TYPELESS`). The output's size bounds the dispatch: each
+invocation compares its point index with `GetDimensions` on `OUT` and returns past the end, so `OUT`'s view covers
+exactly the output, `n` points times the entry point's floats per point. On D3D12 that means a descriptor table for
+`u5`, not a root descriptor, which is a bare address with no size. A D3D12 constant buffer view is a multiple of 256
+bytes, so `Params` (112 bytes) and `Grid` (48) are padded with zeros.
+
 **GLSL binds by name.** naga writes no `binding =` qualifier, so a GLSL host binds each block by its name, and the
 names differ per entry point: the variable is the one member of a block naga names, such as
 `layout(std140) uniform Params_block_0Compute { Params _group_0_binding_0_cs; };`, and an entry point that does not read
@@ -93,7 +100,7 @@ from `tables.f32`.
 ## What is proven, and what is not
 
 Proven on every push: each file is what the pinned naga writes from the current `noise.wgsl`, and each compiles or
-validates in its own language's tools. Two of them also run, each in a host written from this page alone
+validates in its own language's tools. All three also run, each in a host written from this page alone
 (`hog_noise_tools.hosts` in `apps/hog-noise-tools`), and pass every hog case of the
 [reference vectors](https://github.com/HogJonny-AMZN/HogNoise/tree/main/vectors) within the wgpu rung's tolerance,
 `vectors/tolerance/wgpu.json`, unmodified:
@@ -102,9 +109,10 @@ validates in its own language's tools. Two of them also run, each in a host writ
 | --- | --- | --- |
 | `noise.spv` | wgpu's SPIR-V front end: naga reads the file back, so no driver consumes it | WARP (D3D12), llvmpipe (Vulkan, and OpenGL beside the GLSL), Apple's paravirtual GPU (Metal) |
 | `noise.<entry_point>.comp` | moderngl, OpenGL 4.3 | Mesa llvmpipe through EGL |
+| `noise.hlsl` | FXC `cs_5_0` on D3D11, and DXC `cs_6_0` on D3D12, in a C++ harness | WARP |
 
 On D3D12, Vulkan and OpenGL, `noise.spv` through naga gives the wgpu rung's output bit for bit. On Metal it does not:
 `sample_points_3d` differs by up to 3.58e-7 (2026-11-23), within the tolerance.
 
-Not yet run: `noise.hlsl` (D3D11 and D3D12 on WARP), and `noise.spv` read by a Vulkan driver (lavapipe), each its own
-pull request.
+Not yet run: `noise.spv` read by a Vulkan driver (lavapipe), its own pull request. Nor is any of them proven on a
+hardware GPU: the HLSL harness opens WARP alone, and the hosts' claims rest on CI's software adapters.

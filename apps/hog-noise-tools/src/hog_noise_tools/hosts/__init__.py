@@ -5,7 +5,8 @@ Package: hog_noise_tools.hosts
 
 A host is written from ``hog_noise/shaders/README.md`` alone, never from ``hog_noise.gpu``'s ``_Gpu``, so a wrong
 sentence in the README fails the proof (the CI proof's spec, *What gets built*). The constants below are the README's,
-restated; ``test_shared`` holds them to the manifest. Each host module has ``open_host()``, which raises
+restated; ``test_shared`` holds them to the manifest. Each host is opened by its module's ``open_host()``, or by the
+function a ``HOSTS`` entry names after a colon (``module:function``, for two hosts in one module); it raises
 `HostUnavailable` naming what is missing, and a host object with ``name``, ``target`` and ``run``.
 """
 
@@ -27,15 +28,20 @@ from hog_noise.gpu import MAX_OCTAVES, pack_grid, pack_params
 
 _MODULE_NAME = "hog_noise_tools.hosts"
 __version__ = "0.1.0"
-__updated__ = "2026-11-23"
+__updated__ = "2026-11-25"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: A comma-separated list of hosts whose absence fails the tests instead of skipping them (CI's host legs).
 REQUIRE_ENV = "HOG_NOISE_REQUIRE_HOST"
 #: Part of what the host must run on, its ``target`` line, ignoring case; unset, the target is logged and not asserted.
 TARGET_ENV = "HOG_NOISE_HOST_TARGET"
-#: The hosts, by name, and the module that opens each (the spec's hosts table).
-HOSTS = {"glsl": "hog_noise_tools.hosts.glsl", "spirv-naga": "hog_noise_tools.hosts.spirv_naga"}
+#: The hosts, by name, and what opens each (the spec's hosts table): a module's ``open_host``, or ``module:function``.
+HOSTS = {
+    "glsl": "hog_noise_tools.hosts.glsl",
+    "hlsl-d3d11": "hog_noise_tools.hosts.hlsl:open_d3d11",
+    "hlsl-d3d12": "hog_noise_tools.hosts.hlsl:open_d3d12",
+    "spirv-naga": "hog_noise_tools.hosts.spirv_naga",
+}
 #: The README's *The entry points*.
 WORKGROUP = 64
 MAX_GROUPS = 65535
@@ -131,7 +137,8 @@ def check_target(host: str, found: str, expected: str | None) -> None:
 @functools.cache
 def _open(name: str) -> Host:
     """The host ``name``, opened once per process: a device or context is costly, and one per process is enough."""
-    return importlib.import_module(HOSTS[name]).open_host()
+    module, _, function = HOSTS[name].partition(":")
+    return getattr(importlib.import_module(module), function or "open_host")()
 
 
 def open_host(name: str, target: str | None = None) -> Host:

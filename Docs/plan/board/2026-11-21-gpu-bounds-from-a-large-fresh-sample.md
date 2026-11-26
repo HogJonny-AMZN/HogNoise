@@ -1,8 +1,8 @@
 # GPU bounds derived from a large fresh sample, not only the vectors' points
 
-**Section:** next
+**Section:** now
 **Owner:** @HogJonny-AMZN
-**State:** In review 2026-11-25 in [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58): [its plan](../../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md) Accepted (merged in [PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56), `620750a`), built; form C2 on the owner's "I'll take your best recommendation" (a continuous rule's tight bound met by a measured fraction of points, at most 0.9999 and 0.9993 at the lowest in the trial, under a fixed ceiling), trial-run twice; next in the agreed order, before the HLSL build and PyPI
+**State:** Landed 2026-11-25 in [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58), merged as `8e77673`: [its plan](../../superpowers/plans/2026-11-24-gpu-bounds-from-a-fresh-sample.md) Accepted (merged in [PR #56](https://github.com/HogJonny-AMZN/HogNoise/pull/56), `620750a`), built; form C2 on the owner's "I'll take your best recommendation" (a continuous rule's tight bound met by a measured fraction of points, at most 0.9999 and 0.9993 at the lowest in the trial, under a fixed ceiling), trial-run twice; the far probe, the acceptance check, passed 246 of 246 probes inside 4,096 units on three adapters
 **Cost:** 2 d (the plan's ten tasks: `run` draws 65,536 fresh points a case, `derive` reads both samples, tolerance format 2, every adapter measured again, the far probe as acceptance)
 **Verdict:** Needed before the bounds are quoted as holding anywhere in the range; it measures the real tail, which is the owner's decision, not a rule loosened to pass. Taken by the owner's "take them" (2026-11-23)
 **Raised:** [the far-coordinate probe](../../../Spikes/far_coordinates/README.md), 2026-11-21

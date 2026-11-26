@@ -131,7 +131,7 @@ how D3D12 binds `u5`.
 - Modify: `packages/python/hog-noise/src/hog_noise/shaders/README.md`
 - Modify: `.gitignore`
 
-- [ ] **Step 1: the HLSL paragraph.** In `packages/python/hog-noise/src/hog_noise/shaders/README.md`, replace:
+- [x] **Step 1: the HLSL paragraph.** In `packages/python/hog-noise/src/hog_noise/shaders/README.md`, replace:
 
 ```markdown
 **GLSL binds by name.** naga writes no `binding =` qualifier, so a GLSL host binds each block by its name, and the
@@ -150,7 +150,7 @@ bytes, so `Params` (112 bytes) and `Grid` (48) are padded with zeros.
 **GLSL binds by name.** naga writes no `binding =` qualifier, so a GLSL host binds each block by its name, and the
 ```
 
-- [ ] **Step 2: ignore the harness's build.** In `.gitignore`, replace:
+- [x] **Step 2: ignore the harness's build.** In `.gitignore`, replace:
 
 ```text
 apps/hog-noise-tools/noise_oracle/*.obj
@@ -164,7 +164,7 @@ apps/hog-noise-tools/hosts/hlsl/*.exe
 apps/hog-noise-tools/hosts/hlsl/*.obj
 ```
 
-- [ ] **Step 3: check and commit.**
+- [x] **Step 3: check and commit.**
 
 Run: `uv run python tools/check_docs.py`
 Expected: `docs check: ... no drift`.
@@ -186,7 +186,7 @@ seconds, not one that hangs. The acceptance tests are (a)'s `test_hosts.py`, unc
 - Create: `apps/hog-noise-tools/tests/hosts/test_hlsl.py`
 - Modify: `apps/hog-noise-tools/tests/hosts/test_shared.py`
 
-- [ ] **Step 1: the tests.** Create `apps/hog-noise-tools/tests/hosts/test_hlsl.py`:
+- [x] **Step 1: the tests.** Create `apps/hog-noise-tools/tests/hosts/test_hlsl.py`:
 
 ```python
 """
@@ -321,7 +321,7 @@ def test_a_harness_that_never_replies_fails_within_the_timeout(monkeypatch, tmp_
     assert time.monotonic() - started < 20
 ```
 
-- [ ] **Step 2: four known hosts.** In `apps/hog-noise-tools/tests/hosts/test_shared.py`, replace:
+- [x] **Step 2: four known hosts.** In `apps/hog-noise-tools/tests/hosts/test_shared.py`, replace:
 
 ```python
     with pytest.raises(ValueError, match="glsl, spirv-naga"):
@@ -333,7 +333,7 @@ with:
     with pytest.raises(ValueError, match="glsl, hlsl-d3d11, hlsl-d3d12, spirv-naga"):
 ```
 
-- [ ] **Step 3: run them, and see them fail.**
+- [x] **Step 3: run them, and see them fail.**
 
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_hlsl.py -n 0 -q`
 Expected: **an error** collecting it, `ImportError: cannot import name 'hlsl' from 'hog_noise_tools.hosts'`. Run the two
@@ -343,7 +343,7 @@ Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_shared.py -n 0 -q`
 Expected: `test_an_unknown_host_is_refused_naming_the_known_ones` **fails**, the message still naming two hosts; the
 rest pass.
 
-- [ ] **Step 4: commit.**
+- [x] **Step 4: commit.**
 
 ```bash
 git add apps/hog-noise-tools/tests/hosts/test_hlsl.py apps/hog-noise-tools/tests/hosts/test_shared.py
@@ -356,7 +356,7 @@ git commit -s -F msg.txt   # "CI proof (b), task 2: the HLSL hosts' own tests, f
 - Create: `apps/hog-noise-tools/src/hog_noise_tools/hosts/hlsl.py`
 - Modify: `apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py`
 
-- [ ] **Step 1: the two hosts.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/hlsl.py`:
+- [x] **Step 1: the two hosts.** Create `apps/hog-noise-tools/src/hog_noise_tools/hosts/hlsl.py`:
 
 ```python
 """
@@ -577,7 +577,7 @@ if __name__ == "__main__":
         host.close()
 ```
 
-- [ ] **Step 2: register them.** Two hosts share one module, so a `HOSTS` entry may name its opener. In
+- [x] **Step 2: register them.** Two hosts share one module, so a `HOSTS` entry may name its opener. In
   `apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py`, replace:
 
 ```python
@@ -610,7 +610,7 @@ with:
     return getattr(importlib.import_module(module), function or "open_host")()
 ```
 
-- [ ] **Step 3: run the tests: the harness is not built yet.**
+- [x] **Step 3: run the tests: the harness is not built yet.**
 
 Run: `uv run pytest apps/hog-noise-tools/tests/hosts/test_hlsl.py apps/hog-noise-tools/tests/hosts/test_shared.py -n 0 -q -rs`
 Expected on Windows with the SDK: every test passes except the four that need the harness, which skip with `the harness
@@ -621,7 +621,7 @@ Run: `uv run pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k hlsl`
 Expected: every `[hlsl-d3d11]` and `[hlsl-d3d12]` case of `test_hosts.py` skips, naming `build.bat` (18 skipped); `-k
 hlsl` also selects `test_hlsl.py`'s eight tests that need no harness, which pass.
 
-- [ ] **Step 4: commit.**
+- [x] **Step 4: commit.**
 
 ```bash
 git add apps/hog-noise-tools/src/hog_noise_tools/hosts/hlsl.py apps/hog-noise-tools/src/hog_noise_tools/hosts/__init__.py
@@ -634,7 +634,7 @@ git commit -s -F msg.txt   # "CI proof (b), task 3: the HLSL hosts' module; a mi
 - Create: `apps/hog-noise-tools/hosts/hlsl/hlsl_host.cpp`
 - Create: `apps/hog-noise-tools/hosts/hlsl/build.bat`
 
-- [ ] **Step 1: the harness.** Create `apps/hog-noise-tools/hosts/hlsl/hlsl_host.cpp`:
+- [x] **Step 1: the harness.** Create `apps/hog-noise-tools/hosts/hlsl/hlsl_host.cpp`:
 
 ```cpp
 // HogNoise tools: the HLSL host harness. noise.hlsl's compiled entry points dispatched through D3D11 (FXC's cs_5_0)
@@ -1126,7 +1126,7 @@ int main(int argc, char** argv) {
 }
 ```
 
-- [ ] **Step 2: its build.** Create `apps/hog-noise-tools/hosts/hlsl/build.bat`:
+- [x] **Step 2: its build.** Create `apps/hog-noise-tools/hosts/hlsl/build.bat`:
 
 ```bat
 @echo off
@@ -1158,14 +1158,14 @@ echo no Visual Studio C++ tools found under Program Files; install Visual Studio
 exit /b 1
 ```
 
-- [ ] **Step 3: build it.**
+- [x] **Step 3: build it.**
 
 Run: `cmd //c apps\\hog-noise-tools\\hosts\\hlsl\\build.bat`
 Expected: `using "...vcvars64.bat"`, then `hlsl_host.cpp`, exit 0, and `hlsl_host.exe` beside it. It builds at `/W4 /WX`,
 so a warning fails it. (`vcvars64.bat` may print `'vswhere.exe' is not recognized`; the oracle's build prints it too.)
 `git status --short` shows the two new files and not the `.exe`.
 
-- [ ] **Step 4: every hog case, on both.**
+- [x] **Step 4: every hog case, on both.**
 
 Run: `HOG_NOISE_REQUIRE_HOST=hlsl-d3d11,hlsl-d3d12 HOG_NOISE_HOST_TARGET="Microsoft Basic Render Driver" uv run pytest apps/hog-noise-tools/tests/hosts -n 0 -q -rs -k hlsl`
 (`-k hlsl`: the target applies to every host, and on a machine with wgpu and moderngl `spirv-naga` and `glsl` open on
@@ -1175,7 +1175,7 @@ its worst, the wrong-target refusal, the power-of-two grid against its points, a
 on each host. The bit-for-bit test skips for both (it is `spirv-naga`'s claim alone). `test_hlsl.py` passes in full.
 **A hog case that fails is a finding: stop and report it.**
 
-- [ ] **Step 5: each binding, and the dispatch, mutated once.** Each mutant must fail. Edit, rebuild with step 3's
+- [x] **Step 5: each binding, and the dispatch, mutated once.** Each mutant must fail. Edit, rebuild with step 3's
   command (a stale `.exe` is a skip, so the rebuild is not optional), run, restore, rebuild.
   - D3D11, `t2` and `t3` swapped: in `hlsl_host.cpp`, `{srvs[0].Get(), srvs[1].Get(), srvs[2].Get(), srvs[3].Get()}`
     becomes `{srvs[0].Get(), srvs[2].Get(), srvs[1].Get(), srvs[3].Get()}`. Run step 4's command with `-k "every_hog_case
@@ -1185,13 +1185,13 @@ on each host. The bit-for-bit test skips for both (it is `spirv-naga`'s claim al
   - The y row of workgroups dropped: in `hlsl.py`, `gx, gy, _ = workgroups(n)` becomes `gx, gy = workgroups(n)[0], 1`
     (no rebuild). Run with `-k "65535 and hlsl"`: both hosts **fail**.
 
-- [ ] **Step 6: the gate.**
+- [x] **Step 6: the gate.**
 
 Run: `make check`
 Expected: 9 of 9. With the harness built, the HLSL hosts run inside the gate too, each `pytest` worker compiling for
 itself.
 
-- [ ] **Step 7: commit.**
+- [x] **Step 7: commit.**
 
 ```bash
 git add apps/hog-noise-tools/hosts/hlsl/hlsl_host.cpp apps/hog-noise-tools/hosts/hlsl/build.bat
@@ -1203,7 +1203,7 @@ git commit -s -F msg.txt   # "CI proof (b), task 4: the C++ harness, D3D11 and D
 **Files:**
 - Modify: `.github/workflows/hosts.yml`
 
-- [ ] **Step 1: the `hlsl` job.** In `.github/workflows/hosts.yml`, replace:
+- [x] **Step 1: the `hlsl` job.** In `.github/workflows/hosts.yml`, replace:
 
 ```yaml
 # The emitted shaders run in a host written from their README, on a software GPU, against the vectors (the CI proof's
@@ -1249,7 +1249,7 @@ and append to `.github/workflows/hosts.yml`, after the `glsl` job:
         run: pytest apps/hog-noise-tools/tests/hosts -rA -n 0
 ```
 
-- [ ] **Step 2: commit the job.**
+- [x] **Step 2: commit the job.**
 
 Run: `uv run python -I` on a script that parses `.github/workflows/hosts.yml` with PyYAML (`uv run --with pyyaml`) and
 prints each job's name and steps. Expected: `glsl` and `hlsl`, the `hlsl` job's steps ending `Build the harness`,
@@ -1260,12 +1260,12 @@ git add .github/workflows/hosts.yml
 git commit -s -F msg.txt   # "CI proof (b), task 5: the hlsl job builds the harness and requires both hosts on WARP"
 ```
 
-- [ ] **Step 3: open the draft.** Push the branch and open a **draft** pull request against `main`, its body from
+- [x] **Step 3: open the draft.** Push the branch and open a **draft** pull request against `main`, its body from
   `.github/pull_request_template.md`. Read CI with `gh pr checks <n> --watch`.
   Expected: every leg green. The `hlsl` job's log shows `Microsoft Basic Render Driver (D3D11)` and `(D3D12)` and every
   `[hlsl-d3d11]` and `[hlsl-d3d12]` test PASSED by name; `tests.yml`'s Windows legs show the HLSL hosts skipped, `not built`.
 
-- [ ] **Step 4: the target check, made to fail in CI once (P-22).** A scratch commit sets the job's
+- [x] **Step 4: the target check, made to fail in CI once (P-22).** A scratch commit sets the job's
   `HOG_NOISE_HOST_TARGET` to `not-warp`; push it, and the `hlsl` job **fails** on `HostTargetError` for both hosts.
   Then a new commit reverting it, never a force-push; read the job green again.
 
@@ -1275,7 +1275,7 @@ git commit -s -F msg.txt   # "CI proof (b), task 5: the hlsl job builds the harn
 - Modify: `packages/python/hog-noise/src/hog_noise/shaders/README.md`, `README.md`, `apps/hog-noise-tools/README.md`,
   `Docs/standards/testing-project.md`, `Docs/glossary.md`
 
-- [ ] **Step 1: what is proven.** In `packages/python/hog-noise/src/hog_noise/shaders/README.md`, replace:
+- [x] **Step 1: what is proven.** In `packages/python/hog-noise/src/hog_noise/shaders/README.md`, replace:
 
 ```markdown
 validates in its own language's tools. Two of them also run, each in a host written from this page alone
@@ -1314,7 +1314,7 @@ Not yet run: `noise.spv` read by a Vulkan driver (lavapipe), its own pull reques
 CI, where only the RTX 5090 they were written on has run them.
 ```
 
-- [ ] **Step 2: the top README.** In `README.md`, replace:
+- [x] **Step 2: the top README.** In `README.md`, replace:
 
 ```markdown
 the SPIR-V through wgpu on WARP, llvmpipe and Metal, the GLSL in OpenGL on llvmpipe. The HLSL compiles and has not run yet.
@@ -1339,7 +1339,7 @@ with:
 The HLSL, GLSL and SPIR-V files run against the vectors only on CI's software adapters, and the SPIR-V only through naga, not yet a Vulkan driver; there is no Metal file.
 ```
 
-- [ ] **Step 3: the app README.** In `apps/hog-noise-tools/README.md`, replace:
+- [x] **Step 3: the app README.** In `apps/hog-noise-tools/README.md`, replace:
 
 ```markdown
 | `glsl` | the five `noise.<entry_point>.comp` in moderngl | the `hosts` group and an OpenGL 4.3 context |
@@ -1357,7 +1357,7 @@ with:
 by the tests: unbuilt, or older than its source, its hosts skip naming `build.bat`. A host that is missing skips
 ```
 
-- [ ] **Step 4: the testing standard.** In `Docs/standards/testing-project.md`, replace:
+- [x] **Step 4: the testing standard.** In `Docs/standards/testing-project.md`, replace:
 
 ```markdown
 - **`HOG_NOISE_HOST_TARGET`** is part of the target line a host must run on: each GPU leg sets its pinned back end, the
@@ -1375,7 +1375,7 @@ with:
   but did not ask for them. It runs `-n 0`, so FXC compiles the five entry points once per host, not once per worker.
 ```
 
-- [ ] **Step 5: the glossary's host harness row.** In `Docs/glossary.md`, replace:
+- [x] **Step 5: the glossary's host harness row.** In `Docs/glossary.md`, replace:
 
 ```markdown
 Built in `hog_noise_tools.hosts` (`spirv-naga`, `glsl`);
@@ -1387,7 +1387,7 @@ with:
 Built in `hog_noise_tools.hosts` (`spirv-naga`, `glsl`, `hlsl-d3d11`, `hlsl-d3d12`);
 ```
 
-- [ ] **Step 6: check and commit.**
+- [x] **Step 6: check and commit.**
 
 Run: `uv run python tools/check_docs.py`, then `make check`
 Expected: no drift; 9 of 9.
@@ -1399,20 +1399,20 @@ git commit -s -F msg.txt   # "CI proof (b), task 6: the claims move from compile
 
 ### Task 7: the board, the handoff, the journal
 
-- [ ] **Step 1: the row lands.** `Docs/plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md`: its state becomes
+- [x] **Step 1: the row lands.** `Docs/plan/board/2026-11-23-the-emitted-hlsl-runs-on-warp.md`: its state becomes
   Landed, with the date and a link to this pull request, what ran on what, and the numbers from Task 4 and CI; and its
   `**Section:**` becomes `now`, as (a)'s row did. `check_docs` refuses a landed row in any other section but a gate
   (`board-state`).
-- [ ] **Step 2: what waited on it.** Three rows name this one in their `**Waits on:**` line: [the buffer-limit
+- [x] **Step 2: what waited on it.** Three rows name this one in their `**Waits on:**` line: [the buffer-limit
   refusal](../../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md), [the engine
   trials](../../plan/board/2026-11-18-engine-host-trials.md) and [lavapipe](../../plan/board/2026-11-23-the-emitted-spirv-runs-on-lavapipe.md).
   `check_docs` refuses a wait on a done row (`waits-on`), so in each, remove this row's link from the `Waits on` line,
   keep every other link there (the engine trials still wait on lavapipe), drop a line left empty, and say in the row's
   prose that the HLSL landed with this pull request. The lavapipe row also says what this plan decided for it
   (decision B6).
-- [ ] **Step 3: the handoff and the journal.** `Docs/handoffs/CURRENT.md`, *Last updated*: this pull request, and that
+- [x] **Step 3: the handoff and the journal.** `Docs/handoffs/CURRENT.md`, *Last updated*: this pull request, and that
   the PyPI condition's HLSL is met, the release still the owner's go. A journal file for the session.
-- [ ] **Step 4: tick this plan's steps** and fill *Built* below with each task's command and result.
+- [x] **Step 4: tick this plan's steps** and fill *Built* below with each task's command and result.
 
 ```bash
 make check
@@ -1422,16 +1422,49 @@ git commit -s -F msg.txt   # "CI proof (b), task 7: the row lands; the handoff, 
 
 ### Task 8: review, then out of draft
 
-- [ ] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
-- [ ] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
-- [ ] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
+- [x] **Step 1:** run the `local-review` skill on the diff and paste its table into the pull request's *Review*.
+- [x] **Step 2:** fix every finding below 7, or say why not, then re-run the gate.
+- [x] **Step 3:** fill the pull request body from the template: *Decisions* (this plan's and any taken on the way),
   *Verified* (each mutation's result, the target lines, the CI runs), *Not covered* (lavapipe; hardware; speed).
-- [ ] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
+- [x] **Step 4:** `gh pr ready <n>`, read CI, and assess the automated review when it arrives (the `review-and-pr`
   skill). The owner merges.
 
 ## Built
 
-Filled by the build: each task's command, its result, and where the build departed from this plan and why.
+Built 2026-11-25 in [PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59), on the owner's "Go", from a
+worktree at `8e77673` (the merge of [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58)), on the RTX 5090
+machine (Windows 11 Pro 10.0.26300, MSVC 17.14, Windows SDK 10.0.26100). `hlsl_host.cpp` and `build.bat` were
+extracted from this plan's two blocks by a script, so they are the trial's text.
+
+| Task | Commit | Command | Result |
+| --- | --- | --- | --- |
+| 1 | `fa0709d` | `tools/check_docs.py` | no drift |
+| 2 | `a5e7f95` | the two test files, apart | the collection `ImportError`; the message naming two hosts |
+| 3 | `85390af` | `-k hlsl` on the hosts tests | 40 passed, 4 skipped `not built`; then 8 passed, 18 skipped |
+| 4 | `3e192b1` | step 4's command | 24 passed, 2 skipped (bit for bit, by design), against **format 2** of `wgpu.json`, which [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58) wrote after the trial |
+| 4, mutants | none | step 5 | `t2`/`t3` on D3D11: 1 failed; `XS`/`ZS` on D3D12: 1 failed; the y row dropped: 2 failed; restored and rebuilt: passing |
+| 4, gate | | `make check` | 9 of 9, 3,188 passed, 103 skipped, with the harness built |
+| 5 | `755e57d` | CI on the draft | every check green; the `hlsl` job (1 min 42 s) on `Microsoft Basic Render Driver (D3D11)` and `(D3D12)`, every HLSL test PASSED by name; `tests.yml`'s WARP leg skips both, `not built` |
+| 5, step 4 | `08daa54`, reverted in `dd1ad3d` | the job told `not-warp` | failed: `HostTargetError` on both hosts, 14 errors (run 45635619522) |
+| 6 | `1772b6e` | `make check` | 9 of 9 |
+| 8, review | `6872822` | `-k hlsl`, both hosts required; each fix undone once | 37 passed, 2 skipped; 6 of 6 undone caught; `make check` 9 of 9 |
+| 8, Copilot | "Copilot on #59" | `-k hlsl`, both hosts required; the 7 new tests against the code before the fixes | 7 failed before, 44 passed and 2 skipped after; `make check` 9 of 9, 3,208 passed |
+
+**Departures:**
+
+- **Two more stale claims fixed in Task 6:** the README's lead sentence ("The SPIR-V and the GLSL also run") and
+  `llms.txt` ("none has yet been run against the vectors by a host", stale since [PR #49](https://github.com/HogJonny-AMZN/HogNoise/pull/49)).
+- **The fresh-sample row's Landed** (P-11) rides in Task 7, since [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58) merged first.
+- **CI's runner has Visual Studio 2026,** folder `18`, which `build.bat` already probed first.
+- **The revert in Task 5 step 4 is a hand commit, not `git revert`**: the revert refused a working tree holding Task 6,
+  and the Task 6 commit went on first, so `1772b6e` sits between the scratch commit and its revert. Nothing was force-pushed.
+- **Task 6's sentence about hardware was untrue** and is corrected: the HLSL harness opens WARP alone, so the HLSL never
+  ran on the RTX 5090. The deliberate review caught it (ledger P-29).
+- **The deliberate review's error-handling findings changed the code past this plan's text** (Task 8): the harness
+  refuses malformed frames and requests, the module reports a crashed harness's exit code and standard error, and each
+  path has a test; [PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)'s *Review* lists them.
+- **Copilot's review took the harness's checks further:** each request's width, axes and `Grid` are checked against
+  its entry point, as the README's bindings table gives them, and the watchdog is joined after it is cancelled.
 
 ## Decisions
 

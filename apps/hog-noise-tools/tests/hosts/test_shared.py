@@ -71,7 +71,7 @@ def test_with_no_target_named_the_host_is_not_checked():
 
 
 def test_an_unknown_host_is_refused_naming_the_known_ones():
-    with pytest.raises(ValueError, match="glsl, spirv-naga"):
+    with pytest.raises(ValueError, match="glsl, hlsl-d3d11, hlsl-d3d12, spirv-naga"):
         hosts.open_host("metal")
 
 

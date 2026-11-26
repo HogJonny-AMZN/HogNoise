@@ -13,6 +13,8 @@ dist/
 *.nbc
 apps/hog-noise-tools/noise_oracle/*.exe
 apps/hog-noise-tools/noise_oracle/*.obj
+apps/hog-noise-tools/hosts/hlsl/*.exe
+apps/hog-noise-tools/hosts/hlsl/*.obj
 # What an interrupted hog-noise-vectors run can leave: its staging folder beside vectors/, a pending manifest
 vectors.hog-*/
 vectors/manifest.json.new
