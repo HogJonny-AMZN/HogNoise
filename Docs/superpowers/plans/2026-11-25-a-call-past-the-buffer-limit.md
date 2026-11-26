@@ -1,8 +1,10 @@
 # A call past the device's buffer limit: refused before any upload, in the caller's terms
 
-**Status:** Proposed 2026-11-25. Option A of three, on the owner's "Yes" (refuse before any upload, not chunk, not
-document only). Decisions D2 to D7 are recommendations. Trial-run in task order before proposing (*The trial*, below),
-and again after Copilot's review moved `sample_grid`'s `Grid` upload after the check (D7).
+**Status:** Accepted 2026-11-25: merged by the owner ([PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60),
+`d7abe0c`), D2 to D7 as recommended; built in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61) (*Built*,
+below), with D6 reversed by its review as D6 allowed. Proposed 2026-11-25: option A of three, on the owner's "Yes"
+(refuse before any upload, not chunk, not document only). Trial-run in task order before proposing (*The trial*,
+below), and again after Copilot's review moved `sample_grid`'s `Grid` upload after the check (D7).
 **Board:** [`2026-11-21-a-call-past-the-devices-buffer-limit`](../../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or
@@ -77,7 +79,7 @@ Measured on the RTX 5090 machine (Windows 11 Pro 10.0.26300) at `3a83792` (the m
 
 **Files:** Modify: `packages/python/hog-noise/tests/test_gpu.py` (append at the end)
 
-- [ ] **Step 1:** append:
+- [x] **Step 1:** append:
 
 ```python
 def test_the_limit_is_the_devices_own(device):
@@ -150,7 +152,7 @@ def test_a_call_at_the_devices_limit_is_let_through(small, name):
         call(small, _lazy(SMALL_LIMIT // (4 * width)))
 ```
 
-- [ ] **Step 2:** run them, and see them fail:
+- [x] **Step 2:** run them, and see them fail:
 
 ```bash
 HOG_NOISE_REQUIRE_GPU=1 uv run pytest packages/python/hog-noise/tests/test_gpu.py -n 0 -q -k "devices_limit or devices_own"
@@ -158,13 +160,13 @@ HOG_NOISE_REQUIRE_GPU=1 uv run pytest packages/python/hog-noise/tests/test_gpu.p
 
 Expected: `1 failed, 8 errors`, each on `_Gpu` having no `binding_limit`.
 
-- [ ] **Step 3:** commit (`CI proof follow-on, task 1: a call past the buffer limit, tests first`).
+- [x] **Step 3:** commit (`CI proof follow-on, task 1: a call past the buffer limit, tests first`).
 
 ### Task 2: the check
 
 **Files:** Modify: `packages/python/hog-noise/src/hog_noise/gpu.py`
 
-- [ ] **Step 1:** at the end of `_Gpu.__init__`, after `self.no_grid = self.uniform(bytes(48))`, add:
+- [x] **Step 1:** at the end of `_Gpu.__init__`, after `self.no_grid = self.uniform(bytes(48))`, add:
 
 ```text
         # the most bytes one buffer may hold and one binding may see: the output, the largest buffer a call makes, is
@@ -176,7 +178,7 @@ Expected: `1 failed, 8 errors`, each on `_Gpu` having no `binding_limit`.
         return self.binding_limit // (4 * width)
 ```
 
-- [ ] **Step 2:** `_Gpu.run` takes the `Grid` as bytes and uploads it after the check. Its signature's last parameter
+- [x] **Step 2:** `_Gpu.run` takes the `Grid` as bytes and uploads it after the check. Its signature's last parameter
   becomes `grid: bytes | None = None`, and its docstring and its body down to the bind group become:
 
 ```text
@@ -204,7 +206,7 @@ Expected: `1 failed, 8 errors`, each on `_Gpu` having no `binding_limit`.
         buffers = [params_buffer, self.tables, *coords, out, grid_buffer]
 ```
 
-- [ ] **Step 3:** in `GpuSampler.sample_grid`, pass the bytes, not a buffer:
+- [x] **Step 3:** in `GpuSampler.sample_grid`, pass the bytes, not a buffer:
 
 ```text
         grid = pack_grid(start, shape, scales)
@@ -214,48 +216,79 @@ Expected: `1 failed, 8 errors`, each on `_Gpu` having no `binding_limit`.
 and set `__updated__` to the day. `sample_grid` is `run`'s only caller with a `Grid` (`grep -rn "_Gpu\b\|\._gpu\."`
 over `packages`, `apps` and `Spikes` finds none outside `gpu.py` and its tests).
 
-- [ ] **Step 4:** run Task 1's command. Expected: `9 passed`. Then the whole file,
+- [x] **Step 4:** run Task 1's command. Expected: `9 passed`. Then the whole file,
   `HOG_NOISE_REQUIRE_GPU=1 uv run pytest packages/python/hog-noise/tests/test_gpu.py -n 0 -q`: every test passes,
   `test_a_power_of_two_grid_equals_its_points_bit_for_bit` among them, which runs `sample_grid` through the moved upload.
-- [ ] **Step 5:** each mutant of the check, applied alone, fails its tests (a script that applies one, runs Task 1's
+- [x] **Step 5:** each mutant of the check, applied alone, fails its tests (a script that applies one, runs Task 1's
   command and restores `gpu.py` byte for byte):
   - `if n > self.max_points(width):` to `if False:`: 5 failed (every refusal);
   - `>` to `>=`, one point early: 3 failed (each at the limit);
   - `binding_limit` from `max-buffer-size` alone: 1 failed on any adapter whose two limits differ (every one measured);
   - the `grid_buffer` line moved above the check: 1 failed (`sample_grid`'s refusal).
-- [ ] **Step 6:** the real refusal, past the real limit: the probe calls of *Facts* (`sample_points_2d` at 536,870,912
+- [x] **Step 6:** the real refusal, past the real limit: the probe calls of *Facts* (`sample_points_2d` at 536,870,912
   points, `warp_points` at 178,956,971) on WARP and on any hardware adapter at hand now raise the `ValueError` in under
   0.1 s, and a small call then runs.
-- [ ] **Step 7:** `make check`, unpiped. Commit (`... task 2: refused before any upload, in the caller's terms`).
+- [x] **Step 7:** `make check`, unpiped. Commit (`... task 2: refused before any upload, in the caller's terms`).
 
 ### Task 3: the README
 
 **Files:** Modify: `README.md`
 
-- [ ] **Step 1:** in *On the GPU*, after the sentence ending "since a loop that long can stall the device.", add:
+- [x] **Step 1:** in *On the GPU*, after the sentence ending "since a loop that long can stall the device.", add:
   "A call with more points than the device binds in one buffer is refused before anything is uploaded, naming the
   most it can take. On an RTX 5090 and on WARP, the adapters measured, a buffer holds 2 GiB: 536,870,911 points a call,
   268,435,455 for `warp_points_2d` and 178,956,970 for `warp_points`, which write two and three floats a point. Split a
   larger call; the rung does not split it for you."
-- [ ] **Step 2:** in *Limits*, in the bullet beginning "The GPU rung is float32", after "It is not benchmarked.", add:
+- [x] **Step 2:** in *Limits*, in the bullet beginning "The GPU rung is float32", after "It is not benchmarked.", add:
   "One call takes at most what the device binds in one buffer (2 GiB on the RTX 5090 and WARP), and a larger one is
   refused, not split."
-- [ ] **Step 3:** P-27: search `Docs/`, `README.md`, `llms.txt`, `packages/` and `vectors/` for the limit as a concept
+- [x] **Step 3:** P-27: search `Docs/`, `README.md`, `llms.txt`, `packages/` and `vectors/` for the limit as a concept
   ("buffer limit", "binding size", "2 GiB", "536", "chunk", "too many points") and correct any sentence the refusal
   makes untrue. At `3a83792`, `grep -rn -i` for them over those folders' `.md` and `.txt` (the journal aside) finds the
   row (lines 1, 10, 11), the account (lines 31, 68, 110, 133) and the handoff (lines 9, 25), all of which Task 4
   updates, and two unrelated hits: CPU chunking in `Docs/DETAILED_FASTNOISE_PERF.md` and the free-threaded row in
   `Docs/plan/board/2026-11-15-numpy-2-modernisation.md`. None is untrue before Task 4.
-- [ ] **Step 4:** `make check`. Commit (`... task 3: the README says what a call past the limit gets`).
+- [x] **Step 4:** `make check`. Commit (`... task 3: the README says what a call past the limit gets`).
 
 ### Task 4: the records, the review, the pull request
 
-- [ ] **Step 1:** the row: `State:` Landed with the pull request, `Section:` now. The account: a line under *Since the
+- [x] **Step 1:** the row: `State:` Landed with the pull request, `Section:` now. The account: a line under *Since the
   account* that gap 7 is closed, with the pull request. The handoff: the lead, and the order's next item (PyPI, on the
   owner's go). The journal. The plan's ticks and a *Built* table.
-- [ ] **Step 2:** the deliberate review (`local-review`, diff mode); answer every finding in the pull request's *Review*.
+- [x] **Step 2:** the deliberate review (`local-review`, diff mode); answer every finding in the pull request's *Review*.
 - [ ] **Step 3:** push, open the pull request from `.github/pull_request_template.md`, read CI (`gh pr checks <n>
   --watch`), and assess Copilot's review when it arrives (`review-and-pr`). The owner merges.
+
+## Built
+
+Built 2026-11-25 in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61), from a worktree at `d7abe0c` (the
+merge of [PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60)), on the RTX 5090 machine (Windows 11 Pro
+10.0.26300), wgpu 0.33.0. The code is the second trial's, applied from its saved diff; Task 1's block was checked by a
+script to be the file's end byte for byte.
+
+| Task | Commit | Command | Result |
+| --- | --- | --- | --- |
+| 1 | `1060808` | Task 1, step 2, on the 5090's Vulkan | 1 failed, 8 errors, each on the missing `binding_limit` |
+| 2 | `90da731` | step 4, on the 5090's Vulkan | 9 passed; the whole `test_gpu.py` 35 passed, and 35 on WARP |
+| 2, mutants | none | step 5 | no check: 5 failed; one point early: 3; `max-buffer-size` alone: 1; the `Grid` before the check: 1; `gpu.py` restored |
+| 2, real limit | none | step 6 | `sample_points_2d` at 536,870,912 points and `warp_points` at 178,956,971: `ValueError` in 0.0 s on WARP and on the 5090's Vulkan, then a small call ran |
+| 2, gate | | `make check` | 9 of 9 |
+| 3 | `23e0c43` | step 3's search | the plan's hits and the two new README sentences; `llms.txt` has no sentence on the rung's limits |
+| 4, review | `c8d67f5` | the deliberate review's fixes | the refusal test's new assertions, against the code before: 3 failed; after, `test_gpu.py` 36 passed on the 5090's Vulkan |
+
+**Departures:**
+
+- **The refusal names the method called, not the entry point** (D6 reversed, as D6 allowed "if the review prefers the
+  method"): `gpu._METHODS` maps each entry point to its `GpuSampler` method, and the refusal test matches the whole
+  message's start. A test holds the map level with `ENTRY_POINTS`.
+- **The public calls' `:raises` lines name the refusal**, and `sample_grid` gains one: the review's P-27 reading of
+  `packages/`, which step 3's search of the concept's words did not find.
+- **An Icebox row** for the review's finding from before this work, [a grid shape refused in the caller's
+  terms](../../plan/board/2026-11-25-a-grid-shape-refused-in-the-callers-terms.md).
+- **Task 4's order:** the review ran, and the pull request opened as a draft, before the records, so the row's
+  `Landed` could name the pull request's number.
+- **Commit subjects** begin "The buffer limit, task N", not the plan's "CI proof follow-on".
+- **Ledger P-30**: a "before any upload" claim tested with a sentinel on one kind of upload, which the first trial did.
 
 ## The trial
 

@@ -3,11 +3,14 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-25: **[the buffer limit's plan](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md)
-is Proposed**, on the owner's "Yes" to option A: a call past the device's limit is refused before any upload, in the
-caller's terms. Probed first: every adapter here binds at most 2,147,483,644 bytes, and past it wgpu refuses with its
-own validation error, in its own terms and after the axes are uploaded, with no wrong answer and no crash. The plan
-waits on the owner's acceptance; then PyPI on the owner's go. Before it, the same day: **the HLSL runs**
+**Last updated:** 2026-11-25: **the buffer limit is refused in the caller's terms**
+([PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61)), built from [its plan](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md),
+Accepted by the owner's merge of [PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60) (`d7abe0c`). A wgpu-rung
+call with more points than the device binds in one buffer (2,147,483,644 bytes on every adapter measured) is refused
+before any upload, with a `ValueError` naming the method, the most points it takes and the adapter; before, wgpu
+refused it in its own terms, after the axes were uploaded. **That was the last of the four the owner set before PyPI;
+the release waits on the owner's go and credentials.** Ledger P-30 records the plan's "before any upload" claim, which
+its first trial could not test and Copilot's review caught. Before it, the same day: **the HLSL runs**
 ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59), `3a83792`). `noise.hlsl`, compiled by FXC `cs_5_0` and DXC
 `cs_6_0`, runs on WARP through D3D11 and D3D12 in a C++ harness written from the shaders README, and passes every hog
 case within `wgpu.json` unmodified, locally and in CI's new `hlsl` job. That meets the PyPI condition's HLSL; the
@@ -63,7 +66,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 | [Noise in MaterialX](../plan/board/2026-11-22-noise-in-materialx.md) (2026-11-22) | [The survey](../design/2026-11-22-noise-in-materialx.md), Accepted 2026-11-22, for the two goals (HogNoise presented to MaterialX; MaterialX's own noise respected through the look-dev chain): option C, MaterialX as a third original library first (3 to 5 d, after the CI proof's first pull request; oracle vectors from its GLSL and from its generated OSL through `testshade`), then a `hognoise:` MaterialX library, as source or as standard-node graphs with MaterialX's hash | The CI proof's first pull request; a row on HogShade's board (a HogShade pull request) |
 | The member's author email ([PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), merged) | The manifest names the address `project.json` already makes public, because the boundary check's `no-authors` requires an email | The owner, to keep or change it |
 | The north-star roadmap (gate G2) | Accepted 2026-11-23, G2 closed, its decisions as recommended | Nothing |
-| PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL. The HLSL condition is met: it runs against the vectors on WARP through D3D11 and D3D12 ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)) | The buffer-limit refusal; then the owner's go and PyPI credentials |
+| PyPI release of `hog-noise` | Deferred indefinitely (2026-11-13): not until the core is complete and deployable in numpy, WGSL and at least HLSL. The HLSL condition is met: it runs against the vectors on WARP through D3D11 and D3D12 ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)); the buffer-limit refusal, the last of the four set on 2026-11-23, landed in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61) | The owner's go and PyPI credentials |
 
 ## What the owner has said that still holds
 
@@ -127,7 +130,7 @@ holds. A person's session truth (their branch, what is mid-build, what their nex
 - **PyPI:** deferred by the owner until the core deploys in numpy, WGSL and at least HLSL. Since
   [PR #34](https://github.com/HogJonny-AMZN/HogNoise/pull/34) merged (2026-11-19), the HLSL ships and compiles; whether
   that is "deployable" before a host has run it against the vectors is the owner's call, and the release waits on their
-  go. [The account](../design/2026-11-20-gpu-fast-track-account.md) recommends the CI proof (its gap 4) first. On the owner's "take them" (2026-11-23): after the CI proof's HLSL pull request, the warp rules, the fresh-sample bounds and the buffer-limit refusal; then the owner's go and credentials.
+  go. [The account](../design/2026-11-20-gpu-fast-track-account.md) recommends the CI proof (its gap 4) first. On the owner's "take them" (2026-11-23): after the CI proof's HLSL pull request, the warp rules, the fresh-sample bounds and the buffer-limit refusal; then the owner's go and credentials. All four have landed: [PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59), [PR #53](https://github.com/HogJonny-AMZN/HogNoise/pull/53), [PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58) and [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61).
 - **The account's gaps:** all four of its Icebox rows have been taken. Gaps 6, 1 and 3 went to *Now* on 2026-11-21, and gap 7
   went to *Next* on 2026-11-23. Gap 2 needs hardware the project does not have, and gaps 4 and 5 already had rows
   ([the account](../design/2026-11-20-gpu-fast-track-account.md), *The gaps*).

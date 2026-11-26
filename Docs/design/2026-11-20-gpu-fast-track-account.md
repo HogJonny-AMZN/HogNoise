@@ -83,6 +83,13 @@ hog cases passed the rules of the time. The three NoiseLookup 2D cases flipped 0
 bound, on the vectors' own points. The owner chose to take its record, and the re-derivation from seven adapters
 loosened five FastNoiseSIMD fields ([vectors/README.md](../../vectors/README.md), *Tolerance files*).
 
+Gap 7 was closed on 2026-11-25 ([PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61)). Past the limit, wgpu
+refused with its own validation error, after the axes were uploaded, with no wrong answer and no crash: the guess in
+gap 7's row held. Its message was in wgpu's terms, so the rung now refuses such a call itself, before any upload, with
+a `ValueError` naming the method, the most points it takes and the adapter. The limit is 2,147,483,644 bytes on every
+adapter measured, the 5090 on three back ends and WARP ([the plan's *Facts*](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md));
+llvmpipe's and the macOS runner's are still not recorded, and the check reads each device's own.
+
 Nothing in the account changes a bound, the tolerance file or a record. Today's runs are evidence for this page, not
 measurement records. Recording them means a new record folder and a re-derivation, which is gap 6's work.
 
