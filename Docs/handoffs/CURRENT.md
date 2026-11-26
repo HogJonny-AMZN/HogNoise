@@ -3,10 +3,15 @@
 **Status:** Living. Rewritten whenever work is interrupted, a decision changes, the state moves, or the owner states a
 preference worth carrying forward.
 
-**Last updated:** 2026-11-25: **the HLSL runs** ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59)). `noise.hlsl`, compiled by FXC `cs_5_0` and DXC
+**Last updated:** 2026-11-25: **[the buffer limit's plan](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md)
+is Proposed**, on the owner's "Yes" to option A: a call past the device's limit is refused before any upload, in the
+caller's terms. Probed first: every adapter here binds at most 2,147,483,644 bytes, and past it wgpu refuses with its
+own validation error, in its own terms and after the axes are uploaded, with no wrong answer and no crash. The plan
+waits on the owner's acceptance; then PyPI on the owner's go. Before it, the same day: **the HLSL runs**
+([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59), `3a83792`). `noise.hlsl`, compiled by FXC `cs_5_0` and DXC
 `cs_6_0`, runs on WARP through D3D11 and D3D12 in a C++ harness written from the shaders README, and passes every hog
 case within `wgpu.json` unmodified, locally and in CI's new `hlsl` job. That meets the PyPI condition's HLSL; the
-release is still the owner's go. **Next: [the buffer limit](../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md)**,
+release is still the owner's go. Next was [the buffer limit](../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md),
 then PyPI on the owner's go; [the SPIR-V on lavapipe](../plan/board/2026-11-23-the-emitted-spirv-runs-on-lavapipe.md)
 has its plan to write. Before it, the same day: **the fresh-sample bounds landed** ([PR #58](https://github.com/HogJonny-AMZN/HogNoise/pull/58), `8e77673`). Tolerance
 format 2: a continuous rule's tight bound, from the vectors, is held for the fraction measured on 65,536 fresh points a
