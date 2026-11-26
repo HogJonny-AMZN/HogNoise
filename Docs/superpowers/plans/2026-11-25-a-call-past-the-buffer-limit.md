@@ -1,6 +1,6 @@
 # A call past the device's buffer limit: refused before any upload, in the caller's terms
 
-**Status:** Accepted 2026-11-25: merged by the owner ([PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60),
+**Status:** Accepted 2026-11-26: merged by the owner ([PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60),
 `d7abe0c`), D2 to D7 as recommended; built in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61),
 merged as `f553140` (*Built*, below), with D6 reversed by its review as D6 allowed. Proposed 2026-11-25: option A of three, on the owner's "Yes"
 (refuse before any upload, not chunk, not document only). Trial-run in task order before proposing (*The trial*,

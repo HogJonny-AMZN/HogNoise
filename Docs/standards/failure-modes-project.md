@@ -398,6 +398,22 @@ proposed with the claim; Copilot's review of [PR #60](https://github.com/HogJonn
 `gpu.py:314` and caught it. The fixed tests stop both, make the sampler first (it uploads its `Params`), and failed on
 exactly that case against the first trial's code. Not mechanised: which functions count as X is a reading of the code.
 
+### P-31 · A merge's date written from the day the work was done, not read from the merge
+
+**Trigger:** writing the date something landed or was accepted by a merge (a row's `Landed`, a plan's `Accepted`), above
+all when the record is written before the merge, or the day of work crosses midnight UTC.
+**Do:** read the date from the merge, in UTC (`gh pr view <n> --json mergedAt`), after it has happened, and write it then;
+a record written before the merge names the pull request and leaves the date to the status fix on main (P-11). Then
+search the other records the same merge dated (P-27).
+**Because:** the buffer limit's row was written in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61) as
+`Landed 2026-11-25`, the day it was built; it merged at 16:23 UTC on the 26th. The search for the same slip found two
+more from the same session: the HLSL row (`Landed 2026-11-25`, merged 01:59 UTC on the 26th) and the buffer-limit plan
+(`Accepted 2026-11-25`, [PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60) merged 04:00 UTC on the 26th). The
+same status fix also appended a 26th entry to the 25th's journal file. Copilot's review of
+[PR #62](https://github.com/HogJonny-AMZN/HogNoise/pull/62) caught the first and the journal; failure mode 38 is the
+general rule, and this is its case for a date only a merge can know. Not mechanised: a check would read the forge,
+which the gate does not.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and
