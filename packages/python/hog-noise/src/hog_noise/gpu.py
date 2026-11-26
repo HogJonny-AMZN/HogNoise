@@ -126,6 +126,14 @@ _MAX_GROUPS = 65535
 #: The shader's ``Params`` struct, field for field in `NoiseParams.kernel_args()` order: ``i`` an i32, ``f`` an f32.
 PARAM_KINDS = "ifiiifffffiifiifiiififfifff"
 ENTRY_POINTS = ("sample_points_3d", "sample_points_2d", "sample_grid", "warp_points_3d", "warp_points_2d")
+#: The `GpuSampler` method that dispatches each entry point: a refusal names the call its caller made.
+_METHODS = {
+    "sample_points_3d": "sample_points",
+    "sample_points_2d": "sample_points_2d",
+    "sample_grid": "sample_grid",
+    "warp_points_3d": "warp_points",
+    "warp_points_2d": "warp_points_2d",
+}
 
 
 def pack_params(params: NoiseParams) -> bytes:
@@ -248,9 +256,9 @@ class _Gpu:
         if n == 0:
             return np.empty(0, np.float32)
         if n > self.max_points(width):
-            adapter = self.device.adapter_info.get("device")
+            adapter, call = self.device.adapter_info.get("device"), _METHODS[entry]
             raise ValueError(
-                f"{entry}: {n:,} points is past the {self.max_points(width):,} one call can take on {adapter}, which "
+                f"{call}: {n:,} points is past the {self.max_points(width):,} one call can take on {adapter}, which "
                 f"binds at most {self.binding_limit:,} bytes a buffer ({width} float32 a point out): split the call"
             )
         wgpu, dev = self.wgpu, self.device
@@ -301,7 +309,7 @@ class GpuSampler:
         """
         3D noise at each ``(xs[i], ys[i], zs[i])`` into ``out``.
 
-        :raises ValueError: Axes, or ``out``, of unequal length.
+        :raises ValueError: Axes, or ``out``, of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys, zs), out)
         out[...] = self._gpu.run("sample_points_3d", self._params, (xs, ys, zs), n, 1)
@@ -313,7 +321,7 @@ class GpuSampler:
         """
         2D noise at each ``(xs[i], ys[i])`` into ``out``.
 
-        :raises ValueError: Axes, or ``out``, of unequal length.
+        :raises ValueError: Axes, or ``out``, of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys), out)
         out[...] = self._gpu.run("sample_points_2d", self._params, (xs, ys), n, 1)
@@ -325,7 +333,11 @@ class GpuSampler:
         shape: Sequence[int],
         scales: Sequence[float] = (1.0, 1.0, 1.0),
     ) -> NDArray[np.float32]:
-        """The grid `samplers._KernelSampler.sample_grid` describes, its coordinates computed on the GPU."""
+        """
+        The grid `samplers._KernelSampler.sample_grid` describes, its coordinates computed on the GPU.
+
+        :raises ValueError: More cells than the device binds in one call.
+        """
         shape = tuple(int(n) for n in shape)
         grid = pack_grid(start, shape, scales)
         return self._gpu.run("sample_grid", self._params, (), math.prod(shape), 1, grid).reshape(shape)
@@ -336,7 +348,7 @@ class GpuSampler:
         """
         The warped raw coordinates, ``(N, 3)``: the reference's ``DomainWarp`` alone, as `scalar.warp_3d` gives.
 
-        :raises ValueError: Axes of unequal length.
+        :raises ValueError: Axes of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys, zs))
         return self._gpu.run("warp_points_3d", self._params, (xs, ys, zs), n, 3).reshape(n, 3)
@@ -345,7 +357,7 @@ class GpuSampler:
         """
         The warped raw coordinates, ``(N, 2)``: the 2D twin of `warp_points`.
 
-        :raises ValueError: Axes of unequal length.
+        :raises ValueError: Axes of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys))
         return self._gpu.run("warp_points_2d", self._params, (xs, ys), n, 2).reshape(n, 2)

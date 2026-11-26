@@ -328,13 +328,22 @@ CALLS = {
 def test_a_call_past_the_devices_limit_is_refused_before_any_upload(small, name):
     """
     Past the limit wgpu refuses too, but in its own terms (a buffer size, a binding number) that differ by backend,
-    and only after the axes are uploaded. The refusal names the call, the most points it takes and the adapter, and
-    comes before any upload: an axis's, and `sample_grid`'s `Grid`.
+    and only after the axes are uploaded. The refusal names the call as its caller made it (`warp_points`, not the
+    entry point `warp_points_3d`), the most points it takes and the adapter, and comes before any upload: an axis's,
+    and `sample_grid`'s `Grid`.
     """
     width, call = CALLS[name]
     most = SMALL_LIMIT // (4 * width)
-    with pytest.raises(ValueError, match=f"past the {most:,} one call can take on .+ split the call"):
+    with pytest.raises(
+        ValueError, match=f"^{name}: {most + 1:,} points is past the {most:,} one call can take on .+ split the call"
+    ):
         call(small, _lazy(most + 1))
+
+
+def test_every_entry_point_has_its_method():
+    """The refusal's names: one `GpuSampler` method for each entry point, and each one a method that exists."""
+    assert set(gpu._METHODS) == set(gpu.ENTRY_POINTS)
+    assert all(callable(getattr(gpu.GpuSampler, method)) for method in gpu._METHODS.values())
 
 
 @pytest.mark.parametrize("name", ["sample_points_2d", "sample_grid", "warp_points"])
