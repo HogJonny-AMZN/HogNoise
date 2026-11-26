@@ -384,6 +384,20 @@ trial and its review, and the build, carried the sentence; the deliberate review
 merge. Not mechanised: a sentence about where code ran is a reading. The hosts' target lines (`HOG_NOISE_HOST_TARGET`)
 are the evidence to quote.
 
+### P-30 · "Before any X", tested with a sentinel on one kind of X
+
+**Trigger:** a test is about to show that something happens before any upload, write, call or allocation, by stopping
+one function and asserting it was never reached.
+**Do:** list every function that does X on the paths under test, with a search, not from memory, and stop all of them;
+make whatever legitimately does X before the call (a constructor, a setup) first, then install the sentinel; and give
+each path a case, so a path that does X earlier than the rest has a test to fail.
+**Because:** [the buffer limit's plan](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md) claimed a call
+past the limit is refused "before any upload", and its trial's sentinel stopped `_Gpu.storage` alone. `sample_grid`
+uploaded its `Grid` with `_Gpu.uniform` before the check, which no test could see. The trial passed and the plan was
+proposed with the claim; Copilot's review of [PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60) read
+`gpu.py:314` and caught it. The fixed tests stop both, make the sampler first (it uploads its `Params`), and failed on
+exactly that case against the first trial's code. Not mechanised: which functions count as X is a reading of the code.
+
 ## How to add an entry
 
 When the process fails, append the entry in the same pull request as the fix. Mechanise the class when a check can, and

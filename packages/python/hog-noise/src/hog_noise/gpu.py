@@ -28,7 +28,7 @@ from hog_noise.samplers import CAPABILITY
 
 _MODULE_NAME = "hog_noise.gpu"
 __version__ = "0.1.0"
-__updated__ = "2026-11-18"
+__updated__ = "2026-11-25"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: Part of an adapter's name: the first adapter whose name contains it is used instead of wgpu's default.
@@ -126,6 +126,14 @@ _MAX_GROUPS = 65535
 #: The shader's ``Params`` struct, field for field in `NoiseParams.kernel_args()` order: ``i`` an i32, ``f`` an f32.
 PARAM_KINDS = "ifiiifffffiifiifiiififfifff"
 ENTRY_POINTS = ("sample_points_3d", "sample_points_2d", "sample_grid", "warp_points_3d", "warp_points_2d")
+#: The `GpuSampler` method that dispatches each entry point: a refusal names the call its caller made.
+_METHODS = {
+    "sample_points_3d": "sample_points",
+    "sample_points_2d": "sample_points_2d",
+    "sample_grid": "sample_grid",
+    "warp_points_3d": "warp_points",
+    "warp_points_2d": "warp_points_2d",
+}
 
 
 def pack_params(params: NoiseParams) -> bytes:
@@ -210,6 +218,13 @@ class _Gpu:
         self.tables = self.storage(tables.binding_table())
         self.unused = self.storage(np.zeros(1, np.float32))  # bound where an entry point reads nothing
         self.no_grid = self.uniform(bytes(48))
+        # the most bytes one buffer may hold and one binding may see: the output, the largest buffer a call makes, is
+        # checked against it before any upload
+        self.binding_limit = min(dev.limits["max-storage-buffer-binding-size"], dev.limits["max-buffer-size"])
+
+    def max_points(self, width: int) -> int:
+        """The most points one call writing ``width`` floats a point may take on this device."""
+        return self.binding_limit // (4 * width)
 
     def storage(self, values: NDArray[np.float32]) -> Any:
         """A read-only storage buffer holding ``values`` as float32."""
@@ -227,21 +242,30 @@ class _Gpu:
         axes: Sequence[NDArray[np.float32]],
         n: int,
         width: int,
-        grid: Any | None = None,
+        grid: bytes | None = None,
     ) -> NDArray[np.float32]:
         """
-        Dispatch ``entry`` over ``n`` points and read back ``n * width`` floats.
+        Dispatch ``entry`` over ``n`` points and read back ``n * width`` floats. ``grid`` is the packed `Grid`
+        (`pack_grid`), uploaded here after the checks, like every buffer a call makes.
 
-        :raises ValueError: An axis whose length is not ``n`` (checked before any GPU work).
+        :raises ValueError: An axis whose length is not ``n``, or more points than the device binds in one call (both
+            checked before any GPU work).
         """
         if axes and _point_count(axes) != n:
             raise ValueError(f"the axes have {len(axes[0])} points, not {n}")
         if n == 0:
             return np.empty(0, np.float32)
+        if n > self.max_points(width):
+            adapter, call = self.device.adapter_info.get("device"), _METHODS[entry]
+            raise ValueError(
+                f"{call}: {n:,} points is past the {self.max_points(width):,} one call can take on {adapter}, which "
+                f"binds at most {self.binding_limit:,} bytes a buffer ({width} float32 a point out): split the call"
+            )
         wgpu, dev = self.wgpu, self.device
+        grid_buffer = self.uniform(grid) if grid is not None else self.no_grid
         coords = [self.storage(a) for a in axes] + [self.unused] * (3 - len(axes))
         out = dev.create_buffer(size=n * width * 4, usage=wgpu.BufferUsage.STORAGE | wgpu.BufferUsage.COPY_SRC)
-        buffers = [params_buffer, self.tables, *coords, out, grid if grid is not None else self.no_grid]
+        buffers = [params_buffer, self.tables, *coords, out, grid_buffer]
         group = dev.create_bind_group(
             layout=self.layout,
             entries=[
@@ -285,7 +309,7 @@ class GpuSampler:
         """
         3D noise at each ``(xs[i], ys[i], zs[i])`` into ``out``.
 
-        :raises ValueError: Axes, or ``out``, of unequal length.
+        :raises ValueError: Axes, or ``out``, of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys, zs), out)
         out[...] = self._gpu.run("sample_points_3d", self._params, (xs, ys, zs), n, 1)
@@ -297,7 +321,7 @@ class GpuSampler:
         """
         2D noise at each ``(xs[i], ys[i])`` into ``out``.
 
-        :raises ValueError: Axes, or ``out``, of unequal length.
+        :raises ValueError: Axes, or ``out``, of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys), out)
         out[...] = self._gpu.run("sample_points_2d", self._params, (xs, ys), n, 1)
@@ -309,9 +333,13 @@ class GpuSampler:
         shape: Sequence[int],
         scales: Sequence[float] = (1.0, 1.0, 1.0),
     ) -> NDArray[np.float32]:
-        """The grid `samplers._KernelSampler.sample_grid` describes, its coordinates computed on the GPU."""
+        """
+        The grid `samplers._KernelSampler.sample_grid` describes, its coordinates computed on the GPU.
+
+        :raises ValueError: More cells than the device binds in one call.
+        """
         shape = tuple(int(n) for n in shape)
-        grid = self._gpu.uniform(pack_grid(start, shape, scales))
+        grid = pack_grid(start, shape, scales)
         return self._gpu.run("sample_grid", self._params, (), math.prod(shape), 1, grid).reshape(shape)
 
     def warp_points(
@@ -320,7 +348,7 @@ class GpuSampler:
         """
         The warped raw coordinates, ``(N, 3)``: the reference's ``DomainWarp`` alone, as `scalar.warp_3d` gives.
 
-        :raises ValueError: Axes of unequal length.
+        :raises ValueError: Axes of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys, zs))
         return self._gpu.run("warp_points_3d", self._params, (xs, ys, zs), n, 3).reshape(n, 3)
@@ -329,7 +357,7 @@ class GpuSampler:
         """
         The warped raw coordinates, ``(N, 2)``: the 2D twin of `warp_points`.
 
-        :raises ValueError: Axes of unequal length.
+        :raises ValueError: Axes of unequal length; or more points than the device binds in one call.
         """
         n = _point_count((xs, ys))
         return self._gpu.run("warp_points_2d", self._params, (xs, ys), n, 2).reshape(n, 2)
