@@ -1,7 +1,8 @@
 # A call past the device's buffer limit: refused before any upload, in the caller's terms
 
 **Status:** Proposed 2026-11-25. Option A of three, on the owner's "Yes" (refuse before any upload, not chunk, not
-document only). Decisions D2 to D6 are recommendations. Trial-run in task order before proposing (*The trial*, below).
+document only). Decisions D2 to D7 are recommendations. Trial-run in task order before proposing (*The trial*, below),
+and again after Copilot's review moved `sample_grid`'s `Grid` upload after the check (D7).
 **Board:** [`2026-11-21-a-call-past-the-devices-buffer-limit`](../../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or
@@ -14,7 +15,8 @@ same on every back end.
 **Architecture:** `gpu._Gpu` reads the device's limit once, the smaller of `max-storage-buffer-binding-size` and
 `max-buffer-size`. `_Gpu.run`, through which every call passes, checks the output's bytes against it after the axes'
 lengths and before any buffer is made. The output is the largest buffer a call makes (`n * width * 4` bytes, where an
-axis is `n * 4`), so one check covers every buffer.
+axis is `n * 4`), so one check covers every buffer. `sample_grid` uploaded its `Grid` uniform before calling `run`;
+it now passes the packed bytes, and `run` uploads them after the check, so no call uploads anything before it.
 
 **Tech stack:** Python 3.11 to 3.13, numpy, wgpu 0.33 (the `gpu` group); pytest through the `pytest` console script
 (`uv run pytest`, never `python -m pytest`); `make check` as the gate.
@@ -57,15 +59,17 @@ Measured on the RTX 5090 machine (Windows 11 Pro 10.0.26300) at `3a83792` (the m
   device exactly those. `device.adapter_info["device"]` names the adapter.
 - **`_Gpu.run` is the one path:** every `GpuSampler` call (`sample_points`, `sample_points_2d`, `sample_grid`,
   `warp_points`, `warp_points_2d`) reaches it with `n` and `width`, after `_point_count` (`gpu.py:161`) has checked the
-  lengths. The first upload is `self.storage(a)` for the axes (`gpu.py:242`), then the output's `create_buffer`
-  (`gpu.py:243`).
+  lengths. Inside `run`, the first upload is `self.storage(a)` for the axes (`gpu.py:242`), then the output's
+  `create_buffer` (`gpu.py:243`). One upload comes before `run`: `sample_grid` makes its `Grid` uniform with
+  `self._gpu.uniform(pack_grid(...))` (`gpu.py:314`) and passes the buffer (Copilot's review of this plan, D7).
+  `GpuSampler.__init__` uploads `Params` once (`gpu.py:276`), when the sampler is made, not on a call.
 
 ## Files
 
 | File | Change |
 | --- | --- |
-| `packages/python/hog-noise/src/hog_noise/gpu.py` | `_Gpu.binding_limit`, `_Gpu.max_points`, the check in `_Gpu.run`; `__updated__` |
-| `packages/python/hog-noise/tests/test_gpu.py` | four tests (eight cases) |
+| `packages/python/hog-noise/src/hog_noise/gpu.py` | `_Gpu.binding_limit`, `_Gpu.max_points`, the check in `_Gpu.run`; `run` uploads the `Grid` after it; `__updated__` |
+| `packages/python/hog-noise/tests/test_gpu.py` | three tests (nine cases) and the fixture |
 | `README.md` | *On the GPU*: the refusal; *Limits*: the most points a call takes |
 | the row, the account, the handoff, the journal | Task 4 |
 
@@ -88,24 +92,27 @@ def test_the_limit_is_the_devices_own(device):
 SMALL_LIMIT = 134_217_728
 
 
+class Uploaded(Exception):
+    """A call reached its first upload: the limit's check let it through."""
+
+
 @pytest.fixture
 def small(device, monkeypatch):
     """
-    The process's `gpu._Gpu`, its limit lowered to `SMALL_LIMIT` and its uploads stopped: a call that reaches an upload
-    has been let through the check, and nothing is computed either way.
+    A sampler on the process's `gpu._Gpu`, its limit lowered to `SMALL_LIMIT`. The sampler is made first, since making
+    it uploads its own `Params`; then every upload, storage and uniform, is stopped: a call that reaches one has been
+    let through the check, and nothing is computed either way.
     """
     gpu_ = gpu._Gpu.get()
     monkeypatch.setattr(gpu_, "binding_limit", SMALL_LIMIT)
+    sampler = gpu.GpuSampler(NoiseParams(frequency=0.01))
 
-    def stop(values):
+    def stop(data):
         raise Uploaded
 
     monkeypatch.setattr(gpu_, "storage", stop)
-    return gpu_
-
-
-class Uploaded(Exception):
-    """A call reached its first upload: the limit's check let it through."""
+    monkeypatch.setattr(gpu_, "uniform", stop)
+    return sampler
 
 
 def _lazy(n):
@@ -126,20 +133,21 @@ CALLS = {
 def test_a_call_past_the_devices_limit_is_refused_before_any_upload(small, name):
     """
     Past the limit wgpu refuses too, but in its own terms (a buffer size, a binding number) that differ by backend,
-    and only after the axes are uploaded. The refusal names the call, the most points it takes and the adapter.
+    and only after the axes are uploaded. The refusal names the call, the most points it takes and the adapter, and
+    comes before any upload: an axis's, and `sample_grid`'s `Grid`.
     """
     width, call = CALLS[name]
     most = SMALL_LIMIT // (4 * width)
     with pytest.raises(ValueError, match=f"past the {most:,} one call can take on .+ split the call"):
-        call(gpu.GpuSampler(NoiseParams(frequency=0.01)), _lazy(most + 1))
+        call(small, _lazy(most + 1))
 
 
-@pytest.mark.parametrize("name", ["sample_points_2d", "warp_points"])
+@pytest.mark.parametrize("name", ["sample_points_2d", "sample_grid", "warp_points"])
 def test_a_call_at_the_devices_limit_is_let_through(small, name):
     """Not one point early: a call writing exactly the limit's bytes passes the check and reaches its upload."""
     width, call = CALLS[name]
     with pytest.raises(Uploaded):
-        call(gpu.GpuSampler(NoiseParams(frequency=0.01)), _lazy(SMALL_LIMIT // (4 * width)))
+        call(small, _lazy(SMALL_LIMIT // (4 * width)))
 ```
 
 - [ ] **Step 2:** run them, and see them fail:
@@ -148,7 +156,7 @@ def test_a_call_at_the_devices_limit_is_let_through(small, name):
 HOG_NOISE_REQUIRE_GPU=1 uv run pytest packages/python/hog-noise/tests/test_gpu.py -n 0 -q -k "devices_limit or devices_own"
 ```
 
-Expected: `1 failed, 7 errors`, each on `_Gpu` having no `binding_limit`.
+Expected: `1 failed, 8 errors`, each on `_Gpu` having no `binding_limit`.
 
 - [ ] **Step 3:** commit (`CI proof follow-on, task 1: a call past the buffer limit, tests first`).
 
@@ -168,9 +176,14 @@ Expected: `1 failed, 7 errors`, each on `_Gpu` having no `binding_limit`.
         return self.binding_limit // (4 * width)
 ```
 
-- [ ] **Step 2:** in `_Gpu.run`, replace the docstring's `:raises` line and add the check after the `n == 0` return:
+- [ ] **Step 2:** `_Gpu.run` takes the `Grid` as bytes and uploads it after the check. Its signature's last parameter
+  becomes `grid: bytes | None = None`, and its docstring and its body down to the bind group become:
 
 ```text
+        """
+        Dispatch ``entry`` over ``n`` points and read back ``n * width`` floats. ``grid`` is the packed `Grid`
+        (`pack_grid`), uploaded here after the checks, like every buffer a call makes.
+
         :raises ValueError: An axis whose length is not ``n``, or more points than the device binds in one call (both
             checked before any GPU work).
         """
@@ -184,20 +197,36 @@ Expected: `1 failed, 7 errors`, each on `_Gpu` having no `binding_limit`.
                 f"{entry}: {n:,} points is past the {self.max_points(width):,} one call can take on {adapter}, which "
                 f"binds at most {self.binding_limit:,} bytes a buffer ({width} float32 a point out): split the call"
             )
+        wgpu, dev = self.wgpu, self.device
+        grid_buffer = self.uniform(grid) if grid is not None else self.no_grid
+        coords = [self.storage(a) for a in axes] + [self.unused] * (3 - len(axes))
+        out = dev.create_buffer(size=n * width * 4, usage=wgpu.BufferUsage.STORAGE | wgpu.BufferUsage.COPY_SRC)
+        buffers = [params_buffer, self.tables, *coords, out, grid_buffer]
 ```
 
-and set `__updated__` to the day.
+- [ ] **Step 3:** in `GpuSampler.sample_grid`, pass the bytes, not a buffer:
 
-- [ ] **Step 3:** run Task 1's command. Expected: `8 passed`.
-- [ ] **Step 4:** each mutant of the check, applied alone, fails its tests (a script that applies one, runs Task 1's
+```text
+        grid = pack_grid(start, shape, scales)
+        return self._gpu.run("sample_grid", self._params, (), math.prod(shape), 1, grid).reshape(shape)
+```
+
+and set `__updated__` to the day. `sample_grid` is `run`'s only caller with a `Grid` (`grep -rn "_Gpu\b\|\._gpu\."`
+over `packages`, `apps` and `Spikes` finds none outside `gpu.py` and its tests).
+
+- [ ] **Step 4:** run Task 1's command. Expected: `9 passed`. Then the whole file,
+  `HOG_NOISE_REQUIRE_GPU=1 uv run pytest packages/python/hog-noise/tests/test_gpu.py -n 0 -q`: every test passes,
+  `test_a_power_of_two_grid_equals_its_points_bit_for_bit` among them, which runs `sample_grid` through the moved upload.
+- [ ] **Step 5:** each mutant of the check, applied alone, fails its tests (a script that applies one, runs Task 1's
   command and restores `gpu.py` byte for byte):
   - `if n > self.max_points(width):` to `if False:`: 5 failed (every refusal);
-  - `>` to `>=`, one point early: 2 failed (both at the limit);
-  - `binding_limit` from `max-buffer-size` alone: 1 failed on any adapter whose two limits differ (every one measured).
-- [ ] **Step 5:** the real refusal, past the real limit: the probe calls of *Facts* (`sample_points_2d` at 536,870,912
+  - `>` to `>=`, one point early: 3 failed (each at the limit);
+  - `binding_limit` from `max-buffer-size` alone: 1 failed on any adapter whose two limits differ (every one measured);
+  - the `grid_buffer` line moved above the check: 1 failed (`sample_grid`'s refusal).
+- [ ] **Step 6:** the real refusal, past the real limit: the probe calls of *Facts* (`sample_points_2d` at 536,870,912
   points, `warp_points` at 178,956,971) on WARP and on any hardware adapter at hand now raise the `ValueError` in under
   0.1 s, and a small call then runs.
-- [ ] **Step 6:** `make check`, unpiped. Commit (`... task 2: refused before any upload, in the caller's terms`).
+- [ ] **Step 7:** `make check`, unpiped. Commit (`... task 2: refused before any upload, in the caller's terms`).
 
 ### Task 3: the README
 
@@ -231,13 +260,17 @@ and set `__updated__` to the day.
 ## The trial
 
 Run 2026-11-25 on the 5090 machine, from a worktree at `3a83792`, in task order: the tests alone, then with the check.
+Run twice: as first proposed, and again after Copilot's review on
+[PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60) found `sample_grid`'s `Grid` uploaded before the check
+(D7). The second trial's tests, run first against the first trial's code, failed on exactly that case
+(`sample_grid`'s refusal: 1 failed, 8 passed). The table is the second trial's, except where a row says otherwise.
 
 | Step | Result |
 | --- | --- |
-| Task 1, step 2 | `1 failed, 7 errors`, each `AttributeError` on `binding_limit` |
-| Task 2, step 3 | `8 passed`, on WARP (`HOG_NOISE_WGPU_ADAPTER="Microsoft Basic Render Driver"`) and on the 5090's Vulkan |
-| Task 2, step 4 | no check: 5 failed; one point early: 2 failed; `max-buffer-size` alone: 1 failed (on the 5090's Vulkan); `gpu.py` restored |
-| Task 2, step 5 | on the 5090's Vulkan: `ValueError` in 0.0 s for both calls, then a small call ran. The message: "sample_points_2d: 536,870,912 points is past the 536,870,911 one call can take on NVIDIA GeForce RTX 5090, which binds at most 2,147,483,644 bytes a buffer (1 float32 a point out): split the call" |
+| Task 1, step 2 | `1 failed, 8 errors`, each `AttributeError` on `binding_limit` |
+| Task 2, step 4 | `9 passed` on the 5090's Vulkan; the whole `test_gpu.py`, 35 passed on the 5090's Vulkan and on WARP (`HOG_NOISE_WGPU_ADAPTER="Microsoft Basic Render Driver"`) |
+| Task 2, step 5 | on the 5090's Vulkan: no check, 5 failed; one point early, 3 failed; `max-buffer-size` alone, 1 failed; the `Grid` uploaded before the check, 1 failed; `gpu.py` restored |
+| Task 2, step 6 | the first trial, the points calls unchanged since: on the 5090's Vulkan, `ValueError` in 0.0 s for both calls, then a small call ran. The message: "sample_points_2d: 536,870,912 points is past the 536,870,911 one call can take on NVIDIA GeForce RTX 5090, which binds at most 2,147,483,644 bytes a buffer (1 float32 a point out): split the call" |
 | The cost | the new tests take under 0.01 s each; the process's pipelines, which the suite builds anyway, are the only setup (76 s on WARP) |
 | A real device at its limit | an earlier form of the tests made a second device with the default limits and ran `sample_points_2d` at exactly 33,554,432 points on WARP: it ran (26 s) and its last points were finite. Dropped from the standing tests for its cost (D5) |
 
@@ -251,6 +284,7 @@ Run 2026-11-25 on the 5090 machine, from a worktree at `3a83792`, in task order:
 | D4 | A public "most points" | Not now: `_Gpu.max_points` is private, and the message gives the number | `GpuSampler.max_points(width)` | A public function is kept forever once on PyPI; a caller who splits can be given one when one asks |
 | D5 | How the standing tests reach the limit | Lower `binding_limit` on the process's device and stop at the first upload: nothing computed, no second device | A second device with the default limits, run at its limit | The second device cost 86 s to build its pipelines on WARP and 26 s to run, about 2 min on a leg already 7 min; the boundary on a real device is in *The trial*, and the mutants show the check is exact |
 | D6 | The name in the message | The entry point (`warp_points_3d`), which `run` has | The Python method (`warp_points`) | One fewer table; the entry point names the method plainly. Cheap to change if the review prefers the method |
+| D7 | Where `sample_grid`'s `Grid` is uploaded | In `run`, after the check: `run` takes the packed bytes | Keep the upload in `sample_grid`, and check there too | One check and one place where a call's buffers are made; the `Grid` was the one upload outside `run`. Found by Copilot's review of this plan |
 
 ## Terms introduced
 
