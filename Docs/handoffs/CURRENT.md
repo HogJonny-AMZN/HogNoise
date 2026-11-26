@@ -4,7 +4,7 @@
 preference worth carrying forward.
 
 **Last updated:** 2026-11-25: **the buffer limit is refused in the caller's terms**
-([PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61)), built from [its plan](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md),
+([PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61), `f553140`), built from [its plan](../superpowers/plans/2026-11-25-a-call-past-the-buffer-limit.md),
 Accepted by the owner's merge of [PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60) (`d7abe0c`). A wgpu-rung
 call with more points than the device binds in one buffer (2,147,483,644 bytes on every adapter measured) is refused
 before any upload, with a `ValueError` naming the method, the most points it takes and the adapter; before, wgpu

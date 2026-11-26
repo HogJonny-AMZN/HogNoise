@@ -1,8 +1,8 @@
 # A call past the device's buffer limit: refused before any upload, in the caller's terms
 
-**Status:** Accepted 2026-11-25: merged by the owner ([PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60),
-`d7abe0c`), D2 to D7 as recommended; built in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61) (*Built*,
-below), with D6 reversed by its review as D6 allowed. Proposed 2026-11-25: option A of three, on the owner's "Yes"
+**Status:** Accepted 2026-11-26: merged by the owner ([PR #60](https://github.com/HogJonny-AMZN/HogNoise/pull/60),
+`d7abe0c`), D2 to D7 as recommended; built in [PR #61](https://github.com/HogJonny-AMZN/HogNoise/pull/61),
+merged as `f553140` (*Built*, below), with D6 reversed by its review as D6 allowed. Proposed 2026-11-25: option A of three, on the owner's "Yes"
 (refuse before any upload, not chunk, not document only). Trial-run in task order before proposing (*The trial*,
 below), and again after Copilot's review moved `sample_grid`'s `Grid` upload after the check (D7).
 **Board:** [`2026-11-21-a-call-past-the-devices-buffer-limit`](../../plan/board/2026-11-21-a-call-past-the-devices-buffer-limit.md)
@@ -256,8 +256,9 @@ over `packages`, `apps` and `Spikes` finds none outside `gpu.py` and its tests).
   account* that gap 7 is closed, with the pull request. The handoff: the lead, and the order's next item (PyPI, on the
   owner's go). The journal. The plan's ticks and a *Built* table.
 - [x] **Step 2:** the deliberate review (`local-review`, diff mode); answer every finding in the pull request's *Review*.
-- [ ] **Step 3:** push, open the pull request from `.github/pull_request_template.md`, read CI (`gh pr checks <n>
-  --watch`), and assess Copilot's review when it arrives (`review-and-pr`). The owner merges.
+- [x] **Step 3:** push, open the pull request from `.github/pull_request_template.md`, read CI (`gh pr checks <n>
+  --watch`), and assess Copilot's review when it arrives (`review-and-pr`). The owner merges. Done: CI 17 of 17 at
+  `118126c`; Copilot recommended approval with no issues; merged as `f553140`.
 
 ## Built
 
