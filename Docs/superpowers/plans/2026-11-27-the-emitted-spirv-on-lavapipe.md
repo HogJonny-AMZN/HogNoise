@@ -208,8 +208,8 @@ it passes.
 
 ### Task 8: review, then out of draft
 
-- [ ] **Step 1:** the `local-review` skill on the diff; its table in the pull request's *Review*.
-- [ ] **Step 2:** fix every finding below 7 or say why not; re-run the gate.
+- [x] **Step 1:** the `local-review` skill on the diff; its table in the pull request's *Review*.
+- [x] **Step 2:** fix every finding below 7 or say why not; re-run the gate.
 - [ ] **Step 3:** `gh pr ready`, read CI, assess the automated review. The owner merges.
 
 ## Built
