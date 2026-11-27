@@ -28,7 +28,7 @@ from hog_noise.gpu import MAX_OCTAVES, pack_grid, pack_params
 
 _MODULE_NAME = "hog_noise_tools.hosts"
 __version__ = "0.1.0"
-__updated__ = "2026-11-25"
+__updated__ = "2026-11-27"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: A comma-separated list of hosts whose absence fails the tests instead of skipping them (CI's host legs).
@@ -41,6 +41,7 @@ HOSTS = {
     "hlsl-d3d11": "hog_noise_tools.hosts.hlsl:open_d3d11",
     "hlsl-d3d12": "hog_noise_tools.hosts.hlsl:open_d3d12",
     "spirv-naga": "hog_noise_tools.hosts.spirv_naga",
+    "spirv-vulkan": "hog_noise_tools.hosts.vulkan",
 }
 #: The README's *The entry points*.
 WORKGROUP = 64
