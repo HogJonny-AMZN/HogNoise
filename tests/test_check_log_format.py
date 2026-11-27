@@ -8,6 +8,8 @@ fails it and one that passes it.
 
 from __future__ import annotations
 
+import errno
+import os
 import sys
 from pathlib import Path
 
@@ -197,18 +199,100 @@ def test_a_scan_that_finds_no_python_is_a_finding(tmp_path: Path) -> None:
     assert "no Python file found" in finding.reason
 
 
-def test_a_directory_that_cannot_be_listed_is_a_finding(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize(("code", "text"), [(errno.EACCES, "Permission denied"), (errno.EIO, "Input/output error")])
+def test_a_directory_that_cannot_be_listed_is_a_finding(tmp_path: Path, monkeypatch, code: int, text: str) -> None:
+    """The listing itself fails, through ``os.scandir``, as a denied folder or a failing disk does."""
     _write(tmp_path, "ok.py", "x = 1\n")
-    real_walk = clf.os.walk
+    _write(tmp_path, "locked/a.py", '_LOGGER.info("x %s", y)\n')
+    target = tmp_path / "locked"
+    real = os.scandir
 
-    def denying_walk(top, onerror=None, **kwargs):
-        if onerror is not None:
-            onerror(PermissionError(13, "Permission denied", str(Path(top) / "locked")))
-        yield from real_walk(top, **kwargs)
+    def scandir(path: object = ".") -> object:
+        if Path(os.fspath(path)) == target:
+            raise OSError(code, text, str(target))
+        return real(path)
 
-    monkeypatch.setattr(clf.os, "walk", denying_walk)
+    monkeypatch.setattr(os, "scandir", scandir)
     (finding,) = clf.check_tree(tmp_path)
-    assert finding.path == "locked" and "cannot be listed" in finding.reason
+    assert finding.path == "locked" and "cannot be listed" in finding.reason and text in finding.reason, finding
+
+
+class _Listing:
+    """What ``os.scandir`` returns, with ``target``'s entry answering ``is_dir()`` and ``is_file()`` by raising
+    ``error``."""
+
+    def __init__(self, real: object, target: Path, error: OSError) -> None:
+        self._real, self._target, self._error = real, target, error
+
+    def __enter__(self) -> _Listing:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._real.close()
+
+    def __iter__(self) -> _Listing:
+        return self
+
+    def __next__(self) -> _Entry:  # os.walk calls next() on the listing itself
+        entry = next(self._real)
+        return _Entry(entry, self._error if Path(entry.path) == self._target else None)
+
+    def close(self) -> None:
+        self._real.close()
+
+
+class _Entry:
+    def __init__(self, real: os.DirEntry, error: OSError | None) -> None:
+        self._real, self._error = real, error
+        self.name, self.path = real.name, real.path
+
+    def is_dir(self, *, follow_symlinks: bool = True) -> bool:
+        if self._error is not None:
+            raise self._error
+        return self._real.is_dir(follow_symlinks=follow_symlinks)
+
+    def is_file(self, *, follow_symlinks: bool = True) -> bool:
+        if self._error is not None:
+            raise self._error
+        return self._real.is_file(follow_symlinks=follow_symlinks)
+
+    def is_symlink(self) -> bool:
+        return self._real.is_symlink()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._real, name)
+
+
+def test_a_folder_whose_is_dir_raises_is_a_finding_not_a_silent_pass(tmp_path: Path, monkeypatch) -> None:
+    """``os.walk`` reads an entry whose ``is_dir()`` raises as a file and never calls its ``onerror``, so the folder was
+    neither entered nor reported (#277; the same gap #269 closed in ``framework_config``)."""
+    _write(tmp_path, "ok.py", "x = 1\n")
+    _write(tmp_path, "pkg/inner.py", '_LOGGER.info("x %s", y)\n')
+    target = tmp_path / "pkg"
+    error = OSError(errno.EIO, "Input/output error", str(target))
+    real = os.scandir
+    monkeypatch.setattr(os, "scandir", lambda path=".": _Listing(real(path), target, error))
+    (finding,) = clf.check_tree(tmp_path)
+    assert finding.path == "pkg" and "cannot be read" in finding.reason, finding
+    assert "Input/output error" in finding.reason, finding
+
+
+@pytest.mark.parametrize(
+    ("skipped", "extra"),
+    [("node_modules", ()), ("pkg/node_modules", ()), ("build", ()), ("vendor", ("vendor",))],
+)
+def test_a_skipped_folder_whose_is_dir_raises_stays_silent(
+    tmp_path: Path, monkeypatch, skipped: str, extra: tuple[str, ...]
+) -> None:
+    """A folder the walk skips is skipped before its kind is read, so a broken one there is not a finding: always
+    skipped at any depth, build output at the top, or a configured exclusion (Copilot on #278)."""
+    _write(tmp_path, "ok.py", "x = 1\n")
+    _write(tmp_path, f"{skipped}/x.py", '_LOGGER.info("x %s", y)\n')
+    target = tmp_path / skipped
+    error = OSError(errno.EIO, "Input/output error", str(target))
+    real = os.scandir
+    monkeypatch.setattr(os, "scandir", lambda path=".": _Listing(real(path), target, error))
+    assert clf.check_tree(tmp_path, extra) == []
 
 
 def _link(link: Path, target: Path) -> None:

@@ -913,10 +913,6 @@ def test_a_rerun_with_a_login_changes_nothing(source: Path, tmp_path: Path) -> N
     assert "by hand" not in record  # the row is there: nothing to add
 
 
-def _last_record(target: Path) -> str:
-    return sorted((target / "logs").glob("init-*.log"))[-1].read_text(encoding="utf-8")
-
-
 def _with_roster(*logins: str) -> str:
     rows = [fc.dump_person(fc.Person(login, login.title(), "owner", ())) for login in logins]
     return _framework_text() + "".join("\n" + row for row in rows)

@@ -82,6 +82,7 @@ def test_a_line_carries_the_time_the_level_and_the_module() -> None:
         ("framework_sync", ["-v", "--check", "--root", "{empty}"]),
         ("install_hooks", ["-v", "--check", "--root", "{empty}"]),
         ("render_board", ["-v", "--print", "--root", "{empty}"]),
+        ("roster_join", ["-v", "--root", "{empty}"]),
     ],
 )
 def test_each_core_tool_logs_with_the_prefix_at_info_with_v(tool: str, argv: list[str], tmp_path: Path) -> None:

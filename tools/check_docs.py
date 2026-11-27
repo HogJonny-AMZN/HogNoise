@@ -106,8 +106,8 @@ import log_setup
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_docs"
-__version__ = "0.5.0"
-__updated__ = "2026-11-05"
+__version__ = "0.5.1"
+__updated__ = "2026-11-21"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: The closed set of document statuses. A reader must be able to tell a decision from a hypothesis and a live document
@@ -1392,12 +1392,20 @@ def session_summary(text: str) -> str | None:
     return None
 
 
+#: Said after a file name's or an entry's login that is not on the roster: a newcomer's first commit can meet this
+#: finding (``pre-commit``) before the ``commit-msg`` hook's, so it tells them how to join too.
+_JOIN_HINT = (
+    "; if this is you and you are new here, from the repository's root: uv run python tools/roster_join.py, then "
+    "stage framework.toml and commit again"
+)
+
+
 def _journal_author_findings(rel: str, text: str, roster: frozenset[str]) -> list[str]:
     """What is wrong with the authorship of one new-form session file, as detail strings (none: it is sound)."""
     problems: list[str] = []
     login = _NEW_SESSION_RE.match(posixpath.basename(rel))
     if login is not None and login.group("login").lower() not in roster:
-        problems.append(f"name's login '{login.group('login')}' is not on the roster")
+        problems.append(f"name's login '{login.group('login')}' is not on the roster{_JOIN_HINT}")
     lines = [line for _, line in prose_lines(text)[0]]
     first_entry = next((i for i, line in enumerate(lines) if _entry_title(line) is not None), len(lines))
     summary = session_summary(text)
@@ -1430,7 +1438,9 @@ def _journal_author_findings(rel: str, text: str, roster: frozenset[str]) -> lis
             named += _AT_LOGIN_RE.findall(
                 said
             )  # the whole value: the login pattern is linear, a cut would hide a login
-        problems += [f"entry '{title}': '@{n}' is not on the roster" for n in named if n.lower() not in roster]
+        problems += [
+            f"entry '{title}': '@{n}' is not on the roster{_JOIN_HINT}" for n in named if n.lower() not in roster
+        ]
     problems += [
         f"'{f'## {title}' if title else '##'}' is not an entry heading: an entry is a ### heading"
         for title in map(_level_two_title, lines)
@@ -1486,6 +1496,8 @@ class Row:
     title: str
     lines: dict[str, str]
     problems: tuple[str, ...] = ()
+    #: Header-named lines (``**Waits on:** ...``) found below the header, in the body: the first of each name.
+    below: dict[str, str] = field(default_factory=dict)
 
     @property
     def section(self) -> str:
@@ -1508,7 +1520,9 @@ def parse_row(rel: str, text: str) -> Row:
     """Read a row file: the title is the first ``# `` heading, the header the run of ``**Name:** value`` lines directly
     after it (blank lines before the first allowed; the first blank line after it ends the header), and the body is
     the rest. A missing title, an unknown name and a name given twice are problems the ``board`` check reports; the
-    rules per section are ``row_problems``'s."""
+    rules per section are ``row_problems``'s. A line in the body that reads as a header line with a known name is kept
+    in ``below``, so a check that reads one header line can still find it there (#294); a line indented four spaces or
+    a tab is code or a list's continuation, and is not kept."""
     name = posixpath.basename(rel)
     day, slug = row_file_name(name) or ("", "")
     lines = [line for _, line in prose_lines(text)[0]]
@@ -1519,13 +1533,17 @@ def parse_row(rel: str, text: str) -> Row:
         start = -1
     else:
         title = lines[start][2:].strip()
-    for line in lines[start + 1 :]:
+    rest = lines[start + 1 :]
+    end = len(rest)
+    for index, line in enumerate(rest):
         if not line.strip():
             if header:
+                end = index
                 break  # a blank line after the header ends it; the body follows
             continue
         match = _ROW_LINE_RE.match(line.strip())
         if match is None:
+            end = index
             break
         key = " ".join(match.group("name").split())
         canonical = next((n for n in ROW_NAMES if n.lower() == key.lower()), None)
@@ -1537,7 +1555,18 @@ def parse_row(rel: str, text: str) -> Row:
             problems.append(f"`{canonical}` is given twice")
         else:
             header[canonical] = match.group("value").strip()
-    return Row(rel, day, slug, title, header, tuple(problems))
+    below: dict[str, str] = {}
+    for line in rest[end:]:
+        if line.startswith(("    ", "\t")):
+            continue  # indented code, or a list item's continuation: an example, not the row's data
+        match = _ROW_LINE_RE.match(line.strip())
+        if match is None:
+            continue
+        key = " ".join(match.group("name").split())
+        canonical = next((n for n in ROW_NAMES if n.lower() == key.lower()), None)
+        if canonical is not None and canonical not in header:
+            below.setdefault(canonical, match.group("value").strip())
+    return Row(rel, day, slug, title, header, tuple(problems), below)
 
 
 def _login_problem(value: str, what: str, logins: set[str], *, none_allowed: bool) -> str | None:
@@ -1878,7 +1907,9 @@ def check_waits_on(ctx: Context) -> list[Finding]:
     is done (landed, closed or dropped) means the wait is over: the row is decided again. Links are read as the
     ``links`` check reads them (``_destinations``: an angle destination, a title, a fragment, percent-encoding; a
     reference link resolved against the row's own definitions), so a link one check accepts the other does too. The
-    line is read only where its section allows it; elsewhere the ``board`` check refuses it.
+    line is read only where its section allows it; elsewhere the ``board`` check refuses it. A line written below the
+    body is read too, and a finding on it says to move it into the header: a row that waits on landed work is the
+    case this check exists for, wherever the line sits (#294).
     """
     if not ctx.board_is_directory:
         return []
@@ -1888,34 +1919,32 @@ def check_waits_on(ctx: Context) -> list[Finding]:
         if rel not in ctx.texts:
             continue
         row = parse_row(rel, ctx.text(rel))
-        value = row.lines.get("Waits on")
+        value, where = row.lines.get("Waits on"), ""
+        if value is None and "Waits on" in row.below:
+            value, where = row.below["Waits on"], " (the line is below the body; move it into the header)"
         if value is None or row.section not in BOARD_SECTIONS or "Waits on" not in _ROW_ALLOWED[row.section]:
             continue
+        found: list[str] = []
         destinations, undefined = _wait_destinations(value, ctx.text(rel))
         for label in undefined:
-            findings.append(Finding("waits-on", rel, f"waits on [{label[:60]}], which is nothing the board has"))
+            found.append(f"waits on [{label[:60]}], which is nothing the board has")
         if not destinations and not undefined:
-            findings.append(Finding("waits-on", rel, f"waits on {value[:60]!r}, which links nothing the board has"))
+            found.append(f"waits on {value[:60]!r}, which links nothing the board has")
         for destination in destinations:
             path = unquote(destination.strip().split("#")[0].split("?")[0].strip())
             if _URL_RE.match(path):
-                findings.append(
-                    Finding("waits-on", rel, f"waits on {path[:60]}: a URL is not a row, so nothing the board has")
-                )
+                found.append(f"waits on {path[:60]}: a URL is not a row, so nothing the board has")
                 continue
             target = _resolve(rel, path)
             if target not in rows or target not in ctx.texts:
-                findings.append(Finding("waits-on", rel, f"waits on {path[:60]}, which is nothing the board has"))
+                found.append(f"waits on {path[:60]}, which is nothing the board has")
                 continue
             awaited = parse_row(target, ctx.text(target))
             if awaited.done:
-                findings.append(
-                    Finding(
-                        "waits-on",
-                        rel,
-                        f'waits on "{awaited.title[:60]}", which is done ({awaited.state[:40]}): decide this row again',
-                    )
+                found.append(
+                    f'waits on "{awaited.title[:60]}", which is done ({awaited.state[:40]}): decide this row again'
                 )
+        findings += [Finding("waits-on", rel, detail + where) for detail in found]
     return findings
 
 

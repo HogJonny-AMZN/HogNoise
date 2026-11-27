@@ -431,6 +431,40 @@ def test_a_name_that_differs_only_in_capitalisation_is_blocked_not_written_besid
     assert "differs only in capitalisation" in out
 
 
+@pytest.mark.parametrize("folder", ["docs", "DOCS"])
+def test_a_folder_in_other_capitalisation_is_blocked_where_realpath_keeps_the_case_given(
+    source: Path, target: Path, answers: Path, tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch, folder: str
+) -> None:
+    """macOS's ``realpath`` returns the case it was given, not the stored one (issue #265); Windows's returns the
+    stored case. The check reads the stored names itself, so it holds on both."""
+    if not _case_insensitive(tmp_path):
+        pytest.skip("this file system is case-sensitive: the two names are two folders")
+    shutil.rmtree(target / "Docs")
+    (target / folder).mkdir()
+    (target / folder / "glossary.md").write_text("the project's", encoding="utf-8")
+    monkeypatch.setattr(ini.os.path, "realpath", lambda path, **_: os.path.abspath(path))
+    code, out, _ = _adopt(source, target, answers, capsys=capsys)
+    assert code == 1
+    assert f"a folder on its path exists as '{folder}', which differs only in capitalisation" in out
+    assert sorted(p.name for p in target.iterdir() if p.name.lower() == "docs") == [folder]
+
+
+def test_a_folder_on_the_path_that_cannot_be_listed_is_a_refusal_not_a_traceback(
+    source: Path, target: Path, answers: Path, capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = os.listdir
+
+    def listdir(path: object = ".") -> list[str]:
+        if Path(path) == target / "Docs":
+            raise PermissionError(13, "Permission denied", str(path))
+        return real(path)
+
+    monkeypatch.setattr(ini.os, "listdir", listdir)
+    code, out, _ = _adopt(source, target, answers, capsys=capsys)
+    assert code == 1
+    assert "a folder on its path cannot be read" in out and "Permission denied" in out
+
+
 def test_an_existing_file_keeps_its_permissions_when_the_template_s_is_taken(
     source: Path, target: Path, answers: Path
 ) -> None:

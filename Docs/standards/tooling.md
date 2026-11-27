@@ -11,7 +11,7 @@ the rule.
 
 | Layer | Holds | Rule |
 | --- | --- | --- |
-| `tools/*.py` | All logic and all composition: the checks, the check runner, the hook installer | Cross-platform by construction; tested |
+| `tools/*.py` | All logic and all composition: the checks, the check runner, the hook installer, a newcomer's roster join (`roster_join.py`) | Cross-platform by construction; tested |
 | `Makefile` | Dispatch only | **Every recipe is a single `uv` invocation** |
 | `.githooks/*` | The git hooks | One `exec uv run python tools/...` line each |
 
@@ -131,7 +131,12 @@ The commit-message rules are the definition of done's *Identity* section:
   accepted identity: the owner's, exactly as `project.json` gives them, or a roster person's `name` with one of the `emails`
   on their `[[people]]` row in `framework.toml` (the email without regard to case, the name exactly; a person with no address
   cannot sign). `git commit -s` writes it, using git's `user.name` and `user.email`, so those must be one of them; the
-  rejection lists every accepted identity. A repository with no `framework.toml` accepts the owner alone; one whose
+  rejection lists every accepted identity. When the message has one `Signed-off-by:` line the roster does not hold, and
+  there is a roster, the rejection adds a line for a newcomer: from the repository's root (the checkout the hook
+  checked, named), `uv run python tools/roster_join.py` writes their `[[people]]` row from git's identity and their
+  GitHub login, then they stage `framework.toml` and commit again; the pull request that carries the row is how a
+  person on the roster accepts them. The tool writes nothing else, and the journal's `journal-author` finding for a
+  login not on the roster names it too. A repository with no `framework.toml` accepts the owner alone; one whose
   `framework.toml` cannot be read or is invalid stops the hook rather than narrowing to the owner silently. A `#` line is no sign-off. A merge message (`Merge branch`,
   `Merge pull request`...) and a `fixup!`, `squash!` or `amend!` message need none of their own.
 

@@ -22,7 +22,7 @@ Every module starts with a docstring naming the project and the package path, th
 ```python
 """
 <Project>: one line saying what the module is for.
-Package: <dotted/path/of/the/package>
+Package: <the.module.import.path>
 
 More detail if the one line is not enough: what it reads, what it writes, what it must not import.
 """
@@ -43,7 +43,9 @@ _LOGGER = _logging.getLogger(_MODULE_NAME)
 - `Package:` and `_MODULE_NAME` are the module's import path (`acme_tools.store`), not its folder: in a workspace member
   the folder starts `apps/` or `packages/`, and the import path starts with the member's package. A test file has no
   import path: its `Package:` line is its path from the repository's root without `.py`
-  (`packages/python/acme-tools-core/tests/test_store`, `tests/test_check`).
+  (`packages/python/acme-tools-core/tests/test_store`, `tests/test_check`), and so is a script's or a hook's,
+  run rather than imported as a package (`tools/check`, a harness hook's file). The line is the path
+  alone; a note goes in the docstring's body.
 - `_LOGGER` from `_MODULE_NAME`, never `__name__`. A module that never logs still declares it (the convention is uniform).
   In an App that takes *The tool-root pattern* (below), a module with user-facing output also declares `_TOOL_LOGGER`,
   the same instance under a second name. Neither configures a handler. Logging is configured only from an entry point's
@@ -205,9 +207,10 @@ member may not import `tools` or `tests`.
 
 The rule is held by `tests/test_boundaries.py` through `tools/boundaries.py`, which reads the source with `ast` and never
 imports it, together with the rules between members (`app-import`, `app-to-app`, `experiment-import`, `undeclared`,
-`duplicate`, `unreached`, `legacy-src`). Adding a package is its member's folder, its manifest, the root manifest's members list where a glob does
-not reach it, and its place in `order`. A workspace with packages and no `[layers]` table fails the test; the decision is
-the project's, and leaving the table out is not a way round it. A late or `TYPE_CHECKING` import counts like any other: a
+`duplicate`, `unreached`, `legacy-src`). Adding a package is its member's folder, its manifest, the root manifest's
+members list where a glob does not reach it, and its place in `order` (no dev-group entry and no root
+`[tool.uv.sources]` entry: a virtual root syncs every member). A workspace with packages and no `[layers]` table fails
+the test; the decision is the project's, and leaving the table out is not a way round it. A late or `TYPE_CHECKING` import counts like any other: a
 layer rule that ignores them is not a rule.
 
 ## Tests

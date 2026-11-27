@@ -116,6 +116,33 @@ framework's in every repository made from the template, so launchers never go th
 bit: a repository committed from Windows runs `git add --chmod=+x launchers/*.sh` once, or a teammate on Linux or
 macOS gets "Permission denied".
 
+## The mock project
+
+The template seeds a **mock project**: `apps/<slug>/` (a command line over a task list), `packages/python/<slug>-core/`
+(its engine, the `pure` layer) and their launchers, `launchers/<slug>.cmd` and `launchers/<slug>.sh`. It is real,
+tested code on a toy domain, there so that the gate, the boundary check and the layers have something to run against on
+day 0, and so that a new project sees this layout filled in. It is not the project's code: **removing it is the expected
+first step** once the project has members of its own.
+
+Its files are seeds, so the repository owns them once written and an update never rewrites them. A fix the template makes
+to the mock project does not reach a repository that has it: the release that fixes one names it in its section of
+[updating.md](updating.md), under *Seeds it fixed*, and a repository ports it by hand or has already removed the mock
+project. The `specimens` module in `framework.toml` is its switch: `on`, `init new` seeds it; `off`, `init` neither seeds
+it nor reports it (`--off specimens` in [adopting.md](adopting.md)).
+
+To remove it:
+
+1. `git rm -r apps/<slug> packages/python/<slug>-core launchers/<slug>.cmd launchers/<slug>.sh`. Where the project's
+   own members are already there, remove only these.
+2. In `framework.toml`, set `specimens = "off"` under `[modules]`, so that running `init new` again does not seed it
+   back.
+3. In `framework.toml`, rewrite `[layers]` for the project's own import packages, or delete the table while there are
+   none: its `order` and `pure` name the mock project's (`<slug>_core`, `<slug>`).
+4. Keep the root manifest's `members` (`"apps/*"`, `"packages/python/*"`): the globs take the project's own members.
+   Run `uv lock` and `uv sync --group dev`, so that the lock drops the two.
+5. Delete the **Mock project** and **Faux library** rows from `Docs/glossary.md`: they describe code that is gone.
+6. `make check` passes.
+
 ## Languages
 
 The shape is the same for every language; each language's standard says what its member holds. Python's is

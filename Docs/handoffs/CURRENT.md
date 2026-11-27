@@ -34,8 +34,9 @@ against this `main`. The owner made keeping the two in step the agent's job (*Wh
 Everything before 2026-11-23 (the CI proof's spec, the MaterialX survey, the macOS leg, the far probe, the account, the
 template updates, stage 3) is in [../journal/](../journal/README.md) and `git log`.
 Published 2026-11-01 at
-[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.11.1
-(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1, 0.10.2, 0.11.0 and 0.11.1) with no
+[https://github.com/HogJonny-AMZN/HogNoise](https://github.com/HogJonny-AMZN/HogNoise), on `ai-first-template` 0.11.5
+(0.4.0 to 0.9.4 in [PR #18](https://github.com/HogJonny-AMZN/HogNoise/pull/18), then 0.10.1, 0.10.2, 0.11.0, 0.11.1 and
+0.11.5) with no
 overrides
 ([ADR-001](../decisions/ADR-001-adopt-the-framework.md)). Gate G2 closed 2026-11-23:
 the [north-star roadmap](../design/2026-11-01-north-star-roadmap.md) is Accepted.
