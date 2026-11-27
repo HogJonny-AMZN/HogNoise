@@ -175,7 +175,7 @@ points, the wrong-target control refusing, and the eleven `test_frames[vulkan]` 
   hosts tests with `HOG_NOISE_REQUIRE_HOST=spirv-vulkan`, `HOG_NOISE_HOST_TARGET=llvmpipe`, `-rA -n 0`.
 - [x] **Step 2:** open the pull request as a draft and read the job: `spirv-vulkan` passes by name on every hog case,
   and `vulkaninfo` names the CPU device. Not run in the trial: `hosts.yml` runs on pull requests and on `main` only.
-- [ ] **Step 3: the target control in CI**, as (b)'s Task 5 step 4: a scratch commit sets
+- [x] **Step 3: the target control in CI**, as (b)'s Task 5 step 4: a scratch commit sets
   `HOG_NOISE_HOST_TARGET: not-lavapipe`; the job must fail with `HostTargetError`; revert it.
 
 ### Task 6: the documents
@@ -225,6 +225,7 @@ task's files taken from its trial commit and its command run again:
 | 4, step 3 | Windows, WARP | 86 passed, 40 skipped |
 | 4, steps 2 and 4 | the trial's container | not repeated: after the commit, `apps/` and `.gitignore` are the same git trees as `e19526a`'s (`282d148`, `40ddb6e`), so the trial's run and mutants are of this code |
 | 5, step 2 | CI, `spirv-vulkan` | 47 s; 79 passed, 47 skipped; `vulkaninfo`: `llvmpipe (LLVM 21.1.8, 256 bits)`, `PHYSICAL_DEVICE_TYPE_CPU`, `apiVersion` 1.4.335, Mesa 26.0.8-1ubuntu0.3; `test_every_hog_case_passes_within_the_wgpu_tolerance[spirv-vulkan]` passed, and the eleven `test_frames` cases |
+| 5, step 3 | CI, scratch `00e1096` | told `not-lavapipe`, the job failed: 73 passed, 46 skipped, 7 errors, every `spirv-vulkan` case `HostTargetError: spirv-vulkan runs on 'llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan 1.4.335)'`; reverted, the file restored from a copy |
 | 6 | Windows | `timeout 900 make check`: 9 of 9, 3,377 passed, 136 skipped, in 102 s; no hang |
 
 Task 7's row says Built in this pull request, not Landed with a date: P-31 has a record written before the merge name
