@@ -19,8 +19,8 @@ Every ``*.py`` and ``*.pyw`` under the root is read (a script with only a sheban
 declaration is honoured), except the folders the documents' walk leaves out (``exclude_parts`` of the ``[docs]``
 table: spikes, scratch and worktrees), ``.git``, ``.venv``, ``node_modules``, ``__pycache__`` and ``site-packages`` at
 any depth, and ``build``, ``dist`` and ``venv`` at the top only. A file that does not parse (too deeply nested
-included), or cannot be decoded, is a finding, never a silent pass; so is a directory that cannot be listed, and so is a
-scan that found no Python file at all.
+included), or cannot be decoded, is a finding, never a silent pass; so is a directory that cannot be listed, an
+entry whose kind cannot be read (#277), and a scan that found no Python file at all.
 
 Run standalone (exit code 0 clean, 1 findings, 2 the configuration or the arguments are unusable)::
 
@@ -38,6 +38,7 @@ import os
 import re
 import sys
 import tokenize
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,8 +48,8 @@ import log_setup
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_log_format"
-__version__ = "0.3.1"
-__updated__ = "2026-11-07"
+__version__ = "0.3.2"
+__updated__ = "2026-11-22"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 #: Directories never scanned, at any depth, whatever the configuration says: other checkouts and installed packages.
@@ -194,30 +195,59 @@ def _skipped(relative: Path, skip: frozenset[str]) -> bool:
     return any(part in skip for part in parts) or bool(parts and parts[0] in TOP_LEVEL_SKIPPED)
 
 
+def _relative(path: Path, root: Path) -> str:
+    """``path`` relative to ``root`` where it is under it, else as given."""
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _walk(root: Path, skip: frozenset[str], errors: list[Finding]) -> Iterator[tuple[Path, list[str], list[str]]]:
+    """``os.walk``'s top-down ``(folder, dirs, files)``, built on ``os.scandir`` so nothing unread passes in silence: a
+    folder that cannot be listed, and an entry whose kind cannot be read, are appended to ``errors`` as findings.
+    ``os.walk`` reads an entry whose ``is_dir()`` raises as a file, without calling its ``onerror``, so such a folder
+    was neither entered nor reported (#277). A name the walk skips (``skip`` at any depth, ``TOP_LEVEL_SKIPPED`` at the
+    top) is dropped before its kind is read, so a broken entry there is no finding (Copilot on #278). ``dirs`` comes
+    sorted, and the caller may prune it further in place, as with ``os.walk``."""
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        top = current == root
+        dirs: list[str] = []
+        files: list[str] = []
+        try:
+            with os.scandir(current) as listing:
+                for entry in listing:
+                    if entry.name in skip or (top and entry.name in TOP_LEVEL_SKIPPED):
+                        continue
+                    try:
+                        (dirs if entry.is_dir() else files).append(entry.name)
+                    except OSError as e:
+                        where = _relative(Path(entry.path), root)
+                        errors.append(Finding(where, 1, f"cannot be read, so its log calls are unchecked: {e}"))
+        except OSError as e:
+            where = _relative(Path(str(e.filename)) if e.filename else current, root)
+            errors.append(Finding(where, 1, f"cannot be listed, so its log calls are unchecked: {e}"))
+            continue
+        dirs.sort()
+        yield current, dirs, files
+        pending += [current / name for name in reversed(dirs)]
+
+
 def python_files(root: Path, skip: frozenset[str], errors: list[Finding]) -> list[Path]:
     """Every ``*.py`` under ``root`` outside the skipped directories (pruned while walking); a directory that cannot be
-    listed is appended to ``errors`` as a finding."""
-
-    def record(error: OSError) -> None:
-        where = Path(str(error.filename))
-        try:
-            where = where.relative_to(root)
-        except ValueError:
-            pass
-        errors.append(Finding(where.as_posix(), 1, f"cannot be listed, so its log calls are unchecked: {error}"))
-
+    listed, or an entry whose kind cannot be read, is appended to ``errors`` as a finding."""
     found: list[Path] = []
     real_root = root.resolve()
-    for current, dirs, files in os.walk(root, onerror=record):
-        top = Path(current) == root
-        dirs[:] = sorted(d for d in dirs if d not in skip and not (top and d in TOP_LEVEL_SKIPPED))
-        # The walk never enters a linked folder (a junction included), and lists a looping link among the files. A
-        # loop is source unseen; so is a linked folder whose target is outside the root, which nothing else walks
-        # (issue #78), or inside it where the walk skips. A link to a folder the walk reads (a venv's lib64 -> lib) is
-        # seen where it points, and a dangling link holds nothing.
+    for current, dirs, files in _walk(root, skip, errors):
+        # The walk never enters a linked folder (a junction included). A looping link is an entry whose kind cannot be
+        # read, so the walk reports it. A loop is source unseen; so is a linked folder whose target is outside the root,
+        # which nothing else walks (issue #78), or inside it where the walk skips. A link to a folder the walk reads (a
+        # venv's lib64 -> lib) is seen where it points, and a dangling link holds nothing.
         linked: set[str] = set()
         for name in [*dirs, *(f for f in files if not f.endswith(EXTENSIONS))]:
-            path = Path(current) / name
+            path = current / name
             where = path.relative_to(root).as_posix()
             try:
                 if not fc.is_link(path):
@@ -238,7 +268,7 @@ def python_files(root: Path, skip: frozenset[str], errors: list[Finding]) -> lis
                 continue
             errors.append(Finding(where, 1, reason))
         dirs[:] = [d for d in dirs if d not in linked]
-        found += [Path(current) / name for name in sorted(files) if name.endswith(EXTENSIONS)]
+        found += [current / name for name in sorted(files) if name.endswith(EXTENSIONS)]
     return found
 
 

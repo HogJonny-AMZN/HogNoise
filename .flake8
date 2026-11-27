@@ -1,0 +1,8 @@
+# flake8, for editors and anyone who runs it: the same line length as ruff, the gate's linter (pyproject.toml's
+# [tool.ruff]). The gate does not run flake8. The ignores are checks that disagree with ruff's formatter: E203
+# (whitespace before a slice's ':') and W503 (a line break before a binary operator). E704 (a statement on the line of
+# its def) is what the formatter writes for a one-line stub.
+[flake8]
+max-line-length = 120
+extend-ignore = E203, W503, E704
+exclude = .git, .venv, __pycache__, .pytest_cache, .ruff_cache, logs, Spikes

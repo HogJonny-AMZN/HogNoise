@@ -24,9 +24,38 @@ touch its Makefile or `.gitignore`: a target that runs the renderer, and an igno
 and `Docs/journal/INDEX.md`; `make board` and `Docs/plan/BOARD.md`). The release notes say which. A hand-kept board stays
 valid: a repository takes the row-file form when it converts its board, never through an update.
 
+## Patch, minor or major
+
+A release's version says what taking it asks of a repository. One question decides it: **on the day a repository takes
+the release, can its gate turn red, or must it do something by hand?** If so, the release is a minor; if not, a patch.
+One exception comes first: a check fixed to catch what it already claims to catch is a patch even when it turns a gate
+red, because the rule it enforces was already stated.
+
+| A change of this kind | Is a | Because |
+| --- | --- | --- |
+| A fix to a managed file that changes no check | patch | Nothing to do but take it |
+| A check fixed to catch what it already claims to catch | patch | The repository already broke a stated rule; the notes warn that its gate may name it (0.11.4's log-format fix) |
+| A fix to a seed (a project-owned file) | patch | An update never rewrites a seed; the release names it under *Seeds it fixed*, and porting it is the repository's choice |
+| A harness setting in a managed adapter file that changes no check | patch | It changes what an agent does, not what the gate passes |
+| A framework ledger entry, a standard's wording, a new skill | patch | Read, not enforced |
+| A new finding name in an existing stage, or a check that refuses what it passed before (other than the fix above) | minor | The gate can turn red on the day |
+| A new stage, or a new step in CI | minor | The same, and the repository's CI may need it |
+| A changed contract: a flag, a configuration key, a file's required form | minor | The repository may need to change what it wrote |
+| A step the release notes ask a repository to do by hand | minor | It must act |
+| A change that removes or renames what a repository relies on, with no path forward in the release | major | Only after `1.0.0`; before it, a minor that says so |
+
+A release carries the largest bump of its changes. **Before `1.0.0`** nothing is promised beyond the release notes, and
+nothing is major: a breaking change goes in a minor whose notes say so. **`1.0.0`** is declared by the template's owner,
+when its contracts are stable enough to promise; this table is the promise it makes. In the template's tracker, an
+issue carries the label `release: patch` or `release: minor` by this table
+([#300](https://github.com/HogJonny-AMZN/ai-first-template/issues/300)).
+
 ## Before you start
 
-- The working tree is clean and on a branch (`git switch -c chore/template-X.Y.Z`).
+- The working tree is clean and on a branch: by hand, a branch of its own (`git switch -c chore/template-X.Y.Z`);
+  with `--update`, the branch it should start from: the default branch, a worktree on a local branch at it, or a
+  branch holding only the commits the update needs first (the removal of a copy, below). `--update` makes
+  `template-update/vB` from there itself, so a branch made only to hold it is left unused.
 - `uv run python tools/framework_sync.py --check` is clean. An edit that is already there would be mixed into the update's
   diff and hidden by the new lock.
 - Start the findings log (below). It is kept as the work goes, not written from memory at the end.
@@ -75,7 +104,8 @@ the same trust as step 3's render, which runs the release's code too.
   shows what changed (step 4's judgment); the release's hand steps, their titles a checklist in the commit message and
   their text in the report, read by *Several releases at once*: each *Take* is marked as the render it did, the
   seeds it wrote are named, so a step that copies one is done, and a
-  skipped release's *Check it* as waiting for the one check against B; `make sync` and `make check` on the branch; and
+  skipped release's *Check it* as waiting for the one check against B; the sync the repository's CI runs, extras included (`make sync` syncs the `dev` group
+  only, so it removes them, and `make check` then skips their tests without a finding), and `make check` on the branch; and
   step 7: push the branch and open one pull request with *Template findings*. It pushes nothing.
 - **What it does not take.** A release whose plan refuses this repository, a path the repository's `.gitignore`
   ignores, a `framework.toml` it cannot edit by plain lines (an override in an inline table), and a message the
@@ -189,6 +219,19 @@ the repository. The release locked must be one that ships the module; take that 
    run; add a step for the module's stage to `.github/workflows/ci.yml`, in the check runner's order.
 7. **Check it:** `uv run python tools/framework_sync.py --check` is clean, `make check` passes with the module's stage in its
    summary, and the docs check is clean. Commit it on a branch and open one pull request that names the module.
+
+## Seeds it fixed
+
+A project-owned file is the repository's once it is seeded, so neither `--update` nor the steps above rewrite it, and a
+fix the template makes to one does not arrive on its own
+([#290](https://github.com/HogJonny-AMZN/ai-first-template/issues/290)). The mock project ([layout.md](layout.md), *The mock project*) is where this matters most:
+it is code, and code has faults. A release that fixes a seed says so in its section below, under **Seeds it fixed**,
+with the issue and the paths. For each one:
+
+- **The repository removed the mock project, or rewrote the file:** nothing to do.
+- **It still has the seed as written:** port the fix by hand. In a clone of the template,
+  `git diff v<previous>..v<release> -- payload/<path>` shows it, with the placeholders (`your-project-name`,
+  `your_project_name`) and the project's name token where the repository has its own names.
 
 ## When it goes wrong
 
@@ -625,7 +668,9 @@ or skip step 1 and read the release's version from its notes.
      `addopts` and stops with `unrecognized arguments: -n`. `make check` cannot see it, since it syncs the `dev`
      group; add `pytest-xdist>=3.8` to the extra those runs install, and relock (a downstream test of 0.11.0).
    - **A conftest hook that reports what tests set** (a terminal summary, a session-finish writer) prints nothing
-     in parallel, with no failure: the tests run in workers and the hook in the controller. Look for one, and
+     in parallel, with no failure: the tests run in workers and the hook in the controller. Look for one with
+     `git grep -n 'pytest_' -- '*conftest.py'`, which reads paths with spaces and finds a hook defined, imported
+     or loaded by `pytest_plugins` (exit 1 and nothing printed: none; any other exit is an error), and
      have the workers hand the state over or write it where the controller reads it (a downstream test of 0.11.0).
      The controller loads only the conftest at a test root, so the hook that reports goes there, not in a deeper
      folder's conftest; and a run started above a test root (`pytest packages`) loads none of them, so run the
@@ -643,8 +688,8 @@ or skip step 1 and read the release's version from its notes.
 `sudo` and `cmd /c` ([#241](https://github.com/HogJonny-AMZN/ai-first-template/issues/241)), reads a heredoc's body
 whole, and no longer refuses a delimiter that holds `$(...)` or an escaped `<<\EOF`; `init` keeps the executable bit
 when a release asks for it on a file that exists (from the update after this one: `--update` writes with the
-repository's own `init`); `--update`'s report names the seeds it wrote and says its commit ran
-no hooks. It gains no stage and adds no finding name or framework ledger entry. A repository on 0.10.x takes 0.11.0's
+repository's own `init`); and, from the update after this one too, since the report is the repository's own
+`--update`'s, it names the seeds it wrote and says its commit ran no hooks. It gains no stage and adds no finding name or framework ledger entry. A repository on 0.10.x takes 0.11.0's
 hand steps too, by *Several releases at once*.
 
 1. **Take 0.11.1.** A repository on 0.11.0 runs its own `uv run python tools/framework_sync.py --update`, the first
@@ -655,3 +700,128 @@ hand steps too, by *Several releases at once*.
    parallel; a reporting conftest hook lives at a test root, and a run started above one loads none. `testing.md` says
    a filtered run (`-k`) can be slower in parallel.
 3. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.1 locked`.
+
+## 0.11.2: Python 3.14 refuses a path as 3.13 did, and the guide's last 0.11.1 findings
+
+0.11.2 is a patch: it fixes managed files and asks nothing new of a repository. `framework_config` reads a path it
+cannot open as an error naming the path on Python 3.14 too, where `is_dir()` and `is_file()` answer False instead of
+raising ([PR #257](https://github.com/HogJonny-AMZN/ai-first-template/pull/257)); from the update after this one,
+`--update`'s report says to sync as the repository's CI syncs, extras included, before `make check` (the run that
+takes 0.11.2 is the repository's own 0.11.1 `--update`, so its `next:` line still says `make sync`: sync as step 1
+says), and the guide says which branch `--update` starts from and how to find a reporting conftest hook
+([PR #253](https://github.com/HogJonny-AMZN/ai-first-template/pull/253)); `python.md` says adding a package needs no
+dev-group entry and no root `[tool.uv.sources]` entry, since a virtual root syncs every member
+([PR #260](https://github.com/HogJonny-AMZN/ai-first-template/pull/260)); and the framework ledger gains entry 49, a
+convention probe that measured one output of a setting. It gains no stage and adds no finding name. A repository
+that keeps its own `failure-modes.md` receives no entry: read entry 49 and add it if it applies. A repository on
+0.11.0 or older takes the earlier releases' hand steps too, by *Several releases at once*.
+
+1. **Take 0.11.2.** Run your own `uv run python tools/framework_sync.py --update` from the branch it should start from
+   (*Before you start*). Then sync as your CI syncs, extras included, before `make check`: `make sync` alone removes
+   the extras, and `make check` then skips their tests without a finding.
+2. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.2 locked`.
+
+## 0.11.3: a newcomer joins the roster in one step, and the last downstream findings
+
+0.11.3 is a patch: it changes managed files and asks nothing new of a repository. `tools/roster_join.py`, a new managed
+tool, writes a newcomer's `[[people]]` row; the `commit-msg` hook's rejection of an identity not on the roster, and
+`journal-author`'s finding for one, name it, and `AGENTS.md`'s *Read first* step 1 says when to run it
+([PR #272](https://github.com/HogJonny-AMZN/ai-first-template/pull/272)). `src_packages` turns a folder it cannot list into an error naming the folder, where 0.11.2 gave a
+traceback on Python 3.11 and passed over the folder on 3.12 and later ([PR #269](https://github.com/HogJonny-AMZN/ai-first-template/pull/269),
+[#268](https://github.com/HogJonny-AMZN/ai-first-template/issues/268)). `init adopt` blocks a folder that differs only in capitalisation on macOS too, and refuses a folder
+it cannot list ([PR #273](https://github.com/HogJonny-AMZN/ai-first-template/pull/273), [#265](https://github.com/HogJonny-AMZN/ai-first-template/issues/265)); `--update` plans with the release's own `init`, so the update
+that takes 0.11.3 already checks this, and such a folder blocks it, named in its report. The seeds' `Package:` lines spell the import path, as `python.md`
+says, and `python.md`'s header template does too ([PR #266](https://github.com/HogJonny-AMZN/ai-first-template/pull/266)); the seeds are project-owned, so a repository's
+own modules keep their lines. A `.flake8` seed sets flake8's line length to ruff's, for editors
+([PR #270](https://github.com/HogJonny-AMZN/ai-first-template/pull/270)); `--update` writes it only where a repository has none. It gains no stage, and adds no finding
+name or framework ledger entry. A repository on 0.11.1 or older takes the earlier releases' hand steps too, by
+*Several releases at once*.
+
+1. **Take 0.11.3.** Run your own `uv run python tools/framework_sync.py --update` from the branch it should start from
+   (*Before you start*), then sync as your CI syncs, extras included, before `make check`. A repository with its own
+   `tools/roster_join.py` renames it first: the template's is managed, and `--update` refuses a managed path that
+   exists with other content and is not in the lock. `roster_join` is now a framework module name, which a
+   project's import name may not be: a project whose slug is `roster-join` cannot take 0.11.3 without a new slug,
+   as with every tool a release adds, and renaming a file does not help. None of the repositories the template
+   knows uses it.
+2. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.3 locked`.
+
+## 0.11.4: the log-format check reports a folder it cannot read, and the roster join states its limit
+
+0.11.4 is a patch: it changes managed files and asks nothing new of a repository. `tools/check_log_format.py` walks
+the tree on `os.scandir`, so a folder whose kind cannot be read is a finding, *cannot be read, so its log calls are
+unchecked*. 0.11.3 walked with `os.walk`, which files such an entry as a file without a word, so the folder's Python
+went unchecked and the check stayed clean. A folder the walk skips is still skipped, before its kind is read
+([PR #278](https://github.com/HogJonny-AMZN/ai-first-template/pull/278), [#277](https://github.com/HogJonny-AMZN/ai-first-template/issues/277)). `tools/roster_join.py` now says what its last comparison catches: an edit made
+before it, not a second join that replaces `framework.toml` between the comparison and the write. Two joins
+interleaved there both exit 0 and one row is lost, so run one join at a time in a checkout; a test pins the limit
+([PR #280](https://github.com/HogJonny-AMZN/ai-first-template/pull/280), [#279](https://github.com/HogJonny-AMZN/ai-first-template/issues/279)). It gains no stage, and adds no finding name or framework ledger entry. A
+repository on 0.11.2 or older takes the earlier releases' hand steps too, by *Several releases at once*.
+
+1. **Take 0.11.4.** Run your own `uv run python tools/framework_sync.py --update` from the branch it should start from
+   (*Before you start*), then sync as your CI syncs, extras included, before `make check`.
+2. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.4 locked`. A new `log-format`
+   finding that names a folder is one the check could not read before and passed over: make it readable. Leaving it
+   out with `exclude_parts` in the `[docs]` table is the last resort. A value there is a folder name, not a path,
+   and matches at every depth, in the Markdown checks as well as this one: `cache` skips `src/cache` and
+   `Docs/cache` too, so every folder of that name must be safe to skip. A list you write replaces the default one,
+   so keep the defaults (`DocsConfig.exclude_parts` in `tools/framework_config.py`) in it, with any exclusions you
+   already have.
+
+## 0.11.5: the mock project's faults, each shell's backslashes, and ledger entries 50 to 56
+
+0.11.5 is a patch: it changes managed files and fixes seeds, and asks nothing new of a repository. The inline-Python
+hook reads a command as each shell does: a PowerShell backslash is text, a Bash backslash before a quote, a separator, a
+space or a dash makes it text, a shell's options are read before its script, and `env -S` carries a command, which is
+judged ([PR #318](https://github.com/HogJonny-AMZN/ai-first-template/pull/318),
+[#316](https://github.com/HogJonny-AMZN/ai-first-template/issues/316)). `waits-on` reads a `Waits on` line written below
+a row's body, which it passed over before ([PR #313](https://github.com/HogJonny-AMZN/ai-first-template/pull/313),
+[#294](https://github.com/HogJonny-AMZN/ai-first-template/issues/294)). This file gains *Patch, minor or major*, the
+table this section's verdict comes from ([PR #309](https://github.com/HogJonny-AMZN/ai-first-template/pull/309)).
+`workflow.md` asks for an ADR for each one-way door a locked design decides, and for a plan's code to be trial-run
+before the plan is proposed; the review rubric's *Error handling* row asks for the line and the test behind every
+declared limit ([PR #314](https://github.com/HogJonny-AMZN/ai-first-template/pull/314),
+[#304](https://github.com/HogJonny-AMZN/ai-first-template/issues/304),
+[#311](https://github.com/HogJonny-AMZN/ai-first-template/issues/311)). Framework ledger entries 50 to 56 are new
+([PR #314](https://github.com/HogJonny-AMZN/ai-first-template/pull/314),
+[#298](https://github.com/HogJonny-AMZN/ai-first-template/issues/298),
+[#311](https://github.com/HogJonny-AMZN/ai-first-template/issues/311);
+[PR #318](https://github.com/HogJonny-AMZN/ai-first-template/pull/318),
+[#310](https://github.com/HogJonny-AMZN/ai-first-template/issues/310)). It gains no stage, and adds no finding name. A
+repository on 0.11.3 or older takes the earlier releases' hand steps too, by *Several releases at once*.
+
+**Seeds it fixed.** Each is project-owned, so the update leaves it alone: port it by hand as *Seeds it fixed* above
+says, or pass over it where the repository removed or rewrote the file.
+
+- The mock project's ids, `done` and writers ([PR #293](https://github.com/HogJonny-AMZN/ai-first-template/pull/293),
+  [#288](https://github.com/HogJonny-AMZN/ai-first-template/issues/288),
+  [#289](https://github.com/HogJonny-AMZN/ai-first-template/issues/289),
+  [#287](https://github.com/HogJonny-AMZN/ai-first-template/issues/287)). A removed highest id is no longer reused after
+  a save and reload: `TaskList` keeps `next_id`, and the store writes a `next` line only when it is not one past the
+  highest id. `Task` refuses a `done` that is not a `bool`. `cli.py` and `store.py` say one writer at a time, and a test
+  pins what two writers lose. Paths: `task.py` and `task_list.py` in
+  `packages/python/your-project-name-core/src/your_project_name_core/`, `store.py` and `cli.py` in
+  `apps/your-project-name/src/your_project_name/`, and their tests.
+- `store.load` on a file that exists and cannot be read
+  ([PR #312](https://github.com/HogJonny-AMZN/ai-first-template/pull/312),
+  [#292](https://github.com/HogJonny-AMZN/ai-first-template/issues/292)): four tests, in
+  `apps/your-project-name/tests/test_store.py` and `test_cli.py`.
+- The example Icebox row ([PR #312](https://github.com/HogJonny-AMZN/ai-first-template/pull/312),
+  [#305](https://github.com/HogJonny-AMZN/ai-first-template/issues/305)): `Docs/plan/board/<day>-first-idea.md` says to
+  mark it Dropped once the board has a real row, since `row-kept` refuses deleting it.
+- The handoff's day-0 checklist ([PR #312](https://github.com/HogJonny-AMZN/ai-first-template/pull/312),
+  [#306](https://github.com/HogJonny-AMZN/ai-first-template/issues/306)): `Docs/handoffs/CURRENT.md` gives the first
+  commit, and says what `init new` already ran.
+- The harness's attribution line ([PR #314](https://github.com/HogJonny-AMZN/ai-first-template/pull/314),
+  [#301](https://github.com/HogJonny-AMZN/ai-first-template/issues/301)): the settings file the [compatibility
+  matrix](compatibility-matrix.md) names for the inline-script hook sets `attribution` to `{"commit": "", "pr": "",
+  "sessionUrl": false}` and `includeCoAuthoredBy` to `false`, so an agent adds no attribution line to a commit or a pull
+  request. Merge the two keys into the repository's own file, from the one the render seeded. The shorter
+  `"attribution": false` needs a newer harness, and an older one skips the whole file that holds it.
+
+1. **Take 0.11.5.** Run your own `uv run python tools/framework_sync.py --update` from the branch it should start from
+   (*Before you start*), then sync as your CI syncs, extras included, before `make check`.
+2. **Check it.** `make check` passes, and `--upstream` says `lock is current: 0.11.5 locked`. A new `waits-on` finding
+   names a row whose `Waits on` line sits below its body and links a row that is done, or one the board does not have:
+   the line was never checked before. Correct the link, or remove the line. A command the inline-Python hook now refuses
+   ran Python inline all along: write the Python to a file, as framework ledger entry 48 says.

@@ -10,7 +10,9 @@ and this is the map. It carries no status, counts or phase; the state is in the 
    [Docs/plan/BOARD.md](Docs/plan/BOARD.md), the tracker (rendered by `make board` from the row files under
    `Docs/plan/board/`, one file per row; read the rows when the page is not there): the gates a person on the roster closes
    (nothing downstream of an open one may be committed to), what is in flight, what is blocked on whom, and the Icebox
-   where every idea said out loud lands with a cost.
+   where every idea said out loud lands with a cost. If this repository has a roster (`framework.toml`,
+   `[[people]]`) and your git identity is not on it, run `uv run python tools/roster_join.py` from the repository's
+   root and include the row in your first pull request.
 2. [Docs/README.md](Docs/README.md): the map from a task to the document that governs it. Project-specific pointers go
    there, so this file stays the same in every repository made from the template.
 3. [Docs/glossary.md](Docs/glossary.md): the vocabulary. Use these exact words, no synonyms.

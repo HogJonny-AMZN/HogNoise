@@ -1473,9 +1473,11 @@ def _report(plan: UpdatePlan) -> list[str]:
     lines += [
         f"release: https://{qualified(plan.upstream)}/releases/tag/{plan.tag}",
         f"branch: {plan.branch}, one commit, not pushed",
-        # make sync first: a fresh clone's environment is not CI's until it is synced the way CI syncs it
-        "next: make sync, then make check on the branch (its commit ran no hooks); the hand steps and the kept",
-        "      overrides; then push it and open one pull request with Template findings (updating.md, step 7)",
+        # make sync first: a fresh clone's environment is not CI's until it is synced the way CI syncs it, extras
+        # included (a downstream update of 0.11.1: make sync alone uninstalled them and make check skipped their tests)
+        "next: sync as your CI syncs, extras included (make sync syncs the dev group only and removes them),",
+        "      then make check on the branch (its commit ran no hooks); the hand steps and the kept overrides;",
+        "      then push it and open one pull request with Template findings (updating.md, step 7)",
     ]
     return lines
 

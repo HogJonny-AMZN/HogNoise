@@ -1,6 +1,6 @@
 """
 Acme Viewer: the logging setup of an App that takes the tool-root pattern (the reference copy, from python.md).
-Package: acme_viewer/main
+Package: acme_viewer.main
 
 An example: its Package line and ``_MODULE_NAME`` name the App it stands for, not the folder it is kept in. Copy it into
 the App's entry point module and change the constants. ``configure_logging()`` is called from ``main()`` (and from a

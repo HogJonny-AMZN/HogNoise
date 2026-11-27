@@ -14,7 +14,7 @@ Score each metric **1 to 10**. Mark a metric `n/a` when it does not apply to the
 | Maintainability | Cost of change, testability, isolation |
 | Performance | Obvious waste; hot-path cost; I/O where it should not be |
 | Security | Input trust boundaries, paths from outside, injection, secrets in code, unsafe `eval`/`exec`/deserialisation |
-| Error handling | Specific exception types, context on re-raise across layers, empty/None/out-of-range paths, no partial writes, a failure that is reported and not swallowed, and the error-path checklist in `testing.md` where the repository has one |
+| Error handling | Specific exception types, context on re-raise across layers, empty/None/out-of-range paths, no partial writes, a failure that is reported and not swallowed, every declared limit, timeout or retry count applied by a line and failed by a test without it (framework entry 52), and the error-path checklist in `testing.md` where the repository has one |
 | Logging | Consistent logger use, appropriate levels, a run that leaves a record of what it read, decided and wrote, no stray `print()` outside an entry point |
 | Coding standards | The repository's own conventions (columns, imports, type hints, module header, formatting) and **vocabulary**: a new domain noun with no row in the glossary, or a word the glossary already uses for another concept, is a finding |
 | Layering | *When applicable*: separation of concerns; do not force it on code that is not layered this way |

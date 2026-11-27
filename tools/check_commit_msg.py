@@ -13,7 +13,8 @@ commit. The rules are the definition of done's *Identity* section (``Docs/standa
   one of their ``emails`` (``[[people]]`` in ``framework.toml``; a person with no address cannot sign). The email is
   compared without regard to case, the name exactly. ``git commit -s`` writes it. A repository with no
   ``framework.toml`` accepts the owner alone; one whose ``framework.toml`` cannot be read or is invalid stops the
-  hook (exit 2), never narrowing to the owner silently.
+  hook (exit 2), never narrowing to the owner silently. A message with one ``Signed-off-by:`` line the roster does
+  not hold is also told how a newcomer joins it: ``uv run python tools/roster_join.py`` from the repository's root.
 
 A line starting with ``#`` is read like any other for attribution (git keeps it when the message is given with
 ``-m``) and counts for nothing as a sign-off. A merge, ``fixup!``, ``squash!`` or ``amend!`` message needs no
@@ -49,8 +50,8 @@ import log_setup
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "tools.check_commit_msg"
-__version__ = "0.3.0"
-__updated__ = "2026-11-06"
+__version__ = "0.4.0"
+__updated__ = "2026-11-21"
 _LOGGER = _logging.getLogger(_MODULE_NAME)
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -80,6 +81,10 @@ _AI_RE = re.compile(r"\b(" + "|".join(AI_NAMES) + r")\b|\[bot\]|noreply@anthropi
 _TRAILER_RE = re.compile(r"^\s*#?\s*(co-authored-by|assisted-by|generated-by)\s*:(.*)$", re.IGNORECASE)
 _GENERATED_RE = re.compile(r"^\s*#?\s*(?:[^\w\s#]\s*)?generated[\s-]+(?:with|by)\b", re.IGNORECASE)
 _SIGNOFF_RE = re.compile(r"^\s*signed-off-by\s*:\s*(.*?)\s*<([^<>]*)>\s*$", re.IGNORECASE)
+#: Any ``Signed-off-by:`` line, well formed or not: the newcomer's line is given only when there is exactly one.
+_SIGNOFF_START_RE = re.compile(r"^\s*signed-off-by\s*:", re.IGNORECASE)
+#: What a newcomer runs to add their row to the roster (``tools/roster_join.py``).
+JOIN_COMMAND = "uv run python tools/roster_join.py"
 #: Messages git writes itself, or that a rebase folds away, and that need no sign-off of their own.
 _SIGNOFF_EXEMPT = (
     "merge branch ",
@@ -136,14 +141,19 @@ def check_message(
     project: fc.ProjectConfig,
     people: tuple[fc.Person, ...] = (),
     extra: tuple[tuple[str, str], ...] = (),
+    root: Path | None = None,
 ) -> list[str]:
     """The reasons ``message`` must be rejected, empty when it is accepted.
+
+    A message with exactly one ``Signed-off-by:`` line that is not accepted, in a repository with a roster, is told
+    how a newcomer joins it (``tools/roster_join.py``), run from ``root``.
 
     :param message: The commit message text.
     :param project: The project's identity and whether it requires a sign-off.
     :param people: The roster whose members may sign as themselves; empty where the repository has none.
     :param extra: ``(name, email)`` identities accepted for the sign-off alone, beyond the owner and the roster: the
         range mode's bot sign-off. The hook passes none.
+    :param root: The checkout whose roster was read, named in the newcomer's line; ``None`` names none.
     """
     found: list[str] = []
     lines = message.splitlines()
@@ -165,10 +175,18 @@ def check_message(
             listed = "\n".join(
                 f"    Signed-off-by: {name} <{email}>    ({source})" for name, email, source in identities
             )
-            found.append(
+            reason = (
                 "the sign-off is missing or is not an accepted identity. git commit -s writes your git user.name and "
                 f"user.email, so they must be one of:\n{listed}"
             )
+            if people and sum(1 for line in lines if _SIGNOFF_START_RE.match(line)) == 1:
+                where = f" ({root})" if root is not None else ""
+                reason += (
+                    f"\n  If this is you and you are new here, from the repository's root{where}: {JOIN_COMMAND}, "
+                    "then stage framework.toml and commit again; the pull request that carries the row is how a "
+                    "person on the roster accepts you."
+                )
+            found.append(reason)
     return found
 
 
@@ -288,7 +306,7 @@ def _check_range(
         bot = bot_signoff(author, message, opened_by)
         if bot:
             _LOGGER.info(f"{sha[:7]}: accepted {bot[0][0]}'s own sign-off (the pull request's opener and the author)")
-        reasons = check_message(message, project, people, bot)
+        reasons = check_message(message, project, people, bot, root=root)
         for reason in reasons:
             print(f"[commit-msg] {sha[:7]} {_first_line(message)}: {reason}", file=sys.stderr)
         rejected += bool(reasons)
@@ -319,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
         f"read {args.message_file}: {len(message.splitlines())} line(s); signoff required: {project.signoff}; "
         f"accepted identities: {len(accepted_identities(project, people))}"
     )
-    found = check_message(message, project, people)
+    found = check_message(message, project, people, root=args.root)
     for reason in found:
         print(f"[commit-msg] {reason}", file=sys.stderr)
     if found:

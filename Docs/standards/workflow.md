@@ -37,6 +37,14 @@ written up in the spike's README, and nothing in production imports it. A **road
 
 A board yes is not a lock. A row with a cost and a verdict is permission to open the conversation, not the design.
 
+**Locking a design writes its ADRs.** When a design moves to `Accepted`, each one-way door it decides gets an ADR under
+`Docs/decisions/` in the same pull request, and the design links them. The definition of done asks again at the end of
+an increment, but the lock is where the decision is made.
+
+**A plan's code is trial-run before the plan is proposed.** Run each task's code and commands in order, each against
+the tree that task will see, and carry the trial through the documents' tasks with the docs check run on them. A plan
+that has only been read has not been tried (framework entry 53).
+
 ## Who owns what
 
 A program of several increments has several records, and each owns one thing. Duplicating between them is how they drift.

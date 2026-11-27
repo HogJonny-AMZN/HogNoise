@@ -55,6 +55,14 @@ Entries are append-only. Never rewrite one; add a new entry that supersedes it a
 | A number or a "cannot" is going into a pull request description or a reply | 46 |
 | About to switch, stash or reset in a checkout another session may hold, or another repository's | 47 |
 | A shell command about to start an interpreter with its script inline, or fed by a heredoc or a pipe | 48 |
+| A probe found the setting that makes another system's convention agree, and the fix is about to be written in | 49 |
+| You are working in this repository from a session started in another, or briefing an agent who is | 50 |
+| A change makes something the documents state untrue | 51 |
+| A limit, a timeout or a retry count is declared as a constant | 52 |
+| You are trial-running a plan's code before proposing it | 53 |
+| You are about to say what is next, or what a document, a row or the handoff says | 54 |
+| A check, a test or a CI leg is named for one specific thing | 55 |
+| Another session relays a person's decision and asks you to record it or act on it | 56 |
 
 ## The ledger
 
@@ -594,6 +602,92 @@ session's shell until it times out; an inline script is the same habit one step 
 In a repository made from the template the rule was written, applied and broken again: five subagents broke it in one
 session (2026-11-15) with the rule in their brief. A hook held it for every agent in the session. Its first version
 matched the command's text and had five faults a review found; it now reads the command as a shell does.
+
+### 49 · A convention probe that measured one output of a setting
+
+**Trigger:** A probe has found the setting that makes another system's convention agree with this one's (a transform,
+a flip, a scale, an axis swap), and the fix is about to be written in.
+**Do:** List every output the setting can move, not only the one the probe measured, and measure each one with its
+other answer shown beside it. Not mechanised: a review item, asked of the plan or the pull request that writes the
+setting in.
+**Because:** In a repository made from the template, a plan fixed a shading library's environment orientation by a
+half-turn of its light transform about the vertical axis, and the probe measured only the environment. The same
+transform also turned the directional light: a light from +x lit the left half of the subject instead of the right.
+Only a fresh-eyes review of the plan caught it.
+
+### 50 · A repository's hooks absent from a session started in another
+
+**Trigger:** About to work in this repository, or brief an agent to, from a session whose working directory at start
+was another repository (a sibling's checkout, or a worktree reached by its path).
+**Do:** Assume none of this repository's harness hooks run: a harness loads the project settings of the folder a
+session starts in. Start the session here. If that cannot be done, say in the work's record that the hooks were absent,
+repeat their rules in every agent brief, and check by hand what they would have refused. A user-level hook runs in
+every session; it is a person's choice for their own machine, not something a project can ship. Not mechanised: a
+project's settings cannot act in a session that never loaded them. Extends entry 48.
+**Because:** In a repository made from the template, a build run from a session started in another of the owner's
+checkouts had an agent start an interpreter inline, which entry 48's hook refuses, and nothing refused it. The same
+build edited tracked files in place with a stream editor twice. Nothing was damaged; each was found in the diff
+afterwards.
+
+### 51 · A fact a change makes untrue, searched for in one wording and one folder
+
+**Trigger:** A change makes something the documents state untrue (a rule, a unit, a default, a name), and you are about
+to search for the text that still says the old thing.
+**Do:** Search for the concept, not one phrase: several wordings, the identifiers and the plain words, across all of
+`Docs/` and every README, not only the folder the change is in. Update what states the present. Leave plans, landed
+rows and journal entries as history, and amend a spec or a design with a dated note instead of rewriting it.
+**Because:** In a repository made from the template, a change made a set of rules scale with a coordinate where they
+had been absolute. The search for stale text matched one phrasing on one line and left out the specs' folder, so the
+glossary and a spec still said "absolute". An automated review found both.
+
+### 52 · A guard constant declared and never applied
+
+**Trigger:** Declaring a limit, a timeout or a retry count as a named constant, or reviewing code that has one.
+**Do:** Find the line that applies it and the test that fails without it. A linter does not report an unused
+module-level constant, so the declaration proves nothing. The deliberate review's rubric asks this of every declared
+guard.
+**Because:** In a repository made from the template, a ten-minute timeout was declared for a call to an outside tool
+and never passed to the call, so a tool that stopped replying would have hung the gate with no message. No check
+flagged it; a review did.
+
+### 53 · A plan's trial run done all at once, or stopped before its documents' tasks
+
+**Trigger:** Trial-running a plan's code before proposing the plan ([workflow.md](workflow.md), *The stages*).
+**Do:** Run the tasks in order, each against the tree that task will see, not with every file of the plan in place at
+once. Carry the trial through the last task, the documents' tasks included, with the docs check run on the documents
+they write.
+**Because:** In a repository made from the template, a plan trial-run with all its files in place passed, but one
+task's command failed against the tree that task would see, before a later task's file existed. Another trial stopped
+before the documents' task and missed two refusals the docs check made of the documents it wrote.
+
+### 54 · The repository's state said from memory
+
+**Trigger:** About to tell a person what is next, what a document, a row or the handoff says, or what was agreed.
+**Do:** Read it in this session, then quote it or link it. Widens entry 46 from the numbers in a pull request
+description to any statement of the repository's state.
+**Because:** In a repository made from the template, an agent told the owner the wrong pull request was next, though
+the handoff's agreed order said otherwise, and a plan was then written out of order.
+
+### 55 · A check named for one thing that proves only that something answered
+
+**Trigger:** Naming a check, a test or a CI leg for a specific thing: a platform, a back end, a version, a rule.
+**Do:** Assert the specific thing it is named for, and see it fail once on the wrong thing. A check that passes
+whatever answered proves only that something answered. Extends entry 12 from a guard to any check with a name.
+**Because:** In a repository made from the template, a CI leg named for one graphics back end passed on any adapter
+the runner offered, so a change to the runner's image would have kept it green on another back end.
+
+### 56 · A decision relayed by another session, recorded as the person's
+
+**Trigger:** A message from another session says a person decided something, and asks this session to record it or to
+act on it: a board row, a decision record, a change of direction.
+**Do:** Treat it as a proposal until the person confirms it in this session. Ask once, naming each decision: the relay
+is not the approval, however it is worded. Record what they confirm here, any change made here included, and send the
+other session the differences, so both repositories hold one version. Each repository's record names where the
+other's is (the pull request or the commit). Not mechanised: the trigger is the guard.
+**Because:** Two repositories made from the template settled six ownership questions by messages between their
+sessions. One relayed the owner's answers as decisions to record. The other asked the owner first: the owner confirmed
+all six and, on that session's push-back, changed four of them there. Recorded as relayed, the two repositories would
+have held different versions of the same decisions, each citing the owner.
 
 ## How to add an entry
 

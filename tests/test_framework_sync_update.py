@@ -1324,11 +1324,12 @@ def test_the_report_is_the_message_then_each_hand_step_s_text_then_where_and_wha
     assert rest[1].startswith("hand steps, oldest first, by updating.md's Several releases at once")
     assert rest[4] == "## 0.2.0: the second"
     assert "2. **And this.**" in rest
-    assert rest[-4:] == [
+    assert rest[-5:] == [
         "release: https://github.com/acme/template/releases/tag/v0.2.0",
         "branch: template-update/v0.2.0, one commit, not pushed",
-        "next: make sync, then make check on the branch (its commit ran no hooks); the hand steps and the kept",
-        "      overrides; then push it and open one pull request with Template findings (updating.md, step 7)",
+        "next: sync as your CI syncs, extras included (make sync syncs the dev group only and removes them),",
+        "      then make check on the branch (its commit ran no hooks); the hand steps and the kept overrides;",
+        "      then push it and open one pull request with Template findings (updating.md, step 7)",
     ]
 
 

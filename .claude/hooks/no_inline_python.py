@@ -1,7 +1,8 @@
 """
 Framework: a Claude Code PreToolUse hook that refuses a shell command running Python with no script file.
-Package: .claude/hooks/no_inline_python (run by the harness, not imported)
+Package: .claude/hooks/no_inline_python
 
+Run by the harness, not imported.
 The failure-modes ledger's entry 48: an interpreter whose script arrives on stdin (``python -``, a heredoc, a pipe, a
 bare ``python``) waits for ever when the script comes out empty, and ``python -c`` is the same habit one step removed.
 A rule in an agent's brief did not hold (five subagents broke it in one session), so this hook holds it for every agent
@@ -14,10 +15,11 @@ are data. A command substitution (``$(...)``, or backquotes in Bash) runs wherev
 unquoted heredoc's body included, so each is judged as a command of its own. Each simple command is then judged by
 its command word, after assignments and wrappers (``uv run``, ``env``, ``exec``, ``time``, ``nohup``,
 ``command``, ``xargs``, ``sudo``); ``cmd /c``'s command, a shell's ``-c`` script and PowerShell's ``-Command``
-are judged too. Bash and PowerShell differ in places:
-a backslash outside quotes is kept, so Windows paths survive, and a command from the PowerShell tool reads
-a backquote as PowerShell's escape character (an escaped character is text, and one before a newline continues
-the line), not as a substitution. Neither is parsed in full, only as far as finding the Python a command starts.
+are judged too. Bash and PowerShell differ in places: in Bash a backslash outside quotes makes a quote, a
+separator, a space or a substitution text and is kept before any other character, so Windows paths survive; a
+command from the PowerShell tool reads a backquote as PowerShell's escape character (an escaped character is
+text, and one before a newline continues the line), not as a substitution, and a backslash as text. Neither is
+parsed in full, only as far as finding the Python a command starts.
 
 Wired in ``.claude/settings.json`` as a ``PreToolUse`` hook on ``Bash|PowerShell`` (``updating.md``, 0.11.0). Run
 standalone with the hook's JSON on stdin (exit code 0 allowed, 2 refused)::
@@ -30,13 +32,14 @@ from __future__ import annotations
 import json
 import logging as _logging
 import re
+import shlex
 import sys
 
 # -------------------------------------------------------------------------
 # module global scope
 _MODULE_NAME = "claude.hooks.no_inline_python"
 __version__ = "0.1.0"
-__updated__ = "2026-11-20"
+__updated__ = "2026-11-25"
 _LOGGER = _logging.getLogger(_MODULE_NAME)  # declared by the standard; the advice on stderr is the hook's record
 
 _ADVICE = (
@@ -55,6 +58,11 @@ _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _PYTHON = re.compile(r"(?:python[0-9.]*w?|pyw?)(?:\.exe)?")
 _SHELLS = {"bash", "sh", "zsh", "dash", "bash.exe", "sh.exe"}
 _POWERSHELLS = {"pwsh", "powershell", "pwsh.exe", "powershell.exe"}
+# A backslash outside quotes makes the next character text in Bash. The hook consumes it only before a character the
+# shell would read specially, and keeps it before any other, so C:\\Python314\\python.exe keeps its path.
+_BASH_ESCAPED = frozenset(" \t'\"\\;&|()<>$`#*?[]{}!~-")
+# A shell's long options that take the next word as their value; -o and -O take it too, from anywhere in a cluster
+_SHELL_VALUED_LONG = {"--rcfile", "--init-file"}
 _KEYWORDS = {"{", "}", "!", "if", "then", "else", "elif", "do", "while", "until", "nohup"}
 # uv's own options before ``run`` that take the next word as their value
 _UV_GLOBAL_VALUED = {"--directory", "--project", "--cache-dir", "--config-file", "--color", "--python", "-p"}
@@ -92,6 +100,9 @@ _SUDO_VALUED = (
     },
 )
 _SUDO_QUERIES = ("lvV", {"--list", "--validate", "--version"})
+# env's, exec's and time's options that take the next word as their value (a long one with = carries its own);
+# env's -S and --split-string carry a command instead, which is judged
+_ENV_VALUED = {"-u", "-C", "-a", "-P", "--unset", "--chdir", "--argv0", "-o", "-f", "--output", "--format"}
 _PY_SAFE_LONG = {"--version", "--help", "--help-env", "--help-xoptions", "--help-all"}
 _PY_VALUED_LONG = {"--check-hash-based-pycs"}
 
@@ -255,7 +266,7 @@ def _simple_commands(command: str, substitutions: list[str], powershell: bool = 
                     buf.append(command[i:after])
                     i = after
                     continue
-                if command[i] == "\\" and i + 1 < n and command[i + 1] in '"\\$`':
+                if not powershell and command[i] == "\\" and i + 1 < n and command[i + 1] in '"\\$`':
                     i += 1
                 buf.append(command[i])
                 i += 1
@@ -267,8 +278,12 @@ def _simple_commands(command: str, substitutions: list[str], powershell: bool = 
                 start_quote()  # an escaped character is text
                 buf.append(nxt)
                 i += 2
-        elif ch == "\\" and nxt == "\n":
+        elif not powershell and ch == "\\" and nxt == "\n":
             i += 2  # a continued line
+        elif not powershell and ch == "\\" and nxt and nxt in _BASH_ESCAPED:
+            start_quote()  # an escaped quote, separator, space or substitution is text, and quotes its word
+            buf.append(nxt)
+            i += 2
         elif ch in " \t\r":
             end_word()
             i += 1
@@ -363,7 +378,11 @@ def _judge_command(words: list[tuple[str, bool]]) -> str | None:
         elif name in ("env", "time", "exec"):
             i += 1
             while i < len(words) and (words[i][0].startswith("-") or _ASSIGNMENT.match(words[i][0])):
-                i += 2 if words[i][0] in ("-u", "-C", "-a", "-S") else 1
+                option = words[i][0]
+                split = _split_string(option, words, i)
+                if split is not None:
+                    return _judge_command(split)  # env -S: its value split into words, then the words after it
+                i += 2 if option in _ENV_VALUED else 1
         elif name in ("timeout", "nice"):
             i += 1
             while i < len(words) and words[i][0].startswith("-"):
@@ -395,7 +414,7 @@ def _judge_command(words: list[tuple[str, bool]]) -> str | None:
             return _judge_shell([w for w, _ in words[i + 1 :]])
         elif name in _POWERSHELLS:
             return _judge_powershell([w for w, _ in words[i + 1 :]])
-        elif _PYTHON.fullmatch(name):
+        elif _PYTHON.fullmatch(name) or _PYTHON.fullmatch(_name(text.replace("\\", ""))):
             args = [w for w, _ in words[i + 1 :]]
             if (
                 name.startswith("py")
@@ -408,6 +427,28 @@ def _judge_command(words: list[tuple[str, bool]]) -> str | None:
         else:
             return None
     return None
+
+
+def _split_string(option: str, words: list[tuple[str, bool]], i: int) -> list[tuple[str, bool]] | None:
+    """The words ``env -S`` or ``--split-string`` runs, or ``None`` when ``option`` is neither.
+
+    The value is split into words as env splits it (whitespace, quotes, backslash escapes; ``\\_`` separates words, as
+    GNU env reads it outside double quotes), not read as shell syntax, and the words after it follow with their
+    boundaries kept.
+    """
+    if option in ("-S", "--split-string"):
+        value, rest = (words[i + 1][0], i + 2) if i + 1 < len(words) else ("", i + 1)
+    elif option.startswith("--split-string="):
+        value, rest = option.split("=", 1)[1], i + 1
+    elif option.startswith("-S"):
+        value, rest = option[2:], i + 1
+    else:
+        return None
+    try:
+        split = shlex.split(value.replace("\\_", " "))
+    except ValueError:  # an unclosed quote: env refuses it, so split on whitespace and judge what is there
+        split = value.split()
+    return [(word, False) for word in split] + words[rest:]
 
 
 def _past_options(
@@ -478,13 +519,31 @@ def _judge_cmd_line(line: str) -> str | None:
 
 
 def _judge_shell(args: list[str]) -> str | None:
-    """A shell's ``-c`` script is judged as a command of its own."""
-    for k, arg in enumerate(args):
-        if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", arg) and k + 1 < len(args):
-            return verdict(args[k + 1])
-        if not arg.startswith("-"):
-            return None
-    return None
+    """A shell's ``-c`` script is judged as a command of its own.
+
+    The options are read as the shell reads them, all of them first: each ``o`` or ``O`` in a cluster takes the next
+    word as its value (``-o pipefail``, ``-ox pipefail``, ``+O extglob``), as ``--rcfile FILE`` does, and a ``c``
+    anywhere says the first plain word after the options is the script (``bash -co pipefail '...'``). Without ``c`` that
+    word is a script file.
+    """
+    script = False
+    k = 0
+    while k < len(args):
+        arg = args[k]
+        k += 1
+        if arg == "--":
+            break
+        if arg in _SHELL_VALUED_LONG:
+            k += 1
+        elif arg.startswith("--"):
+            continue  # --login, --norc: a flag
+        elif len(arg) > 1 and arg[0] in "-+":
+            script = script or (arg[0] == "-" and "c" in arg[1:])
+            k += sum(letter in "oO" for letter in arg[1:])
+        else:
+            k -= 1  # the first plain word
+            break
+    return verdict(args[k]) if script and k < len(args) else None
 
 
 def _judge_powershell(args: list[str]) -> str | None:

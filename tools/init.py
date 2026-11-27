@@ -337,19 +337,41 @@ def read_lock(target: Path) -> tuple[str, dict[str, str], str | None] | None:
         raise fc.ConfigError("<file>", message, str(path)) from e
 
 
+def _folder_in_other_case(top: Path, parts: tuple[str, ...]) -> str | None:
+    """The stored path, relative to ``top``, of the first folder of ``parts`` that exists only in other
+    capitalisation, or ``None``. It reads each folder's stored names with ``os.listdir``, since ``realpath`` reports the
+    stored case on Windows but keeps the case it was given on macOS (issue #265). A name in other case counts only when
+    the wanted name opens it too (a case-insensitive file system): on a case-sensitive one they are two folders."""
+    folder, stored = top, []
+    for part in parts:
+        if not folder.is_dir():
+            return None
+        names = os.listdir(folder)
+        if part not in names:
+            other = [name for name in names if name.lower() == part.lower()]
+            if other and (folder / part).exists():
+                return "/".join([*stored, other[0]])
+        stored.append(part)
+        folder = folder / part
+    return None
+
+
 def _placement_problem(target: Path, dest: Path, out: str) -> str | None:
-    """Why ``dest`` cannot safely be written, or ``None``: a symlink on its path that leaves the target, or a name the
-    target already has with other capitalisation (the same file on a case-insensitive file system)."""
+    """Why ``dest`` cannot safely be written, or ``None``: a symlink on its path that leaves the target, a name the
+    target already has with other capitalisation (the same file on a case-insensitive file system), or a folder on
+    its path that cannot be listed."""
     top = Path(os.path.realpath(target))
     parent = Path(os.path.realpath(dest.parent))
     if parent != top and top not in parent.parents:
         return "a folder on its path is a symlink that leaves the target, so nothing is written through it"
-    expected = top.joinpath(*Path(out).parent.parts)
-    if str(parent) != str(expected) and str(parent).lower() == str(expected).lower():  # Path == ignores case on Windows
-        shown = parent.relative_to(top).as_posix()
+    try:
+        shown = _folder_in_other_case(top, Path(out).parent.parts)
+        names = os.listdir(dest.parent) if dest.parent.is_dir() else None
+    except OSError as e:
+        return f"a folder on its path cannot be read, so nothing is written through it: {e}"
+    if shown is not None:
         return f"a folder on its path exists as {shown!r}, which differs only in capitalisation"
-    if dest.parent.is_dir():
-        names = os.listdir(dest.parent)
+    if names is not None:
         clash = [name for name in names if name.lower() == dest.name.lower() and name != dest.name]
         if clash and dest.name not in names:
             return f"the target has {clash[0]!r}, which differs only in capitalisation"

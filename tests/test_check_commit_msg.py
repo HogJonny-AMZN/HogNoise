@@ -340,6 +340,54 @@ def test_the_script_runs_as_the_hook_runs_it_with_a_roster(tmp_path: Path) -> No
     assert ran.returncode == 1 and "Moon Mulligan <moon@example.org>" in ran.stderr and "Ada Example" in ran.stderr
 
 
+# ---- a newcomer is told how to join the roster
+STRANGER = "Signed-off-by: Someone Else <else@example.org>"
+JOIN = "uv run python tools/roster_join.py"
+
+
+def test_one_unaccepted_signoff_with_a_roster_names_roster_join_from_the_root(tmp_path: Path) -> None:
+    (found,) = ccm.check_message(f"Add\n\n{STRANGER}\n", _project(), (OWNER_ROW, MOON), root=tmp_path)
+    assert "not an accepted identity" in found and "user.name and user.email" in found
+    assert f"If this is you and you are new here, from the repository's root ({tmp_path}): {JOIN}" in found
+    assert "then stage framework.toml and commit again" in found
+    assert "the pull request that carries the row is how a person on the roster accepts you" in found
+    assert found.index("Moon Mulligan <moon@example.org>") < found.index(JOIN)  # after the accepted identities
+
+
+def test_no_signoff_line_keeps_the_git_commit_s_advice_and_no_roster_join_line() -> None:
+    (found,) = ccm.check_message("Add\n", _project(), (OWNER_ROW, MOON), root=Path("."))
+    assert "git commit -s" in found and JOIN not in found
+
+
+def test_no_roster_gives_no_roster_join_line() -> None:
+    (found,) = ccm.check_message(f"Add\n\n{STRANGER}\n", _project(), (), root=Path("."))
+    assert "not an accepted identity" in found and JOIN not in found
+
+
+def test_two_unaccepted_signoffs_give_no_roster_join_line() -> None:
+    message = f"Add\n\n{STRANGER}\nSigned-off-by: Bo Bee <bo@example.org>\n"
+    (found,) = ccm.check_message(message, _project(), (OWNER_ROW, MOON), root=Path("."))
+    assert JOIN not in found
+
+
+def test_main_names_roster_join_and_the_checkout_it_checked(tmp_path: Path, capsys) -> None:
+    (tmp_path / "repo").mkdir()
+    root = _roster_root(tmp_path / "repo", OWNER_ROW, MOON)
+    assert ccm.main(["--root", str(root), str(_message(tmp_path, f"Add\n\n{STRANGER}\n"))]) == 1
+    err = capsys.readouterr().err
+    assert "[commit-msg] the sign-off is missing or is not an accepted identity" in err
+    assert f"from the repository's root ({root}): {JOIN}" in err
+
+
+def test_the_range_mode_carries_the_roster_join_line_too(tmp_path: Path, capsys) -> None:
+    repo, base = _repo(tmp_path)
+    roster = replace(fc.load_framework(ROOT / "framework.toml"), people=(OWNER_ROW, MOON))
+    (repo / "framework.toml").write_text(fc.dump_framework(roster), encoding="utf-8")
+    _commit(repo, f"Add\n\n{STRANGER}\n")
+    code, _, err = _range(repo, base, capsys)
+    assert code == 1 and f"from the repository's root ({repo}): {JOIN}" in err
+
+
 # ---- the range mode: every commit a pull request brings (CI's job)
 DEPENDABOT = "dependabot[bot]"
 DEPENDABOT_SIGNOFF = "Signed-off-by: dependabot[bot] <support@github.com>"

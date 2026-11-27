@@ -30,9 +30,11 @@ deterministic emitter, because the schema is fixed and a writer package would be
 
 from __future__ import annotations
 
+import errno
 import json
 import keyword
 import logging as _logging
+import os
 import re
 import stat
 import sys
@@ -604,6 +606,23 @@ def is_link(path: Path) -> bool:
     return stat.S_ISLNK(mode) or bool(is_junction is not None and is_junction())
 
 
+def _has_python(folder: Path) -> bool:
+    """Whether a file named ``*.py`` is anywhere under ``folder``, never through a link. A folder that cannot be listed,
+    or an entry whose kind cannot be read, raises its ``OSError``. It is built on ``os.scandir`` because both walks the
+    standard library offers pass over such a folder: ``Path.rglob`` skips one it cannot list (Python 3.12 and later),
+    and ``os.walk`` reads an entry whose ``is_dir()`` raises as a file, without calling its ``onerror``. Either way a
+    package whose Python sits under the failing folder was dropped without a word."""
+    pending = [folder]
+    while pending:
+        with os.scandir(pending.pop()) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.name.endswith(".py"):
+                    return True
+    return False
+
+
 def src_packages(src: Path) -> list[str]:
     """The top-level names a ``src/`` provides: every folder with Python in it (a namespace package too) and every
     module at the top, as the boundary check reads them. Hidden folders, caches and ``*.egg-info`` are not packages.
@@ -616,16 +635,24 @@ def src_packages(src: Path) -> list[str]:
         raise ConfigError(src.as_posix(), f"cannot be read: {e}") from e
     try:
         entries = sorted(src.iterdir())
-        names = set()
-        for entry in entries:
-            if entry.name.startswith(".") or entry.name == "__pycache__" or entry.name.endswith(".egg-info"):
-                continue
-            if entry.is_dir() and any(entry.rglob("*.py")):
-                names.add(entry.name)
-            elif entry.is_file() and entry.suffix == ".py" and entry.stem != "__init__":
-                names.add(entry.stem)
     except OSError as e:
         raise ConfigError(src.as_posix(), f"cannot be listed: {e}") from e
+    names = set()
+    for entry in entries:
+        if entry.name.startswith(".") or entry.name == "__pycache__" or entry.name.endswith(".egg-info"):
+            continue
+        kind = _kind_or_refuse(entry, src)
+        if kind == "dir":
+            try:
+                has_python = _has_python(entry)
+            except OSError as e:
+                failed = Path(e.filename) if e.filename else entry
+                where = failed.relative_to(src).as_posix() if failed.is_relative_to(src) else failed.as_posix()
+                raise ConfigError(where, f"cannot be listed: {e}") from e
+            if has_python:
+                names.add(entry.name)
+        elif kind == "file" and entry.suffix == ".py" and entry.stem != "__init__":
+            names.add(entry.stem)
     return sorted(names)
 
 
@@ -648,7 +675,7 @@ def workspace_members(root: Path) -> tuple[Member, ...]:
     by path, so callers and their findings are stable.
     """
     manifest_path = root / "pyproject.toml"
-    if not manifest_path.is_file():
+    if _kind_or_refuse(manifest_path, root) != "file":
         return ()
     data = _toml_file(manifest_path, "pyproject.toml")
     workspace: Any = data
@@ -664,13 +691,35 @@ def workspace_members(root: Path) -> tuple[Member, ...]:
         found.resolve()
         for pattern in patterns
         for found in root.glob(pattern)
-        if found.is_dir() and (found / "pyproject.toml").is_file()
+        if _kind_or_refuse(found, root) == "dir" and _kind_or_refuse(found / "pyproject.toml", root) == "file"
     }
     base = root.resolve()
     outside = sorted(f for f in folders if not f.is_relative_to(base))
     if outside:
         raise ConfigError("pyproject.toml", f"a workspace member resolves outside the repository: {outside[0]}")
     return tuple(_member_at(base, f) for f in sorted(folders - excluded))
+
+
+# The errors ``is_dir()`` and ``is_file()`` answered False to on Python 3.11 to 3.13, as ``pathlib._ignore_error``
+# listed them: a path that is not there (which ``path_kind`` has already read as missing), a bad descriptor, a loop,
+# and their Windows codes (21 not ready, 123 a bad name, 1921 a link it cannot resolve). Every other error was raised.
+_NOT_A_PATH_ERRNOS = frozenset({errno.ENOENT, errno.ENOTDIR, errno.EBADF, errno.ELOOP})
+_NOT_A_PATH_WINERRORS = frozenset({21, 123, 1921})
+
+
+def _kind_or_refuse(path: Path, base: Path) -> str:
+    """``path_kind`` as ``is_dir()`` and ``is_file()`` read it on Python 3.11 to 3.13: a path that cannot be read for
+    any reason but a loop (a refusal, a failing disk) is a ``ConfigError`` naming it (relative to ``base`` when it is
+    under it), and a loop is ``"other"``, neither a folder nor a file, which the boundary check's own walk reports. On
+    3.14 ``is_dir()`` and ``is_file()`` answer False for every error, so a refused or failing path read as no member and
+    no package, in silence (framework ledger 43)."""
+    try:
+        return path_kind(path)
+    except OSError as e:
+        if e.errno in _NOT_A_PATH_ERRNOS or getattr(e, "winerror", None) in _NOT_A_PATH_WINERRORS:
+            return "other"
+        where = path.relative_to(base).as_posix() if path.is_relative_to(base) else path.as_posix()
+        raise ConfigError(where, f"cannot be read: {e}") from e
 
 
 def parse_layers(data: Any) -> LayersConfig:

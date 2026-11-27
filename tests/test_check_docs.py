@@ -2369,6 +2369,19 @@ def test_a_login_is_compared_ignoring_case_and_a_file_may_have_no_entries(tmp_pa
     assert ours == []
 
 
+@pytest.mark.parametrize(
+    ("session", "name"),
+    [
+        (GOOD_SESSION, "Docs/journal/2026-10/2026-10-11-zed-0930.md"),  # the file name's login
+        (GOOD_SESSION.replace("**By:** @ada ·", "**By:** @zed ·"), AUTHORED),  # an entry's login
+    ],
+)
+def test_a_login_not_on_the_roster_names_roster_join(tmp_path: Path, session: str, name: str) -> None:
+    ours, _ = author_findings(tmp_path, session, name=name)
+    (finding,) = [f for f in ours if "is not on the roster" in f.detail]
+    assert "uv run python tools/roster_join.py" in finding.detail
+
+
 def test_a_login_in_a_code_fence_or_an_at_sign_in_prose_is_not_read(tmp_path: Path) -> None:
     fence = "\n```\n### Not an entry\n## Nor this\n@zed: nope\n```\n"
     session = GOOD_SESSION + fence + "\nSee @types/node: and @param: here.\n"
@@ -3566,6 +3579,42 @@ def test_a_reference_style_wait_on_done_work_or_on_nothing_is_a_finding(tmp_path
     found = [f for f in _waiting_with_body(tmp_path, line, DEFS) if f.check != "links"]
     assert [(f.check, f.location) for f in found] == [("waits-on", BAD_ROW)], [str(f) for f in found]
     assert words in found[0].detail
+
+
+DONE_BELOW = "\nThe body.\n\n**Waits on:** [Done thing](2026-09-30-done-thing.md)\n"
+
+
+def test_a_wait_on_done_work_written_below_the_body_is_a_finding_that_says_to_move_it(tmp_path: Path) -> None:
+    found = _waiting_with_body(tmp_path, "", DONE_BELOW)
+    assert [(f.check, f.location) for f in found] == [("waits-on", BAD_ROW)], [str(f) for f in found]
+    assert "which is done" in found[0].detail and "move it into the header" in found[0].detail
+
+
+def test_a_wait_on_an_open_row_written_below_the_body_is_not_a_finding(tmp_path: Path) -> None:
+    body = "\nThe body.\n\n**Waits on:** [Build it](2026-10-02-build-it.md)\n"
+    assert _waiting_with_body(tmp_path, "", body) == []
+
+
+def test_a_header_wait_is_read_and_a_second_below_the_body_is_not(tmp_path: Path) -> None:
+    found = _waiting_with_body(tmp_path, "**Waits on:** [Build it](2026-10-02-build-it.md)\n", DONE_BELOW)
+    assert found == [], [str(f) for f in found]  # the header is the row's data; the body line is prose
+
+
+def test_a_wait_line_inside_a_code_block_in_the_body_is_not_read(tmp_path: Path) -> None:
+    body = "\nAn example:\n\n```markdown\n**Waits on:** [Done thing](2026-09-30-done-thing.md)\n```\n"
+    assert _waiting_with_body(tmp_path, "", body) == []
+
+
+@pytest.mark.parametrize("indent", ["    ", "\t"])
+def test_a_wait_line_in_indented_code_in_the_body_is_not_read(tmp_path: Path, indent: str) -> None:
+    body = f"\nAn example:\n\n{indent}**Waits on:** [Done thing](2026-09-30-done-thing.md)\n"
+    assert _waiting_with_body(tmp_path, "", body) == []
+
+
+def test_a_header_named_line_in_the_body_is_kept_below_and_out_of_the_header() -> None:
+    row = cd.parse_row(BAD_ROW, _row("icebox", "The row", "none", "Iceboxed", ICEBOX_LINES) + DONE_BELOW)
+    assert "Waits on" not in row.lines and row.problems == ()
+    assert row.below == {"Waits on": "[Done thing](2026-09-30-done-thing.md)"}
 
 
 @pytest.mark.parametrize("state", ["Closed 2026-10-01 by the owner", "Dropped: superseded"])

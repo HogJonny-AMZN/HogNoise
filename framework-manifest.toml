@@ -385,6 +385,12 @@ pattern = ".gitattributes"
 module = "core"
 kind = "project-owned"
 
+# flake8's settings, for editors: the same line length as ruff. A seed, so a repository's own .flake8 is kept.
+[[rule]]
+pattern = ".flake8"
+module = "core"
+kind = "project-owned"
+
 [[rule]]
 pattern = ".github/workflows/ci.yml"
 module = "core"

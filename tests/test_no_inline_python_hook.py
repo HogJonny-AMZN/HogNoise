@@ -98,6 +98,42 @@ REFUSED = [
     "cat <<EOF\n`python -c 1`\nEOF",
     'FOO="a b" python -c 1',
     "FOO='a b' python -c 1",
+    # #316: an escape outside quotes is consumed, so the quotes after it pair as Bash pairs them; env's long
+    # options and a shell's options take their value as a separate word
+    "printf '%s\\n' 'it'\\''s'; python -c 'print(1)'",
+    "echo a\\ b; python -c 1",
+    "env --unset PYTHONPATH python -c 1",
+    "env --chdir /tmp python -c 1",
+    "bash -O extglob -c 'python -c 1'",
+    "bash +O extglob -c 'python -c 1'",
+    "bash -o pipefail -c 'python -c 1'",
+    "bash -euo pipefail -c 'python -c 1'",
+    "bash --rcfile /dev/null -c 'python -c 1'",
+    "bash --init-file /dev/null -c 'python -c 1'",
+    # the fresh-eyes review of #316: a Windows path in Bash keeps its backslashes (the escape's negative control);
+    # a backslash inside the command word or before a dash is removed as Bash removes it; a shell reads all its
+    # options before the script, whatever their order; env -S carries a command; env's and time's other values
+    "C:\\Python314\\python.exe -c 1",
+    "py\\thon -c 1",
+    "\\p\\y\\t\\h\\o\\n -c 1",
+    "python \\-c 1",
+    "echo a\\\\; python -c 1",
+    "bash -co pipefail 'python -c 1'",
+    "bash -c -o pipefail 'python -c 1'",
+    "bash -oc pipefail 'python -c 1'",
+    "bash -ox pipefail -c 'python -c 1'",
+    "env -S 'python -c 1'",
+    "env -S python -c 1",
+    "env --split-string 'python -c 1'",
+    "env --split-string='python -c 1'",
+    "env -P /usr/bin python -c 1",
+    "env --argv0 x python -c 1",
+    "/usr/bin/time -o out.txt python -c 1",
+    "/usr/bin/time -f %e python -c 1",
+    # Copilot's review of #318: env -S splits its value into words and keeps the boundaries of the words after it
+    "env -S 'bash -c' 'exec python -c 1'",
+    "env -S'python -c 1'",
+    "env -S 'python\\_-c\\_1'",
 ]
 
 ALLOWED = [
@@ -171,6 +207,26 @@ ALLOWED = [
     'cat <<"EOF"\n`python -c 1`\nEOF',
     'echo "a \\`python -c 1\\` b"',
     '"FOO=1" tools/run.sh',
+    # #316: an escaped separator or substitution is text; a shell option's value is not its script
+    "echo text\\; python -c 1",
+    "echo \\$\\(python -c 1\\)",
+    "echo \\`python -c 1\\`",
+    "bash -o pipefail script.sh",
+    "env --unset PYTHONPATH python tools/check.py",
+    "env --unset=PYTHONPATH python tools/check.py",
+    "echo a\\&\\& python -c 1",
+    "echo a \\| python -c 1",
+    "bash -co pipefail 'python tools/check.py'",
+    "env -S 'python tools/check.py'",
+    # an option with nothing after it runs nothing
+    "bash -o",
+    "bash -c",
+    "bash --rcfile",
+    "env -S",
+    # Copilot's review of #318: an argument after env -S's value is one word, and an escaped character in a
+    # heredoc's delimiter makes its body data
+    "env -S echo 'hello; python -c 1'",
+    "cat <<E\\ OF\\n$(python -c 1)\\nE OF",
 ]
 
 
@@ -190,6 +246,9 @@ POWERSHELL_REFUSED = [
     'Write-Host "x`ty"; python -c 1',
     "python `\n  -c 1",
     'pwsh -Command "Write-Host x`ty; python -c 1"',
+    # #316: a backslash is not PowerShell's escape, so it neither closes a quote early nor continues a line
+    'Write-Host "C:\\"; python -c 1',
+    "Write-Host C:\\\npython -c 1",
 ]
 
 POWERSHELL_ALLOWED = [
@@ -200,6 +259,8 @@ POWERSHELL_ALLOWED = [
     "Write-Host done`; python -c 1",
     # Copilot's review of #248: cmd reads a backquote as text
     "cmd /c 'echo `python -c 1`'",
+    'Write-Host "C:\\"; uv run python tools/check.py',
+    "C:\\Python314\\python.exe tools\\check.py",
 ]
 
 

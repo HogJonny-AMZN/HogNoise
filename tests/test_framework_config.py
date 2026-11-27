@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import errno
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -1384,6 +1386,176 @@ def test_no_root_manifest_or_no_workspace_means_no_members(tmp_path: Path) -> No
     assert fc.workspace_members(tmp_path) == ()
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
     assert fc.workspace_members(tmp_path) == ()
+
+
+def _denied_as_on_3_14(monkeypatch: pytest.MonkeyPatch, target: Path, error: OSError | None = None) -> None:
+    """``target`` there but refused, as an ACL that denies it would be read on Python 3.14: ``stat()`` raises (a
+    permission error, or ``error``), and ``is_dir()`` and ``is_file()`` answer False instead of raising (as they did on
+    3.11 to 3.13). Every other path reads as it is."""
+    real_stat, real_is_dir, real_is_file = Path.stat, Path.is_dir, Path.is_file
+
+    def stat(self: Path, *args: object, **kwargs: object) -> object:
+        if self == target:
+            raise error if error is not None else PermissionError(13, "Permission denied", str(self))
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(Path, "is_dir", lambda self, *a, **k: False if self == target else real_is_dir(self, *a, **k))
+    monkeypatch.setattr(Path, "is_file", lambda self, *a, **k: False if self == target else real_is_file(self, *a, **k))
+
+
+def test_an_entry_of_a_src_that_cannot_be_read_is_a_config_error_not_skipped(tmp_path: Path, monkeypatch) -> None:
+    src = tmp_path / "src"
+    (src / "acme_hidden").mkdir(parents=True)
+    (src / "acme_hidden" / "x.py").write_text("", encoding="utf-8")
+    (src / "acme_seen.py").write_text("", encoding="utf-8")
+    _denied_as_on_3_14(monkeypatch, src / "acme_hidden")
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.src_packages(src)
+    assert caught.value.field == "acme_hidden" and "Permission denied" in str(caught.value)
+
+
+@pytest.mark.parametrize("denied", ["apps/acme-tools", "apps/acme-tools/pyproject.toml", "pyproject.toml"])
+def test_a_workspace_path_that_cannot_be_read_is_a_config_error_not_no_member(
+    tmp_path: Path, monkeypatch, denied: str
+) -> None:
+    _workspace(tmp_path, '["apps/*"]')
+    _member(tmp_path, "apps/acme-tools", "acme-tools", (), ("acme_tools",))
+    _denied_as_on_3_14(monkeypatch, tmp_path / denied)
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.workspace_members(tmp_path)
+    assert "Permission denied" in str(caught.value)
+
+
+@pytest.mark.parametrize("failing", ["apps/acme-tools", "apps/acme-tools/pyproject.toml", "pyproject.toml"])
+def test_an_input_output_error_on_a_workspace_path_is_a_config_error_naming_it(
+    tmp_path: Path, monkeypatch, failing: str
+) -> None:
+    # Only a loop is "neither a folder nor a file": a failing disk read as no manifest would drop every member
+    _workspace(tmp_path, '["apps/*"]')
+    _member(tmp_path, "apps/acme-tools", "acme-tools", (), ("acme_tools",))
+    _denied_as_on_3_14(monkeypatch, tmp_path / failing, OSError(errno.EIO, "Input/output error", failing))
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.workspace_members(tmp_path)
+    assert caught.value.field == failing and "Input/output error" in str(caught.value)
+
+
+def test_an_input_output_error_on_a_src_entry_is_a_config_error_naming_it(tmp_path: Path, monkeypatch) -> None:
+    src = tmp_path / "src"
+    (src / "acme_broken").mkdir(parents=True)
+    _denied_as_on_3_14(monkeypatch, src / "acme_broken", OSError(errno.EIO, "Input/output error", "acme_broken"))
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.src_packages(src)
+    assert caught.value.field == "acme_broken"
+
+
+def _scandir_fails_at(monkeypatch: pytest.MonkeyPatch, target: Path, error: OSError) -> None:
+    """``os.scandir`` raises ``error`` for ``target`` and lists every other folder: a failing disk, or a folder the
+    process may not list, met while walking a package (HogShade's review of 0.11.2)."""
+    real = os.scandir
+
+    def scandir(path: object = ".") -> object:
+        if Path(os.fspath(path)) == target:
+            raise error
+        return real(path)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+
+
+@pytest.mark.parametrize(
+    ("failing", "code", "text"),
+    [
+        ("acme_pkg/deep", errno.EIO, "Input/output error"),
+        ("acme_pkg/deep", errno.EACCES, "Permission denied"),
+        ("acme_pkg", errno.EIO, "Input/output error"),
+    ],
+)
+def test_a_folder_in_a_src_package_that_cannot_be_listed_is_a_config_error_naming_it(
+    tmp_path: Path, monkeypatch, failing: str, code: int, text: str
+) -> None:
+    # The package's only Python is under the folder that fails, so a walk that passed over it would drop the package
+    src = tmp_path / "src"
+    (src / "acme_pkg" / "deep").mkdir(parents=True)
+    (src / "acme_pkg" / "deep" / "x.py").write_text("", encoding="utf-8")
+    (src / "acme_seen.py").write_text("", encoding="utf-8")
+    _scandir_fails_at(monkeypatch, src / failing, OSError(code, text, str(src / failing)))
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.src_packages(src)
+    assert caught.value.field == failing and text in str(caught.value)
+
+
+class _Listing:
+    """What ``os.scandir`` returns, with ``target``'s entry answering ``is_dir()`` by raising ``error``."""
+
+    def __init__(self, real: object, target: Path, error: OSError) -> None:
+        self._real, self._target, self._error = real, target, error
+
+    def __enter__(self) -> _Listing:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._real.close()
+
+    def __iter__(self) -> _Listing:
+        return self
+
+    def __next__(self) -> _Entry:  # os.walk calls next() on the listing itself
+        entry = next(self._real)
+        return _Entry(entry, self._error if Path(entry.path) == self._target else None)
+
+
+class _Entry:
+    def __init__(self, real: os.DirEntry, error: OSError | None) -> None:
+        self._real, self._error = real, error
+        self.name, self.path = real.name, real.path
+
+    def is_dir(self, *, follow_symlinks: bool = True) -> bool:
+        if self._error is not None:
+            raise self._error
+        return self._real.is_dir(follow_symlinks=follow_symlinks)
+
+    def is_file(self, *, follow_symlinks: bool = True) -> bool:
+        if self._error is not None:
+            raise self._error
+        return self._real.is_file(follow_symlinks=follow_symlinks)
+
+    def is_symlink(self) -> bool:
+        return self._real.is_symlink()
+
+
+def test_a_folder_in_a_src_package_whose_kind_cannot_be_read_is_a_config_error_naming_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # os.walk reads an entry whose is_dir() raises as a file, without calling onerror (Copilot's review of #269)
+    src = tmp_path / "src"
+    (src / "acme_pkg" / "deep").mkdir(parents=True)
+    (src / "acme_pkg" / "deep" / "x.py").write_text("", encoding="utf-8")
+    target = src / "acme_pkg" / "deep"
+    error = OSError(errno.EIO, "Input/output error", str(target))
+    real = os.scandir
+    monkeypatch.setattr(os, "scandir", lambda path=".": _Listing(real(path), target, error))
+    with pytest.raises(fc.ConfigError) as caught:
+        fc.src_packages(src)
+    assert caught.value.field == "acme_pkg/deep" and "Input/output error" in str(caught.value)
+
+
+def test_a_package_whose_python_is_only_deep_down_is_still_a_package(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    (src / "acme_ns" / "a" / "b").mkdir(parents=True)
+    (src / "acme_ns" / "a" / "b" / "m.py").write_text("", encoding="utf-8")
+    (src / "acme_data" / "x").mkdir(parents=True)
+    (src / "acme_data" / "x" / "notes.txt").write_text("", encoding="utf-8")
+    assert fc.src_packages(src) == ["acme_ns"]
+
+
+def test_a_workspace_member_that_loops_is_neither_a_member_nor_an_error(tmp_path: Path, monkeypatch) -> None:
+    # A loop stays "other", as is_dir() read it on 3.11 to 3.13: the boundary check's own walk reports it
+    _workspace(tmp_path, '["apps/*"]')
+    _member(tmp_path, "apps/acme-tools", "acme-tools", (), ("acme_tools",))
+    _member(tmp_path, "apps/acme-loop", "acme-loop", (), ("acme_loop",))
+    loop = OSError(errno.ELOOP, "Too many levels of symbolic links", "apps/acme-loop")
+    _denied_as_on_3_14(monkeypatch, tmp_path / "apps/acme-loop", loop)
+    assert [m.name for m in fc.workspace_members(tmp_path)] == ["acme-tools"]
 
 
 def test_an_unreadable_root_manifest_is_a_config_error_naming_it(tmp_path: Path) -> None:
