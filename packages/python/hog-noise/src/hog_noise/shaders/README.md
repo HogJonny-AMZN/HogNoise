@@ -108,11 +108,17 @@ validates in its own language's tools. All three also run, each in a host writte
 | File | Host | Adapters, on every push |
 | --- | --- | --- |
 | `noise.spv` | wgpu's SPIR-V front end: naga reads the file back, so no driver consumes it | WARP (D3D12), llvmpipe (Vulkan, and OpenGL beside the GLSL), Apple's paravirtual GPU (Metal) |
+| `noise.spv` | a Vulkan driver, given the bytes: `vkCreateShaderModule`, one compute pipeline per entry point, in a C++ harness | Mesa lavapipe, Vulkan's CPU device |
 | `noise.<entry_point>.comp` | moderngl, OpenGL 4.3 | Mesa llvmpipe through EGL |
 | `noise.hlsl` | FXC `cs_5_0` on D3D11, and DXC `cs_6_0` on D3D12, in a C++ harness | WARP |
 
 On D3D12, Vulkan and OpenGL, `noise.spv` through naga gives the wgpu rung's output bit for bit. On Metal it does not:
 `sample_points_3d` differs by up to 3.58e-7 (2026-11-23), within the tolerance.
 
-Not yet run: `noise.spv` read by a Vulkan driver (lavapipe), its own pull request. Nor is any of them proven on a
-hardware GPU: the HLSL harness opens WARP alone, and the hosts' claims rest on CI's software adapters.
+**A Vulkan host** binds as the table says: bindings 0 and 6 as uniform buffers, 1 to 5 as storage buffers, `OUT`'s
+range exactly the output (the shader bounds every invocation by `arrayLength` on it). `noise.spv` is SPIR-V 1.0 and
+uses `SPV_KHR_storage_buffer_storage_class`, core in Vulkan 1.1. Between the dispatch and reading binding 5 on the
+host, a pipeline barrier from the shader's writes to the host's read makes them visible.
+
+Not proven on a hardware GPU: the HLSL harness opens WARP alone, the Vulkan harness a CPU device alone, and the hosts'
+claims rest on CI's software adapters.
