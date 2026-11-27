@@ -227,6 +227,10 @@ task's files taken from its trial commit and its command run again:
 | 5, step 2 | CI, `spirv-vulkan` | 47 s; 79 passed, 47 skipped; `vulkaninfo`: `llvmpipe (LLVM 21.1.8, 256 bits)`, `PHYSICAL_DEVICE_TYPE_CPU`, `apiVersion` 1.4.335, Mesa 26.0.8-1ubuntu0.3; `test_every_hog_case_passes_within_the_wgpu_tolerance[spirv-vulkan]` passed, and the eleven `test_frames` cases |
 | 5, step 3 | CI, scratch `00e1096` | told `not-lavapipe`, the job failed: 73 passed, 46 skipped, 7 errors, every `spirv-vulkan` case `HostTargetError: spirv-vulkan runs on 'llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan 1.4.335)'`; reverted, the file restored from a copy |
 | 6 | Windows | `timeout 900 make check`: 9 of 9, 3,377 passed, 136 skipped, in 102 s; no hang |
+| 8 | Windows, WARP | the review's fixes: `validate` refuses workgroups that are not the README's *Dispatch*, which it had passed with output partly zeros (the review's probe, on main's harness too); seven new `test_frames` cases and two `test_harness` cases; 93 passed, 47 skipped. A mutant taking the workgroup check out failed the three workgroup cases |
+
+The review's Vulkan fixes (a failed instance or device lookup is an error, not absence; `make` releases a partial
+buffer) are built and run by CI's `spirv-vulkan` job alone: neither path has a test, since lavapipe does not fail them.
 
 Task 7's row says Built in this pull request, not Landed with a date: P-31 has a record written before the merge name
 the pull request and leave the date to the status fix on main.
@@ -283,7 +287,7 @@ runs the gate under `timeout`, so a hang stops in 15 minutes and is reported ins
 - **Hardware Vulkan.** The harness opens a CPU device alone; the hosts' claims rest on CI's software adapters, as the
   shaders README says.
 - **A Windows Vulkan build.** `build.sh` is Linux-only, and on Windows the host skips naming Linux.
-- **CI has not run the job.** It runs first on the build's draft pull request (Task 5).
+- **CI ran the job only on the build's pull request**, [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65) (*Built*); it runs on `main` once that merges.
 - **The one hang in six gate runs** (*The trial*), cause unknown.
 
 ## Self-review against the spec

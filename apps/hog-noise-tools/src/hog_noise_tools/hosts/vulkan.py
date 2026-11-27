@@ -52,6 +52,7 @@ def open_host() -> Harness:
     :raises RuntimeError: The driver refused the module or a pipeline: a finding, never a skip.
     """
     exe = harness()
+    _LOGGER.info(f"{NAME}: harness {exe}")
     spirv = verified("spirv")
     return Harness(NAME, [str(exe), "--api", "vulkan"], [spirv] * len(shaders.ENTRY_POINTS), verified_tables())
 

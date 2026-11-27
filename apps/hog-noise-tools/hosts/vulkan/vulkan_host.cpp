@@ -77,14 +77,19 @@ struct Vulkan : Backend {
         app.apiVersion = VK_API_VERSION_1_1;  // SPV_KHR_storage_buffer_storage_class, which noise.spv uses, is core
         auto ici = info<VkInstanceCreateInfo>(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
         ici.pApplicationInfo = &app;
+        // Only the loader finding no driver is absence; any other failure is an error, so a broken driver is never
+        // read as "not here"
         VkResult made = vkCreateInstance(&ici, nullptr, &instance);
-        if (made != VK_SUCCESS)
-            throw Unavailable("vkCreateInstance failed: VkResult " + std::to_string(made) + ", no Vulkan driver");
+        if (made == VK_ERROR_INCOMPATIBLE_DRIVER)
+            throw Unavailable("vkCreateInstance: VK_ERROR_INCOMPATIBLE_DRIVER, no Vulkan driver");
+        check(made, "vkCreateInstance");
 
         uint32_t count = 0;
-        vkEnumeratePhysicalDevices(instance, &count, nullptr);
+        check(vkEnumeratePhysicalDevices(instance, &count, nullptr), "vkEnumeratePhysicalDevices");
         std::vector<VkPhysicalDevice> devices(count);
-        vkEnumeratePhysicalDevices(instance, &count, devices.data());
+        VkResult listed = vkEnumeratePhysicalDevices(instance, &count, devices.data());
+        if (listed != VK_INCOMPLETE) check(listed, "vkEnumeratePhysicalDevices");
+        devices.resize(count);
         std::string found;
         VkPhysicalDeviceProperties props{};
         for (VkPhysicalDevice d : devices) {
@@ -168,6 +173,17 @@ struct Vulkan : Backend {
         bci.usage = usage;
         bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         check(vkCreateBuffer(dev, &bci, nullptr, &b.buffer), "vkCreateBuffer");
+        try {
+            fill(b, data, n);
+        } catch (...) {
+            release(b);  // the harness reads on after a refusal, so a partial buffer is not left behind
+            throw;
+        }
+        return b;
+    }
+
+    // ``make``'s memory: allocated, bound, zeroed and given ``data``
+    void fill(Buffer& b, const void* data, size_t n) {
         VkMemoryRequirements req{};
         vkGetBufferMemoryRequirements(dev, b.buffer, &req);
         const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -177,10 +193,8 @@ struct Vulkan : Backend {
                 type = i;
                 break;
             }
-        if (type == memory.memoryTypeCount) {
-            vkDestroyBuffer(dev, b.buffer, nullptr);
+        if (type == memory.memoryTypeCount)
             throw std::runtime_error("no host-visible coherent memory for a buffer of " + std::to_string(b.size));
-        }
         auto mai = info<VkMemoryAllocateInfo>(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
         mai.allocationSize = req.size;
         mai.memoryTypeIndex = type;
@@ -191,7 +205,6 @@ struct Vulkan : Backend {
         std::memset(p, 0, b.size);
         if (n) std::memcpy(p, data, n);
         vkUnmapMemory(dev, b.memory);
-        return b;
     }
 
     void release(Buffer& b) {

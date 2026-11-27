@@ -71,7 +71,7 @@ class Harness:
         :param programs: One per entry point, in ``shaders.ENTRY_POINTS`` order.
         :raises ValueError: ``programs`` is not one per entry point; checked before any process starts.
         :raises HostUnavailable: The harness found no device here.
-        :raises RuntimeError: It refused the programs, stopped, or did not reply within `TIMEOUT`.
+        :raises RuntimeError: It could not start, refused the programs, stopped, or did not reply within `TIMEOUT`.
         """
         self.name = name
         self._expired = False
@@ -80,9 +80,13 @@ class Harness:
         # standard error goes to a file, never a pipe nobody drains: a harness that writes more than a pipe holds
         # would block there, and a crash's message is read back from it
         self._stderr = tempfile.TemporaryFile()
-        self.process = subprocess.Popen(
-            list(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._stderr
-        )
+        try:
+            self.process = subprocess.Popen(
+                list(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._stderr
+            )
+        except OSError as error:
+            self._stderr.close()
+            raise RuntimeError(f"{self.name}: the harness could not start: {error}") from error
         try:
             status, body = self._exchange(init)
         except BaseException:

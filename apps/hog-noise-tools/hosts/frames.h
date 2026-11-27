@@ -123,6 +123,14 @@ inline void validate(const Request& r, const std::vector<Shape>& shapes) {
         throw std::runtime_error("entry " + to_string(r.entry) + " is not one of the " + to_string(shapes.size()));
     const Shape& s = shapes[r.entry];
     if (r.n == 0) throw std::runtime_error("a request for 0 points");
+    // The README's *Dispatch*, exactly: fewer workgroups would leave points unwritten, more than 65,535 along x is
+    // past what one dimension allows, and either would come back looking like a result.
+    const uint32_t groups = r.n / 64 + (r.n % 64 != 0);
+    const uint32_t want_gx = groups < 65535 ? groups : 65535, want_gy = groups / 65535 + (groups % 65535 != 0);
+    if (r.gx != want_gx || r.gy != want_gy)
+        throw std::runtime_error("workgroups " + to_string(r.gx) + " x " + to_string(r.gy) + " for " +
+                                 to_string(r.n) + " points, not the README's " + to_string(want_gx) + " x " +
+                                 to_string(want_gy));
     if (r.width != s.width)
         throw std::runtime_error(std::string(s.name) + " writes " + to_string(s.width) + " floats per point, not " +
                                  to_string(r.width));

@@ -118,3 +118,69 @@ def test_the_harness_refuses_an_entry_past_the_five(opened):
     status, message = opened._exchange(request)
     assert status == 1
     assert message == b"entry 99 is not one of the 5"
+
+
+def _request(entry: int, n: int, gx: int, gy: int, params: bytes, grid: bytes = b"", axes: int = 2) -> bytes:
+    """A request frame as `Harness.run` writes one, with its workgroups and Params given, not computed."""
+    head = struct.pack("<5I", entry, n, 1, gx, gy) + _blob(params) + _blob(grid) + struct.pack("<I", axes)
+    return head + b"".join(_blob(np.zeros(n, np.float32).tobytes()) for _ in range(axes))
+
+
+_P2 = shaders.ENTRY_POINTS.index("sample_points_2d")
+
+
+@pytest.mark.parametrize(
+    ("n", "gx", "gy", "refusal"),
+    [
+        # fewer would leave points unwritten, past 65,535 along x is more than one dimension allows: each looks valid
+        (200, 1, 1, "workgroups 1 x 1 for 200 points, not the README's 4 x 1"),
+        (4, 0, 0, "workgroups 0 x 0 for 4 points, not the README's 1 x 1"),
+        (4, 70000, 1, "workgroups 70000 x 1 for 4 points, not the README's 1 x 1"),
+    ],
+    ids=["too-few", "none", "past-65535"],
+)
+def test_the_harness_refuses_workgroups_that_are_not_the_readmes(opened, n, gx, gy, refusal):
+    status, message = opened._exchange(_request(_P2, n, gx, gy, pack_params(NoiseParams())))
+    assert (status, message.decode()) == (1, refusal)
+    assert _dispatch(opened).shape == (4,)  # a refused request leaves the harness reading on
+
+
+@pytest.mark.parametrize(
+    ("request_frame", "refusal"),
+    [
+        (_request(_P2, 0, 0, 0, pack_params(NoiseParams()), axes=0), "a request for 0 points"),
+        (_request(_P2, 4, 1, 1, bytes(100)), "Params is 100 bytes, not 112"),
+        # 2**31 cells of sample_grid: 65,535 x 513 workgroups, and 8 GiB of output, refused before any buffer
+        (
+            _request(
+                shaders.ENTRY_POINTS.index("sample_grid"), 2**31, 65535, 513, pack_params(NoiseParams()), _GRID, 0
+            ),
+            "an output of 8589934592 bytes, past 4 GiB",
+        ),
+    ],
+    ids=["no-points", "short-params", "past-4-GiB"],
+)
+def test_the_harness_refuses_a_request_its_bindings_cannot_hold(opened, request_frame, refusal):
+    status, message = opened._exchange(request_frame)
+    assert (status, message.decode()) == (1, refusal)
+    assert _dispatch(opened).shape == (4,)
+
+
+@pytest.fixture(params=sorted(OPENERS))
+def fresh(request):
+    """A host of its own, for a test that ends its harness."""
+    try:
+        host = OPENERS[request.param]()
+    except HostUnavailable as e:
+        pytest.skip(f"{request.param}: {e}")
+    yield host
+    host.close()
+
+
+def test_the_harness_ends_on_a_request_with_more_than_three_axes(fresh):
+    """The stream cannot be read past a broken frame, so the harness replies and exits rather than reading on."""
+    status, message = fresh._exchange(
+        struct.pack("<5I", _P2, 4, 1, 1, 1) + _blob(bytes(112)) + _blob(b"") + struct.pack("<I", 4)
+    )
+    assert (status, message) == (1, b"4 axes, not at most 3")
+    assert fresh.process.wait(timeout=30) == 1

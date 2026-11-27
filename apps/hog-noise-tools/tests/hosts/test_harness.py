@@ -123,6 +123,18 @@ def test_a_harness_that_crashes_mid_dispatch_reports_its_exit_code_and_stderr(tm
         _dispatch(host)
 
 
+def test_a_harness_gone_before_its_init_frame_is_written_names_its_exit_code_and_stderr(tmp_path):
+    """The "is gone" path, by size, not timing: 8 MB of tables cannot fit the pipe of a process that has exited."""
+    command = _script(tmp_path, "import sys\nsys.stderr.write('bye')\nsys.exit(5)\n")
+    with pytest.raises(RuntimeError, match=r"stand-in: the harness is gone \(exit 5\) bye"):
+        harness.Harness("stand-in", command, _PROGRAMS, bytes(8 << 20))
+
+
+def test_a_harness_that_cannot_start_is_an_error_naming_why(tmp_path):
+    with pytest.raises(RuntimeError, match="stand-in: the harness could not start"):
+        harness.Harness("stand-in", [str(tmp_path / "no-such-harness")], _PROGRAMS, b"")
+
+
 def test_a_truncated_reply_is_an_error_naming_how_the_harness_ended(tmp_path):
     host = _stand_in(tmp_path, "request()\nsys.stdout.buffer.write(struct.pack('<II', 0, 16) + b'abcd')\n")
     with pytest.raises(RuntimeError, match=r"the harness stopped \(exit 0\)"):
