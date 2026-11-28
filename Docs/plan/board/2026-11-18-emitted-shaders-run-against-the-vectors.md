@@ -23,7 +23,7 @@ a row, so a row waiting on one of them waits on exactly that one (the plan's dec
 - **(b)** [the HLSL on WARP](2026-11-23-the-emitted-hlsl-runs-on-warp.md): D3D11 and D3D12, a small C++ harness. It
   meets the PyPI condition.
 - **(c)** [the SPIR-V on lavapipe](2026-11-23-the-emitted-spirv-runs-on-lavapipe.md): a Vulkan driver consumes the
-  shipped bytes. Built in [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65), the last of the three.
+  shipped bytes. Landed 2026-11-28 in [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65), the last of the three.
 
 A failure here is a finding about naga's translation or the manifest, before any engine sees the files, so it goes before
 [the engine trials](2026-11-18-engine-host-trials.md).
