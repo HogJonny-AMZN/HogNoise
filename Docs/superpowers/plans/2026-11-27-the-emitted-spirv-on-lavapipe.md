@@ -1,6 +1,8 @@
 # The CI proof, third pull request: the emitted SPIR-V in a Vulkan driver, on lavapipe
 
-**Status:** Proposed 2026-11-27, on the owner's "Do it" for (c)'s plan. Written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md),
+**Status:** Accepted 2026-11-27, by the merge of [PR #64](https://github.com/HogJonny-AMZN/HogNoise/pull/64)
+(`2792a39`, 23:30 UTC), with L1 to L7 as recommended; built in [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65).
+Proposed 2026-11-27, on the owner's "Do it" for (c)'s plan. Written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md),
 Accepted 2026-11-22, after its second pull request ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59),
 merged as `3a83792`) built the C++ harness this one shares. Trial-run before it was proposed: its code is the branch
 [`trial/spirv-on-lavapipe`](https://github.com/HogJonny-AMZN/HogNoise/tree/trial/spirv-on-lavapipe), one commit per
@@ -96,10 +98,10 @@ command, then a commit. The code is read and reviewed there, where it ran (decis
 
 **Commit:** `9afee74`. **Files:** `apps/hog-noise-tools/hosts/frames.h`, `apps/hog-noise-tools/hosts/hlsl/hlsl_host.cpp`.
 
-- [ ] **Step 1:** take the two files from `9afee74`. In the trial, a script cut `frames.h` out of `hlsl_host.cpp` and
+- [x] **Step 1:** take the two files from `9afee74`. In the trial, a script cut `frames.h` out of `hlsl_host.cpp` and
   the result was checked: every line `frames.h` holds was removed from `hlsl_host.cpp`, and the D3D code is unchanged.
   The factory is `open_backend`, because a function named `open` was ambiguous with the CRT's (MSVC C2672).
-- [ ] **Step 2:** rebuild and run the HLSL hosts on WARP:
+- [x] **Step 2:** rebuild and run the HLSL hosts on WARP:
 
 ```bash
 cmd //c "apps\hog-noise-tools\hosts\hlsl\build.bat"
@@ -115,37 +117,37 @@ Expected: the build passes at `/W4 /WX`, then 77 passed, 17 skipped (the `spirv-
 **Commit:** `06b5cd8`. **Files:** `hosts/harness.py` (new), `hosts/hlsl.py`, `tests/hosts/test_harness.py` (new),
 `tests/hosts/test_hlsl.py`.
 
-- [ ] **Step 1:** take the four files from `06b5cd8`. `Harness`, `built` and `blob` move from `hosts.hlsl` to
+- [x] **Step 1:** take the four files from `06b5cd8`. `Harness`, `built` and `blob` move from `hosts.hlsl` to
   `hosts.harness`; `Hlsl` keeps its signature, `(api, programs, tables, command=None)`, and `harness()` checks the
   `.exe` against `hlsl_host.cpp` and `frames.h`. The stand-in tests move to `test_harness.py`. **The frame refusals stay
   in `test_hlsl.py`** until Task 3 moves them, so no commit drops a test.
-- [ ] **Step 2:** Task 1's command, after a rebuild. Expected: 82 passed, 17 skipped.
+- [x] **Step 2:** Task 1's command, after a rebuild. Expected: 82 passed, 17 skipped.
 
 ### Task 3: the Vulkan host's tests, before its code
 
 **Commit:** `054b9f5`. **Files:** `tests/hosts/test_frames.py` (new), `tests/hosts/test_vulkan.py` (new),
 `tests/hosts/test_hlsl.py`.
 
-- [ ] **Step 1:** take the three files from `054b9f5`. `test_frames.py` runs the eleven frame refusals on each built
+- [x] **Step 1:** take the three files from `054b9f5`. `test_frames.py` runs the eleven frame refusals on each built
   harness, parametrised `hlsl` (`--api d3d12`) and `vulkan`; `test_hlsl.py` loses them. `test_vulkan.py` covers:
   off Linux, never built, and older than its source or `frames.h` (each unavailable, naming `build.sh`); bytes that are
   not whole SPIR-V words, and a module whose `sample_grid` entry is renamed `sample_gri_` (each an error, never a skip);
   an unknown `--api`; no Vulkan driver (`VK_DRIVER_FILES` and `VK_ICD_FILENAMES` at a missing file: unavailable,
   naming what was found); and the harness ending when its input closes.
-- [ ] **Step 2:** Task 1's command. Expected: 2 errors during collection, `cannot import name 'vulkan'`.
+- [x] **Step 2:** Task 1's command. Expected: 2 errors during collection, `cannot import name 'vulkan'`.
 
 ### Task 4: the harness and the host
 
 **Commit:** `e19526a`. **Files:** `hosts/vulkan/vulkan_host.cpp`, `hosts/vulkan/build.sh`, `hosts/vulkan.py`,
 `hosts/__init__.py`, `.gitignore`.
 
-- [ ] **Step 1:** take the five files from `e19526a`. What the harness does, by line of `vulkan_host.cpp`: an instance
+- [x] **Step 1:** take the five files from `e19526a`. What the harness does, by line of `vulkan_host.cpp`: an instance
   at Vulkan 1.1 (77); the first `VK_PHYSICAL_DEVICE_TYPE_CPU` device, else unavailable, naming every device found (94);
   the target line, the device's name and its Vulkan version (104); host-visible, coherent buffers; `OUT`'s range
   exactly `n * width * 4` bytes (230, 256); a barrier from the shader's writes to the host's read (299-300) before the
   read back. Every create-info is zeroed by one helper, `info<T>(sType)`, which g++'s
   `-Wmissing-field-initializers` required.
-- [ ] **Step 2:** on Linux, build and run with the host required on llvmpipe:
+- [x] **Step 2:** on Linux, build and run with the host required on llvmpipe:
 
 ```bash
 sh apps/hog-noise-tools/hosts/vulkan/build.sh
@@ -157,9 +159,9 @@ Expected: 79 passed, 47 skipped. Every hog case on `spirv-vulkan` within `wgpu.j
 failing as they must, the power-of-two grid equal to its points, the dispatch past 65,535 workgroups reaching its last
 points, the wrong-target control refusing, and the eleven `test_frames[vulkan]` cases.
 
-- [ ] **Step 3:** on Windows, Task 1's command after a rebuild. Expected: 86 passed, 40 skipped; the Vulkan tests
+- [x] **Step 3:** on Windows, Task 1's command after a rebuild. Expected: 86 passed, 40 skipped; the Vulkan tests
   skip, naming Linux.
-- [ ] **Step 4: the mutants.** Each, in `vulkan_host.cpp`, rebuilt and run with Step 2's command, then restored from a
+- [x] **Step 4: the mutants.** Each, in `vulkan_host.cpp`, rebuilt and run with Step 2's command, then restored from a
   copy (never `git checkout --`) and rebuilt. Expected: x and y workgroups swapped, 3 failed; one entry name for every
   pipeline, 3 failed; `OUT`'s range one point short, 2 failed; `frames.h` dropped from `vulkan.harness`'s sources (in
   `vulkan.py`), 1 failed.
@@ -168,12 +170,12 @@ points, the wrong-target control refusing, and the eleven `test_frames[vulkan]` 
 
 **Commit:** `4acd583`. **File:** `.github/workflows/hosts.yml`.
 
-- [ ] **Step 1:** take it from `4acd583`: a `spirv-vulkan` job on `ubuntu-latest` installs Python 3.13,
+- [x] **Step 1:** take it from `4acd583`: a `spirv-vulkan` job on `ubuntu-latest` installs Python 3.13,
   `mesa-vulkan-drivers libvulkan-dev vulkan-tools g++`, prints `vulkaninfo --summary`, builds the harness and runs the
   hosts tests with `HOG_NOISE_REQUIRE_HOST=spirv-vulkan`, `HOG_NOISE_HOST_TARGET=llvmpipe`, `-rA -n 0`.
-- [ ] **Step 2:** open the pull request as a draft and read the job: `spirv-vulkan` passes by name on every hog case,
+- [x] **Step 2:** open the pull request as a draft and read the job: `spirv-vulkan` passes by name on every hog case,
   and `vulkaninfo` names the CPU device. Not run in the trial: `hosts.yml` runs on pull requests and on `main` only.
-- [ ] **Step 3: the target control in CI**, as (b)'s Task 5 step 4: a scratch commit sets
+- [x] **Step 3: the target control in CI**, as (b)'s Task 5 step 4: a scratch commit sets
   `HOG_NOISE_HOST_TARGET: not-lavapipe`; the job must fail with `HostTargetError`; revert it.
 
 ### Task 6: the documents
@@ -181,10 +183,10 @@ points, the wrong-target control refusing, and the eleven `test_frames[vulkan]` 
 **Commit:** `17c730a`. **Files:** the shaders README, `README.md`, `apps/hog-noise-tools/README.md`,
 `Docs/standards/testing-project.md`, `Docs/glossary.md`.
 
-- [ ] **Step 1:** take them from `17c730a`. The shaders README's *What is proven* gains the Vulkan row and what a Vulkan
+- [x] **Step 1:** take them from `17c730a`. The shaders README's *What is proven* gains the Vulkan row and what a Vulkan
   host binds, and its "Not yet run" sentence becomes what is not proven on a hardware GPU. The glossary's *host
   harness* row names all five hosts, which is every host the spec lists.
-- [ ] **Step 2:** P-27: search `Docs/`, the READMEs and `llms.txt` for the hosts, `lavapipe` and "no driver", and fix
+- [x] **Step 2:** P-27: search `Docs/`, the READMEs and `llms.txt` for the hosts, `lavapipe` and "no driver", and fix
   any claim this makes untrue. Then the gate, bounded:
 
 ```bash
@@ -196,19 +198,42 @@ it passes.
 
 ### Task 7: the board, the handoff, the journal
 
-- [ ] **Step 1:** the row lands: Landed, the date (the merge's, in UTC, P-31), this pull request, what ran on what, and
+- [x] **Step 1:** the row lands: Landed, the date (the merge's, in UTC, P-31), this pull request, what ran on what, and
   the numbers from Task 4 and CI; section `now`.
-- [ ] **Step 2:** what waited on it: [the engine trials](../../plan/board/2026-11-18-engine-host-trials.md) name this
+- [x] **Step 2:** what waited on it: [the engine trials](../../plan/board/2026-11-18-engine-host-trials.md) name this
   row in their `Waits on`; remove it there and say in the row's prose that the SPIR-V ran on lavapipe. [The CI
   proof's own row](../../plan/board/2026-11-18-emitted-shaders-run-against-the-vectors.md) lists (c) as its third pull
   request: say there that it landed, so all three have.
-- [ ] **Step 3:** the handoff's *Last updated*, and the journal. Tick this plan's steps and fill *Built*.
+- [x] **Step 3:** the handoff's *Last updated*, and the journal. Tick this plan's steps and fill *Built*.
 
 ### Task 8: review, then out of draft
 
-- [ ] **Step 1:** the `local-review` skill on the diff; its table in the pull request's *Review*.
-- [ ] **Step 2:** fix every finding below 7 or say why not; re-run the gate.
+- [x] **Step 1:** the `local-review` skill on the diff; its table in the pull request's *Review*.
+- [x] **Step 2:** fix every finding below 7 or say why not; re-run the gate.
 - [ ] **Step 3:** `gh pr ready`, read CI, assess the automated review. The owner merges.
+
+## Built
+
+In [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65), on the owner's machine (as *The trial*) and in CI, each
+task's files taken from its trial commit and its command run again:
+
+| Task | Where | Result |
+| --- | --- | --- |
+| 1 | Windows, WARP | built at `/W4 /WX`; 77 passed, 17 skipped |
+| 2 | Windows, WARP | 82 passed, 17 skipped; collected ids 94 to 99, none lost (`test_a_harness_older_than_its_source_is_unavailable` split into its source and `frames.h` cases) |
+| 3 | Windows | 2 collection errors, `cannot import name 'vulkan'` |
+| 4, step 3 | Windows, WARP | 86 passed, 40 skipped |
+| 4, steps 2 and 4 | the trial's container | not repeated: after the commit, `apps/` and `.gitignore` are the same git trees as `e19526a`'s (`282d148`, `40ddb6e`), so the trial's run and mutants are of this code |
+| 5, step 2 | CI, `spirv-vulkan` | 47 s; 79 passed, 47 skipped; `vulkaninfo`: `llvmpipe (LLVM 21.1.8, 256 bits)`, `PHYSICAL_DEVICE_TYPE_CPU`, `apiVersion` 1.4.335, Mesa 26.0.8-1ubuntu0.3; `test_every_hog_case_passes_within_the_wgpu_tolerance[spirv-vulkan]` passed, and the eleven `test_frames` cases |
+| 5, step 3 | CI, scratch `00e1096` | told `not-lavapipe`, the job failed: 73 passed, 46 skipped, 7 errors, every `spirv-vulkan` case `HostTargetError: spirv-vulkan runs on 'llvmpipe (LLVM 21.1.8, 256 bits) (Vulkan 1.4.335)'`; reverted, the file restored from a copy |
+| 6 | Windows | `timeout 900 make check`: 9 of 9, 3,377 passed, 136 skipped, in 102 s; no hang |
+| 8 | Windows, WARP | the review's fixes: `validate` refuses workgroups that are not the README's *Dispatch*, which it had passed with output partly zeros (the review's probe, on main's harness too); seven new `test_frames` cases and two `test_harness` cases; 93 passed, 47 skipped. A mutant taking the workgroup check out failed the three workgroup cases |
+
+The review's Vulkan fixes (a failed instance or device lookup is an error, not absence; `make` releases a partial
+buffer) are built and run by CI's `spirv-vulkan` job alone: neither path has a test, since lavapipe does not fail them.
+
+Task 7's row says Built in this pull request, not Landed with a date: P-31 has a record written before the merge name
+the pull request and leave the date to the status fix on main.
 
 ## The trial
 
@@ -262,7 +287,7 @@ runs the gate under `timeout`, so a hang stops in 15 minutes and is reported ins
 - **Hardware Vulkan.** The harness opens a CPU device alone; the hosts' claims rest on CI's software adapters, as the
   shaders README says.
 - **A Windows Vulkan build.** `build.sh` is Linux-only, and on Windows the host skips naming Linux.
-- **CI has not run the job.** It runs first on the build's draft pull request (Task 5).
+- **CI ran the job only on the build's pull request**, [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65) (*Built*); it runs on `main` once that merges.
 - **The one hang in six gate runs** (*The trial*), cause unknown.
 
 ## Self-review against the spec
