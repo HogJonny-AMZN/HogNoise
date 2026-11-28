@@ -1,7 +1,7 @@
 # The CI proof, third pull request: the emitted SPIR-V in a Vulkan driver, on lavapipe
 
 **Status:** Accepted 2026-11-27, by the merge of [PR #64](https://github.com/HogJonny-AMZN/HogNoise/pull/64)
-(`2792a39`, 23:30 UTC), with L1 to L7 as recommended; built in [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65).
+(`2792a39`, 23:30 UTC), with L1 to L7 as recommended; landed 2026-11-28 in [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65) (`bf18d0a`).
 Proposed 2026-11-27, on the owner's "Do it" for (c)'s plan. Written from [the spec](../specs/2026-11-22-emitted-shaders-ci-proof.md),
 Accepted 2026-11-22, after its second pull request ([PR #59](https://github.com/HogJonny-AMZN/HogNoise/pull/59),
 merged as `3a83792`) built the C++ harness this one shares. Trial-run before it was proposed: its code is the branch
@@ -210,7 +210,7 @@ it passes.
 
 - [x] **Step 1:** the `local-review` skill on the diff; its table in the pull request's *Review*.
 - [x] **Step 2:** fix every finding below 7 or say why not; re-run the gate.
-- [ ] **Step 3:** `gh pr ready`, read CI, assess the automated review. The owner merges.
+- [x] **Step 3:** `gh pr ready`, read CI, assess the automated review. The owner merges.
 
 ## Built
 
@@ -287,7 +287,6 @@ runs the gate under `timeout`, so a hang stops in 15 minutes and is reported ins
 - **Hardware Vulkan.** The harness opens a CPU device alone; the hosts' claims rest on CI's software adapters, as the
   shaders README says.
 - **A Windows Vulkan build.** `build.sh` is Linux-only, and on Windows the host skips naming Linux.
-- **CI ran the job only on the build's pull request**, [PR #65](https://github.com/HogJonny-AMZN/HogNoise/pull/65) (*Built*); it runs on `main` once that merges.
 - **The one hang in six gate runs** (*The trial*), cause unknown.
 
 ## Self-review against the spec
